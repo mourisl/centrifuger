@@ -1,0 +1,3 @@
+[submodule "compactds"]
+	path = compactds
+	url = https://mourisl@github.com/mourisl/compactds
