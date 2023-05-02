@@ -62,7 +62,10 @@ class Taxonomy
 {
 private:
   std::map<uint64_t, uint64_t> _compactTaxId ;
-  std::map<uint64_t, TaxonomyNode> _taxonomyTree;
+  uint64_t *_origTaxId ; // map from compact tax id to original tax id
+  struct TaxonomyNode *_taxonomyTree;
+  std::string *_taxonomyName ;
+  size_t nodeCnt ; 
   uint8_t _taxRankNum[RANK_MAX] ;
 
   void InitTaxRankNum()
@@ -109,7 +112,73 @@ private:
   }
 
   
-  void ReadTaxonomyTree(string taxonomy_fname) 
+  void ReadTaxonomyTree(std::string taxonomy_fname) 
+  {
+    ifstream taxonomy_file(taxonomy_fname.c_str(), ios::in);
+    _taxonomyTree = new TaxonomyNode[_nodeCnt] ;
+    if(taxonomy_file.is_open()) {
+      char line[1024];
+      while(!taxonomy_file.eof()) {
+        line[0] = 0;
+        taxonomy_file.getline(line, sizeof(line));
+        if(line[0] == 0 || line[0] == '#') continue;
+        istringstream cline(line);
+        uint64_t tid, parent_tid;
+        char dummy; std::string rank_string;
+        cline >> tid >> dummy >> parent_tid >> dummy >> rank_string;
+        uint64_t ctid = _compactTaxId[tid] ;// compact tid
+        uint64_t parent_ctid = _compactTaxId[parent_tid] ;// compact parent tid
+        if(tid != 0 && _taxonomyTree[ctid].parent == 0) {
+          cerr << "Warning: " << tid << " already has a parent!" << endl;
+          continue;
+        }
+
+        _taxonomyTree[ctid] = TaxonomyNode(parent_ctid, GetTaxRankId(rank_string.c_str()), true);
+        _taxonomyTree[parent_ctid].leaf = false ;
+      }
+      taxonomy_file.close();
+    } else {
+      cerr << "Error: " << taxonomy_fname << " doesn't exist!" << endl;
+      throw 1;
+    }
+  }
+
+  void ReadTaxonomyName(std::string fname)
+  {
+    ifstream taxname_file(fname.c_str(), ios::in);
+    _taxonomyName = new std::string[_nodeCnt] ;
+    if(taxname_file.is_open()) {
+      char line[1024];
+      while(!taxname_file.eof()) {
+        line[0] = 0;
+        taxname_file.getline(line, sizeof(line));
+        if(line[0] == 0 || line[0] == '#') continue;
+        if(!strstr(line, "scientific name")) continue;  
+        istringstream cline(line);
+        uint64_t tid;
+        char dummy; std::string scientific_name;
+        cline >> tid >> dummy >> scientific_name ;
+        uint64_t ctid = _compactTaxId[tid] ;// compact tid
+        string temp;
+        
+        while(true) {
+          cline >> temp;
+          if(temp == "|") break;
+          scientific_name.push_back('_');
+          scientific_name += temp;
+        }
+        
+        _taxonomyName[ctid] = scentific_name ;
+      }
+      taxname_file.close();
+    } else {
+      cerr << "Error: " << fname << " doesn't exist!" << endl;
+      throw 1;
+    }
+  }
+
+  // Should be called first
+  void CompactTaxonomyId(std::string fname)
   {
     ifstream taxonomy_file(taxonomy_fname.c_str(), ios::in);
     if(taxonomy_file.is_open()) {
@@ -119,46 +188,58 @@ private:
         taxonomy_file.getline(line, sizeof(line));
         if(line[0] == 0 || line[0] == '#') continue;
         istringstream cline(line);
-        uint64_t tid, parent_tid;
-        char dummy; string rank_string;
-        cline >> tid >> dummy >> parent_tid >> dummy >> rank_string;
-        if(_taxonomyTree.find(tid) != _taxonomyTree.end()) {
-          cerr << "Warning: " << tid << " already has a parent!" << endl;
-          continue;
+        uint64_t tid;
+        cline >> tid ; 
+        if (_compactTaxId.find(tid) == _compactTaxId.end())
+        {
+          _compactTaxId[tid] = _compactTaxId.size() ;
         }
-
-        _taxonomyTree[tid] = TaxonomyNode(parent_tid, GetTaxRankId(rank_string.c_str()), false);
       }
       taxonomy_file.close();
     } else {
       cerr << "Error: " << taxonomy_fname << " doesn't exist!" << endl;
       throw 1;
     }
-  }
-
-  void ReadTaxonomyName(string fname)
-  {
     
+    uint64_t taxid ;
+    _nodeCnt = _compactTaxId.size() ;
+    _origTaxId = new uint64_t[_nodeCnt] ;
+    for (std::map<uint64_t, uint64_t>::iterator it = _compactTaxId.begin() ;
+        it != _compactTaxId.end() ; ++it)
+    {
+      _origTaxid[ it->second ] = it->first ;
+    }
   }
 
 public:
-  Taxonomy() {}
-  ~Taxonomy() {}
+  Taxonomy() 
+  {
+    _origTaxId = NULL ;
+    _taxonomyTree = NULL ;
+    _taxonomyName = NULL ;
+    _nodeCnt = 0 ;
+  }
+
+  ~Taxonomy() 
+  {
+    if (_nodeCnt > 0)
+    {
+      if (_origTaxId != NULL)
+        delete[] _origTaxId ;
+      if (_taxonomyTree != NULL)
+        delete[] _taxonomyTree ;
+      if (_taxonomyName != NULL)
+        delete[] _taxonomyName ;
+      _nodeCnt = 0 ;
+    }
+  }
   
-  void Init(char *nodesFile, char *namesFile)
+  void Init(const char *nodesFile, const char *namesFile)
   {
     InitTaxRankNum() ;
-
-    const int bufferSize = 4096 ;
-    char *bufferSize = (char *)malloc(sizeof(char) * bufferSize) ;
-    
-    FILE *fp ;
-
-    fp = fopen(nodesFile, "r") ;
-    fclose(fp) ;
-    
-    fp = fopen(nodesFile, "r") ;
-    fclose(fp) ;
+    CompactTaxonomyId(std::string(nodesFile)) ;
+    ReadTaxonomyTree(std::string(nodesFile)) ;
+    ReadTaxonomyName(std::string(nameFile)) ;
   }
 
   const char *GetTaxRankString(uint8_t rank)
@@ -259,6 +340,7 @@ public:
     }
   }
 
+  // Also returns compact tax id
   uint64_t GetTaxIdAtParentRank(const TaxonomyTree& tree, uint64_t taxid, uint8_t at_rank) 
   {
     while (true) {
@@ -279,9 +361,24 @@ public:
     return 0;
   }
 
+  uint64_t GetNodeCount()
+  {
+    return _taxonomyTree.size() ;
+  }
+
+  uint64_t GetOrigTaxId(uint64_t taxid)
+  {
+    return _origTaxId[taxid] ;
+  }
+
+  const char *GetName(uint64_t ctid) // compact taxtonomy id
+  {
+    return _taxonomyName[ctid].c_str() ;
+  }
 
   void SaveBinary(FILE *fp)
   {
+    
   }
 
   void LoadBinary(FILE *fp)
