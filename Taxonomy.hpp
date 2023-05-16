@@ -123,6 +123,7 @@ private:
   void ReadTaxonomyTree(std::string taxonomy_fname) 
   {
     std::ifstream taxonomy_file(taxonomy_fname.c_str(), std::ios::in);
+    std::map<uint64_t, struct TaxonomyNode> tmpTree ;
     if(taxonomy_file.is_open()) {
       char line[1024];
       while(!taxonomy_file.eof()) {
@@ -138,7 +139,7 @@ private:
           std::cerr << "Warning: " << tid << " already has a parent!" << std::endl;
           continue;
         }
-        _taxonomyTree[ctid] = TaxonomyNode(parent_tid, GetTaxRankId(rank_string.c_str()), true);
+        tmpTree[ctid] = TaxonomyNode(parent_tid, GetTaxRankId(rank_string.c_str()), true);
       }
       taxonomy_file.close();
     } else {
@@ -146,11 +147,20 @@ private:
       throw 1;
     }
 
-    // Fix the parent tid to  compact ids
+    // Flatten the taxonomy tree to the array
     _nodeCnt = _taxIdMap.GetSize() ;
+    _taxonomyTree = new struct TaxonomyNode[_nodeCnt] ;
+    for (std::map<uint64_t, struct TaxonomyNode>::iterator it = tmpTree.begin() ;
+        it != tmpTree.end() ; ++it)
+    {
+      _taxonomyTree[it->first] = it->second ;
+    }
+
+    // Convert the parent tid to compact ids
     for (size_t i = 0 ; i < _nodeCnt ; ++i)
     {
       _taxonomyTree[i].parentTid = _taxIdMap.Map(_taxonomyTree[i].parentTid) ;
+      _taxonomyTree[ _taxonomyTree[i].parentTid ].leaf = false ;
     }
   }
 
@@ -200,7 +210,7 @@ private:
         if(line[0] == 0 || line[0] == '#') continue;
         std::istringstream cline(line);
         uint64_t tid;
-        char dummy; std::string seqId;
+        std::string seqId;
         cline >> seqId >> tid ;
         _seqStrMap.Add(seqId) ;
         rawSeqStrMap[seqId] = tid ;
@@ -211,13 +221,31 @@ private:
       throw 1;
     }
     
-    // Map sequence string identifier to taxonomy id
+    // Map sequence string identifier to compact taxonomy id
     _seqIdToTaxId = new uint64_t[ _seqStrMap.GetSize() ] ;
     for (std::map<std::string, uint64_t>::iterator iter = rawSeqStrMap.begin() ;
         iter != rawSeqStrMap.end() ; ++iter)
     {
      _seqIdToTaxId[ _seqStrMap.Map(iter->first) ] = _taxIdMap.Map(iter->second) ; 
     }
+  }
+  
+  void SaveString(FILE *fp, std::string &s)
+  {
+    size_t len = s.length() ;
+    fwrite(&len, sizeof(len), 1, fp) ;
+    fwrite(s.c_str(), sizeof(char), len, fp) ;
+  }
+
+  void LoadString(FILE *fp, std::string &s)
+  {
+    size_t len ;
+    fread(&len, sizeof(len), 1, fp) ;
+    char *buffer = (char *)malloc(sizeof(char) * (len + 1)) ;
+    fread(buffer, sizeof(char), len, fp) ;
+    buffer[len] = '\0' ;
+    s = buffer ;
+    free(buffer) ;
   }
 
 public:
@@ -228,6 +256,7 @@ public:
     _seqIdToTaxId = NULL ;
     _nodeCnt = 0 ;
   }
+
   ~Taxonomy() 
   {
     if (_nodeCnt > 0)
@@ -248,6 +277,7 @@ public:
     
     ReadTaxonomyTree(std::string(nodesFile)) ;
     ReadTaxonomyName(std::string(namesFile)) ;
+    ReadSeqStrFile(std::string(seqIdFile)) ;
   }
 
   const char *GetTaxRankString(uint8_t rank)
@@ -380,13 +410,51 @@ public:
     return _taxonomyName[ctid].c_str() ;
   }
 
-  void SaveBinary(FILE *fp)
+  uint64_t SeqStrToTaxId(std::string &s)
   {
-    
+    return _seqIdToTaxId[ _seqStrMap.Map(s) ] ;
   }
 
-  void LoadBinary(FILE *fp)
+  void Save(FILE *fp)
   {
+    fwrite(this, sizeof(*this), 1, fp) ;
+    // Save the taxnomoy information
+    fwrite(_taxonomyTree, sizeof(_taxonomyTree[0]), _nodeCnt, fp) ;
+    _taxIdMap.Save(fp) ;
+    size_t i ;
+    for (i = 0 ; i < _nodeCnt ; ++i)
+      SaveString(fp, _taxonomyName[i]) ;
+    
+    // Save the seqID information
+    fwrite(_seqIdToTaxId, sizeof(_seqIdToTaxId[0]), _seqCnt, fp ) ;
+    for (i = 0 ; i < _seqCnt ; ++i)
+    {
+      std::string s = _seqStrMap.Inverse(i) ;
+      SaveString(fp, s) ;
+    }
+  }
+
+  void Load(FILE *fp)
+  {
+    fread(this, sizeof(*this), 1, fp) ;
+    // Load the taxnomoy information
+    _taxonomyTree = new struct TaxonomyNode[_nodeCnt] ;
+    fread(_taxonomyTree, sizeof(_taxonomyTree[0]), _nodeCnt, fp) ;
+    _taxIdMap.Load(fp) ;
+    size_t i ;
+    _taxonomyName = new std::string[_nodeCnt] ;
+    for (i = 0 ; i < _nodeCnt ; ++i)
+      LoadString(fp, _taxonomyName[i]) ;
+
+    // Load the seqID information
+    _seqIdToTaxId = new uint64_t[_seqCnt] ;
+    fread(_seqIdToTaxId, sizeof(_seqIdToTaxId[0]), _seqCnt, fp ) ;
+    for (i = 0 ; i < _seqCnt ; ++i)
+    {
+      std::string seqStr ;
+      LoadString(fp, seqStr) ;
+      _seqStrMap.Add(seqStr) ;
+    }
   }
 } ;
 

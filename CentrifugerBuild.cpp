@@ -6,6 +6,7 @@
 #include "ReadFiles.hpp"
 #include "compactds/Sequence_Hybrid.hpp"
 #include "compactds/FMBuilder.hpp"
+#include "Taxonomy.hpp"
 
 char nucToNum[26] = { 0, -1, 1, -1, -1, -1, 2, 
 	-1, -1, -1, -1, -1, -1, 0,
