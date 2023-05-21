@@ -9,9 +9,20 @@
 #include "Taxonomy.hpp"
 
 char usage[] = "./centrifuger-build [OPTIONS]:\n"
-  "";
+  "Required:\n"
+  "\t-r FILE: reference sequence file\n"
+  "\t--taxonomy-tree FILE: \n"
+  "\t--name-table FILE: \n"
+  "\t--conversion-table FILE: \n"
+  "Optional:\n"
+  "\t-o STRING: output prefix [centrifuger]\n"
+  "\t-t INT: number of threads [1]\n"
+  "\t--bmax INT: [1024]\n"
+  "\t--offrate INT: [5]\n"
+  ""
+  ;
 
-static const char *short_options = "f:o:t:" ;
+static const char *short_options = "r:o:t:" ;
 static struct option long_options[] = {
 			{ "bmax", required_argument, 0, ARGV_BMAX},
 			{ "dcv", required_argument, 0, ARGV_DCV},
@@ -27,7 +38,7 @@ int main(int argc, char *argv[])
 {
 	if ( argc <= 1 )
 	{
-		//fprintf( stderr, "%s", usage ) ;
+		fprintf( stderr, "%s", usage ) ;
 		return 0 ;
   }
 	int c, option_index ;
@@ -38,7 +49,7 @@ int main(int argc, char *argv[])
   char *nameTable = NULL ;
   char *conversionTable = NULL ;
   int threadCnt = 1 ;
-  ReadFiles genomeFile ;
+  ReadFiles refGenomeFile ;
 
   FMBuilder fmBuilder ;
   Taxonomy taxonomy ;
@@ -50,9 +61,9 @@ int main(int argc, char *argv[])
 		if (c == -1)
 			break ;
   
-    if (c == 'f') // genome fasta file
+    if (c == 'r') // reference genome file
     {
-      genomeFile.AddReadFile(optarg, false) ;
+      refGenomeFile.AddReadFile(optarg, false) ;
     }
     else if (c == 'o')
     {
@@ -76,7 +87,7 @@ int main(int argc, char *argv[])
     }
 		else
 		{
-			fprintf( stderr, "Unknonw parameter found\n%s", usage ) ;
+			fprintf( stderr, "Unknown parameter found\n%s", usage ) ;
 			return EXIT_FAILURE ;
 		}
   }

@@ -118,9 +118,8 @@ private:
     _taxRankNum[RANK_VARIETAS] = rank;
     _taxRankNum[RANK_UNKNOWN] = rank;
   }
-
   
-  void ReadTaxonomyTree(std::string taxonomy_fname) 
+  void ReadTaxonomyTree(std::string taxonomy_fname, std::map<uint64_t, int> &presentTax) 
   {
     std::ifstream taxonomy_file(taxonomy_fname.c_str(), std::ios::in);
     std::map<uint64_t, struct TaxonomyNode> tmpTree ;
@@ -164,7 +163,7 @@ private:
     }
   }
 
-  void ReadTaxonomyName(std::string fname)
+  void ReadTaxonomyName(std::string fname, std::map<uint64_t, int> &presentTax)
   {
     std::ifstream taxname_file(fname.c_str(), std::ios::in);
     _taxonomyName = new std::string[_nodeCnt] ;
@@ -197,16 +196,39 @@ private:
       throw 1;
     }
   }
+  
+  void ReadPresentTaxonomyLeafs(std::string fname, std::map<uint64_t, int> &presentLeafs)
+  {
+    std::ifstream seqmap_file(fname.c_str(), std::ios::in);
+    std::map<std::string, uint64_t> rawSeqStrMap ;
+    if(seqmap_file.is_open()) {
+      char line[1024];
+      while(!seqmap_file.eof()) {
+        line[0] = 0;
+        seqmap_file.getline(line, sizeof(line));
+        if(line[0] == 0 || line[0] == '#') continue;
+        std::istringstream cline(line);
+        uint64_t tid;
+        std::string seqId;
+        cline >> seqId >> tid ;
+        presentLeafs[tid] = 0;
+      }
+      seqmap_file.close();
+    } else {
+      std::cerr << "Error: " << fname << " doesn't exist!" << std::endl;
+      throw 1;
+    }
+  }
 
   void ReadSeqStrFile(std::string fname)
   {
-    std::ifstream taxname_file(fname.c_str(), std::ios::in);
+    std::ifstream seqmap_file(fname.c_str(), std::ios::in);
     std::map<std::string, uint64_t> rawSeqStrMap ;
-    if(taxname_file.is_open()) {
+    if(seqmap_file.is_open()) {
       char line[1024];
-      while(!taxname_file.eof()) {
+      while(!seqmap_file.eof()) {
         line[0] = 0;
-        taxname_file.getline(line, sizeof(line));
+        seqmap_file.getline(line, sizeof(line));
         if(line[0] == 0 || line[0] == '#') continue;
         std::istringstream cline(line);
         uint64_t tid;
@@ -215,7 +237,7 @@ private:
         _seqStrMap.Add(seqId) ;
         rawSeqStrMap[seqId] = tid ;
       }
-      taxname_file.close();
+      seqmap_file.close();
     } else {
       std::cerr << "Error: " << fname << " doesn't exist!" << std::endl;
       throw 1;
@@ -274,9 +296,10 @@ public:
   void Init(const char *nodesFile, const char *namesFile, const char *seqIdFile)
   {
     InitTaxRankNum() ;
-    
-    ReadTaxonomyTree(std::string(nodesFile)) ;
-    ReadTaxonomyName(std::string(namesFile)) ;
+    std::map<uint64_t, int> presentTax;
+    ReadPresentTaxonomyLeafs(std::string(seqIdFile), presentTax) ;
+    ReadTaxonomyTree(std::string(nodesFile), presentTax) ;
+    ReadTaxonomyName(std::string(namesFile), presentTax) ;
     ReadSeqStrFile(std::string(seqIdFile)) ;
   }
 
