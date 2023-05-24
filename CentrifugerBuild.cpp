@@ -112,9 +112,9 @@ int main(int argc, char *argv[])
   //FixedSizeElemArray genome ;
   //fmBuilder.Build(genome, genomeLength,)
   
-  FILE *fpOutput ;
+  FILE *fpOutput = NULL ;
   sprintf(outputFileName, "%s.2.cfr", outputPrefix) ;
-  fpOutput = fopen(outputFileName, "w") ;
+  fpOutput = fopen(outputFileName, "wb") ;
   taxonomy.Save(fpOutput) ;
   fclose(fpOutput) ;
   

@@ -122,7 +122,7 @@ private:
   void ReadTaxonomyTree(std::string taxonomy_fname, std::map<uint64_t, int> &presentTax) 
   {
     std::ifstream taxonomy_file(taxonomy_fname.c_str(), std::ios::in);
-    std::map<uint64_t, struct TaxonomyNode> tmpTree ;
+    std::map<uint64_t, struct TaxonomyNode> tree ;
     if(taxonomy_file.is_open()) {
       char line[1024];
       while(!taxonomy_file.eof()) {
@@ -133,12 +133,11 @@ private:
         uint64_t tid, parent_tid;
         char dummy; std::string rank_string;
         cline >> tid >> dummy >> parent_tid >> dummy >> rank_string;
-        uint64_t ctid = _taxIdMap.Add(tid) ;// compact tid
-        if(ctid + 1 < _taxIdMap.GetSize() ) {
+        if(tree.find(tid) != tree.end()) {
           std::cerr << "Warning: " << tid << " already has a parent!" << std::endl;
           continue;
         }
-        tmpTree[ctid] = TaxonomyNode(parent_tid, GetTaxRankId(rank_string.c_str()), true);
+        tree[tid] = TaxonomyNode(parent_tid, GetTaxRankId(rank_string.c_str()), true);
       }
       taxonomy_file.close();
     } else {
@@ -146,21 +145,52 @@ private:
       throw 1;
     }
 
+    // Get the parent nodes related to the present leaf tax nodes
+    std::map<uint64_t, int> selectedTax ;  
+    for (std::map<uint64_t, int>::iterator iter = presentTax.begin() ; iter != presentTax.end(); ++iter)
+    {
+      if (tree.find(iter->first) ==tree.end()) {
+        std::cerr << "Warning: " << iter->first << " is not in the taxonomy tree" << std::endl;
+        continue;
+      }
+      uint64_t p = iter->first ;
+      while (1)
+      {
+        if (selectedTax.find(p) != selectedTax.end())
+          break ;
+        selectedTax[p] = 1;
+        p = tree[p].parentTid;  
+      }
+    }
+    presentTax = selectedTax;
+
+    // Clean up the tree 
+    std::map<uint64_t, struct TaxonomyNode> cleanTree;
+    for (std::map<uint64_t, struct TaxonomyNode>::iterator iter = tree.begin(); iter != tree.end(); ++iter)
+    {
+      if (selectedTax.find(iter->first) == selectedTax.end())
+        continue ;
+      cleanTree[iter->first] = tree[iter->first] ;
+      _taxIdMap.Add(iter->first) ;
+    }
+
     // Flatten the taxonomy tree to the array
     _nodeCnt = _taxIdMap.GetSize() ;
     _taxonomyTree = new struct TaxonomyNode[_nodeCnt] ;
-    for (std::map<uint64_t, struct TaxonomyNode>::iterator it = tmpTree.begin() ;
-        it != tmpTree.end() ; ++it)
+    for (std::map<uint64_t, struct TaxonomyNode>::iterator it = cleanTree.begin() ;
+        it != cleanTree.end() ; ++it)
     {
-      _taxonomyTree[it->first] = it->second ;
+      uint64_t i = _taxIdMap.Map(it->first) ; 
+      _taxonomyTree[i] = it->second ;
     }
-
-    // Convert the parent tid to compact ids
-    for (size_t i = 0 ; i < _nodeCnt ; ++i)
+    
+    // We need to split the update parent node here because the order is random.
+    for (uint64_t i = 0 ; i < _nodeCnt ; ++i)
     {
       _taxonomyTree[i].parentTid = _taxIdMap.Map(_taxonomyTree[i].parentTid) ;
       _taxonomyTree[ _taxonomyTree[i].parentTid ].leaf = false ;
     }
+
   }
 
   void ReadTaxonomyName(std::string fname, std::map<uint64_t, int> &presentTax)
@@ -178,6 +208,8 @@ private:
         uint64_t tid;
         char dummy; std::string scientific_name;
         cline >> tid >> dummy >> scientific_name ;
+        if (presentTax.find(tid) == presentTax.end())
+          continue ;
         uint64_t ctid = _taxIdMap.Map(tid) ;// compact tid
         std::string temp;
         
@@ -250,6 +282,7 @@ private:
     {
      _seqIdToTaxId[ _seqStrMap.Map(iter->first) ] = _taxIdMap.Map(iter->second) ; 
     }
+    _seqCnt = _seqStrMap.GetSize() ;
   }
   
   void SaveString(FILE *fp, std::string &s)
@@ -277,6 +310,8 @@ public:
     _taxonomyName = NULL ;
     _seqIdToTaxId = NULL ;
     _nodeCnt = 0 ;
+    _seqCnt = 0 ;
+    InitTaxRankNum() ;
   }
 
   ~Taxonomy() 
@@ -295,7 +330,6 @@ public:
   
   void Init(const char *nodesFile, const char *namesFile, const char *seqIdFile)
   {
-    InitTaxRankNum() ;
     std::map<uint64_t, int> presentTax;
     ReadPresentTaxonomyLeafs(std::string(seqIdFile), presentTax) ;
     ReadTaxonomyTree(std::string(nodesFile), presentTax) ;
