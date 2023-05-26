@@ -6,6 +6,8 @@
 #include "ReadFiles.hpp"
 #include "compactds/Sequence_Hybrid.hpp"
 #include "compactds/FMBuilder.hpp"
+#include "compactds/FMIndex.hpp"
+#include "compactds/Alphabet.hpp"
 #include "Taxonomy.hpp"
 
 char usage[] = "./centrifuger-build [OPTIONS]:\n"
@@ -17,8 +19,9 @@ char usage[] = "./centrifuger-build [OPTIONS]:\n"
   "Optional:\n"
   "\t-o STRING: output prefix [centrifuger]\n"
   "\t-t INT: number of threads [1]\n"
-  "\t--bmax INT: [1024]\n"
+  "\t--block INT: [16777216]\n"
   "\t--offrate INT: [5]\n"
+  "\t--dcv INT: [4096]\n"
   ""
   ;
 
@@ -48,11 +51,11 @@ int main(int argc, char *argv[])
   char *taxonomyFile = NULL ; // taxonomy tree file
   char *nameTable = NULL ;
   char *conversionTable = NULL ;
-  int threadCnt = 1 ;
   ReadFiles refGenomeFile ;
 
-  FMBuilder fmBuilder ;
+  Alphabet alphabets ;
   Taxonomy taxonomy ;
+  struct _FMBuilderParam fmBuilderParam ;
 
   while (1)
   {
@@ -71,7 +74,7 @@ int main(int argc, char *argv[])
     }
     else if (c == 't')
     {
-      threadCnt = atoi(optarg) ;
+      fmBuilderParam.threadCnt = atoi(optarg) ;
     }
     else if (c == ARGV_TAXONOMY_TREE)
     {
@@ -84,6 +87,10 @@ int main(int argc, char *argv[])
     else if (c == ARGV_CONVERSION_TABLE)
     {
       conversionTable = strdup(optarg) ;
+    }
+    else if (c == ARGV_DCV)
+    {
+      fmBuilderParam.saDcv = atoi(optarg) ;
     }
 		else
 		{
@@ -109,9 +116,56 @@ int main(int argc, char *argv[])
   }
 
   taxonomy.Init(taxonomyFile, nameTable, conversionTable) ;
-  //FixedSizeElemArray genome ;
-  //fmBuilder.Build(genome, genomeLength,)
   
+  const char alphabetList[] = "ACGT" ;
+  const int alphabetSize = strlen(alphabetList) ;
+  int alphabetCodeLen = alphabets.InitFromList(alphabetList, alphabetSize) ;
+
+  FixedSizeElemArray genomes ;
+  genomes.Malloc(alphabetCodeLen, 1000000) ;
+  genomes.SetSize(0) ;
+   
+  while (refGenomeFile.Next())
+  {
+    size_t seqid = taxonomy.SeqNameToId(refGenomeFile.id) ;
+    if (seqid >= taxonomy.GetSeqCount())
+    {
+      fprintf(stderr, "WARNING: taxonomy id doesn't exist for %s!\n", refGenomeFile.id) ;
+      taxonomy.AddExtraSeqName(refGenomeFile.id) ;
+    }
+    
+    // Remove the Ns and convert lower-case sequences to upper-case
+    size_t i, k ;
+    char *s = refGenomeFile.seq ;
+    k = 0 ;
+    for (i = 0 ; s[i] ; ++i)
+    {
+      if (s[i] >= 'a' && s[i] <= 'z')
+        s[i] = s[i] - 'a' + 'A' ;
+      if (alphabets.IsIn(s[i]))
+      {
+        s[k] = s[i] ;
+        ++k ;
+      }
+    }
+    s[k] = '\0' ;
+    for (i = 0 ; i < k ; ++i)
+    {
+      genomes.PushBack( alphabets.Encode(s[i])) ;
+    }
+  }
+  
+  FixedSizeElemArray BWT ;
+  size_t firstISA ;
+  size_t *sampledSA ;
+  std::pair<size_t, size_t> *precomputedRange ;
+  FMBuilder::MallocAuxiliaryArrays(&sampledSA,  &precomputedRange, alphabetCodeLen, genomes.GetSize(), fmBuilderParam) ;
+  FMBuilder::Build(genomes, genomes.GetSize(), alphabetSize, BWT, firstISA, sampledSA, precomputedRange, fmBuilderParam) ;
+  
+  // Convert the sampled point to seqID.
+  // .1.cfr file is for the hybrid index
+
+  // .2.cfr file is for taxonomy structure
   FILE *fpOutput = NULL ;
   sprintf(outputFileName, "%s.2.cfr", outputPrefix) ;
   fpOutput = fopen(outputFileName, "wb") ;

@@ -69,11 +69,12 @@ private:
   MapID<uint64_t> _taxIdMap ;
   struct TaxonomyNode *_taxonomyTree; // Use arrays to hold the taxonomy information, more efficient to access
   std::string *_taxonomyName ;
-  MapID<std::string> _seqStrMap ; 
+  MapID<std::string> _seqStrNameMap ; 
   uint64_t *_seqIdToTaxId ;
 
   size_t _nodeCnt ;
-  size_t _seqCnt ; 
+  size_t _seqCnt ; // the sequences with taxonomy information
+  size_t _extraSeqCnt ; // the number of sequences 
   uint8_t _taxRankNum[RANK_MAX] ;
 
   void InitTaxRankNum()
@@ -232,7 +233,7 @@ private:
   void ReadPresentTaxonomyLeafs(std::string fname, std::map<uint64_t, int> &presentLeafs)
   {
     std::ifstream seqmap_file(fname.c_str(), std::ios::in);
-    std::map<std::string, uint64_t> rawSeqStrMap ;
+    std::map<std::string, uint64_t> rawSeqNameMap ;
     if(seqmap_file.is_open()) {
       char line[1024];
       while(!seqmap_file.eof()) {
@@ -252,10 +253,10 @@ private:
     }
   }
 
-  void ReadSeqStrFile(std::string fname)
+  void ReadSeqNameFile(std::string fname)
   {
     std::ifstream seqmap_file(fname.c_str(), std::ios::in);
-    std::map<std::string, uint64_t> rawSeqStrMap ;
+    std::map<std::string, uint64_t> rawSeqNameMap ;
     if(seqmap_file.is_open()) {
       char line[1024];
       while(!seqmap_file.eof()) {
@@ -264,10 +265,10 @@ private:
         if(line[0] == 0 || line[0] == '#') continue;
         std::istringstream cline(line);
         uint64_t tid;
-        std::string seqId;
-        cline >> seqId >> tid ;
-        _seqStrMap.Add(seqId) ;
-        rawSeqStrMap[seqId] = tid ;
+        std::string seqIdStr;
+        cline >> seqIdStr >> tid ;
+        _seqStrNameMap.Add(seqIdStr) ;
+        rawSeqNameMap[seqIdStr] = tid ;
       }
       seqmap_file.close();
     } else {
@@ -276,13 +277,13 @@ private:
     }
     
     // Map sequence string identifier to compact taxonomy id
-    _seqIdToTaxId = new uint64_t[ _seqStrMap.GetSize() ] ;
-    for (std::map<std::string, uint64_t>::iterator iter = rawSeqStrMap.begin() ;
-        iter != rawSeqStrMap.end() ; ++iter)
+    _seqIdToTaxId = new uint64_t[ _seqStrNameMap.GetSize() ] ;
+    for (std::map<std::string, uint64_t>::iterator iter = rawSeqNameMap.begin() ;
+        iter != rawSeqNameMap.end() ; ++iter)
     {
-     _seqIdToTaxId[ _seqStrMap.Map(iter->first) ] = _taxIdMap.Map(iter->second) ; 
+     _seqIdToTaxId[ _seqStrNameMap.Map(iter->first) ] = _taxIdMap.Map(iter->second) ; 
     }
-    _seqCnt = _seqStrMap.GetSize() ;
+    _seqCnt = _seqStrNameMap.GetSize() ;
   }
   
   void SaveString(FILE *fp, std::string &s)
@@ -311,6 +312,7 @@ public:
     _seqIdToTaxId = NULL ;
     _nodeCnt = 0 ;
     _seqCnt = 0 ;
+    _extraSeqCnt = 0 ;
     InitTaxRankNum() ;
   }
 
@@ -334,7 +336,7 @@ public:
     ReadPresentTaxonomyLeafs(std::string(seqIdFile), presentTax) ;
     ReadTaxonomyTree(std::string(nodesFile), presentTax) ;
     ReadTaxonomyName(std::string(namesFile), presentTax) ;
-    ReadSeqStrFile(std::string(seqIdFile)) ;
+    ReadSeqNameFile(std::string(seqIdFile)) ;
   }
 
   const char *GetTaxRankString(uint8_t rank)
@@ -456,6 +458,11 @@ public:
   {
     return _nodeCnt ;
   }
+
+  uint64_t GetSeqCount()
+  {
+    return _seqCnt ;
+  }
   
   uint64_t GetOrigTaxId(uint64_t taxid)
   {
@@ -467,9 +474,33 @@ public:
     return _taxonomyName[ctid].c_str() ;
   }
 
-  uint64_t SeqStrToTaxId(std::string &s)
+  uint64_t SeqNameToId(std::string &s)
   {
-    return _seqIdToTaxId[ _seqStrMap.Map(s) ] ;
+    if (!_seqStrNameMap.IsIn(s))
+      return _seqStrNameMap.GetSize() ; 
+    else
+      return _seqStrNameMap.Map(s) ;
+  }
+  
+  uint64_t SeqNameToId(const char *s)
+  {
+    std::string tmps(s) ;
+    return SeqNameToId(tmps) ;
+  }
+ 
+  // Directly add a seqId(string)
+  void AddExtraSeqName(char *s)
+  {
+    _seqStrNameMap.Add(s) ;
+    ++_extraSeqCnt ;
+  }
+
+  uint64_t SeqIdToTaxId(uint64_t seqId)
+  {
+    if (seqId < _seqCnt)
+      return _seqIdToTaxId[seqId] ;
+    else
+      return 0 ;
   }
 
   void Save(FILE *fp)
@@ -484,9 +515,9 @@ public:
     
     // Save the seqID information
     fwrite(_seqIdToTaxId, sizeof(_seqIdToTaxId[0]), _seqCnt, fp ) ;
-    for (i = 0 ; i < _seqCnt ; ++i)
+    for (i = 0 ; i < _seqCnt + _extraSeqCnt ; ++i)
     {
-      std::string s = _seqStrMap.Inverse(i) ;
+      std::string s = _seqStrNameMap.Inverse(i) ;
       SaveString(fp, s) ;
     }
   }
@@ -506,11 +537,11 @@ public:
     // Load the seqID information
     _seqIdToTaxId = new uint64_t[_seqCnt] ;
     fread(_seqIdToTaxId, sizeof(_seqIdToTaxId[0]), _seqCnt, fp ) ;
-    for (i = 0 ; i < _seqCnt ; ++i)
+    for (i = 0 ; i < _seqCnt + _extraSeqCnt ; ++i)
     {
       std::string seqStr ;
       LoadString(fp, seqStr) ;
-      _seqStrMap.Add(seqStr) ;
+      _seqStrNameMap.Add(seqStr) ;
     }
   }
 } ;

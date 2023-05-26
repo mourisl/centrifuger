@@ -34,6 +34,11 @@ public:
     return _toNumId[elem] ;
   }
 
+  bool IsIn(const T &elem)
+  {
+    return _toNumId.find(elem) != _toNumId.end() ; 
+  }
+
   // Map to original value
   T Inverse(uint64_t nid)
   {
