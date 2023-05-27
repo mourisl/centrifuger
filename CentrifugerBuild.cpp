@@ -159,20 +159,18 @@ int main(int argc, char *argv[])
   size_t firstISA ;
   size_t *sampledSA ;
   std::pair<size_t, size_t> *precomputedRange ;
-  FMBuilder::MallocAuxiliaryArrays(&sampledSA,  &precomputedRange, alphabetCodeLen, genomes.GetSize(), fmBuilderParam) ;
-  FMBuilder::Build(genomes, genomes.GetSize(), alphabetSize, BWT, firstISA, sampledSA, precomputedRange, fmBuilderParam) ;
+  //FMBuilder::MallocAuxiliaryArrays(&sampledSA,  &precomputedRange, alphabetCodeLen, genomes.GetSize(), fmBuilderParam) ;
+  //FMBuilder::Build(genomes, genomes.GetSize(), alphabetSize, BWT, firstISA, sampledSA, precomputedRange, fmBuilderParam) ;
   
   // Convert the sampled point to seqID.
   // .1.cfr file is for the hybrid index
 
   // .2.cfr file is for taxonomy structure
-  std::ofstream ofs ;
+  FILE *fpOutput = NULL ;
   sprintf(outputFileName, "%s.2.cfr", outputPrefix) ;
-  ofs.open(outputFileName, std::ofstream::out) ;
-  taxonomy.Save(ofs) ;
-  ofs.close() ;
-
-  // .3 cfr file is for other non-essential structures.
+  fpOutput = fopen(outputFileName, "wb") ;
+  taxonomy.Save(fpOutput) ;
+  fclose(fpOutput) ;
   
   free(taxonomyFile) ;
   free(nameTable) ;
