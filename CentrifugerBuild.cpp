@@ -166,11 +166,13 @@ int main(int argc, char *argv[])
   // .1.cfr file is for the hybrid index
 
   // .2.cfr file is for taxonomy structure
-  FILE *fpOutput = NULL ;
+  std::ofstream ofs ;
   sprintf(outputFileName, "%s.2.cfr", outputPrefix) ;
-  fpOutput = fopen(outputFileName, "wb") ;
-  taxonomy.Save(fpOutput) ;
-  fclose(fpOutput) ;
+  ofs.open(outputFileName, std::ofstream::out) ;
+  taxonomy.Save(ofs) ;
+  ofs.close() ;
+
+  // .3 cfr file is for other non-essential structures.
   
   free(taxonomyFile) ;
   free(nameTable) ;

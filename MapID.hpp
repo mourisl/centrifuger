@@ -2,7 +2,9 @@
 #define _MOURISL_MAPID
 
 #include <map>
+#include <vector>
 #include <stdint.h>
+#include <fstream>
 
 // This class that maps of arbitrary object to numeric ID in range of [0, n)
 template <class T>
@@ -14,6 +16,12 @@ private:
 public:
   MapID() {}
   ~MapID() {}
+  
+  void Clear()
+  {
+    _toNumId.clear() ;
+    _toOrigElem.clear() ;
+  }
 
   // @return: mapped id
   uint64_t Add(const T &elem)
@@ -50,20 +58,20 @@ public:
     return _toOrigElem.size() ;
   }
 
-  void Save(FILE *fp)
+  void Save(std::ofstream &ofs)
   {
     size_t n = GetSize() ;
-    fwrite(&n, sizeof(n), 1, fp) ;
-    fwrite(_toOrigElem.data(), sizeof(T), n, fp) ;
+    ofs << n ;
+    ofs.write((char *)_toOrigElem.data(), sizeof(T) * n) ;
   }
 
-  void Load(FILE *fp)
+  void Load(std::ifstream &ifs)
   {
     size_t n ;
-    uint64_t *list ;
-    fread(&n, sizeof(n), 1, fp) ;
-    list = new uint64_t[n] ;
-    fread(list, sizeof(uint64_t), n, fp) ;
+    T *list ;
+    ifs >> n ;
+    list = new T[n] ;
+    ifs.read((char *)list, sizeof(T) * n) ;
 
     _toOrigElem.clear() ;
     _toOrigElem.insert(_toOrigElem.end(), list, list + n) ;
