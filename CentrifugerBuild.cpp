@@ -179,7 +179,7 @@ int main(int argc, char *argv[])
   sprintf(outputFileName, "%s.3.cfr", outputPrefix) ;
   fpOutput = fopen(outputFileName, "wb") ;
   for (std::map<size_t, size_t>::iterator iter = seqLength.begin() ; 
-      iter ! = seqLength.end() ; ++iter)
+      iter != seqLength.end() ; ++iter)
   {
     size_t tmp[2] = {iter->first, iter->second} ;
     fwrite(tmp, sizeof(tmp[0]), 2, fpOutput) ;
