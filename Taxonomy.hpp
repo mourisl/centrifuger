@@ -469,6 +469,11 @@ public:
   {
     return _seqCnt ;
   }
+
+  uint64_t GetAllSeqCount()
+  {
+    return _seqCnt + _extraSeqCnt ;
+  }
   
   uint64_t GetOrigTaxId(uint64_t taxid)
   {
@@ -495,10 +500,12 @@ public:
   }
  
   // Directly add a seqId(string)
-  void AddExtraSeqName(char *s)
+  // @return: id ;
+  size_t AddExtraSeqName(char *s)
   {
-    _seqStrNameMap.Add(s) ;
+    size_t ret = _seqStrNameMap.Add(s) ;
     ++_extraSeqCnt ;
+    return ret ; 
   }
 
   uint64_t SeqIdToTaxId(uint64_t seqId)

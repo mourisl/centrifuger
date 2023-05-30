@@ -9,14 +9,14 @@ template <class T>
 class MapID
 {
 private:
-  std::map<T, uint64_t> _toNumId ; 
+  std::map<T, size_t> _toNumId ; 
   std::vector<T> _toOrigElem ;
 public:
   MapID() {}
   ~MapID() {}
 
   // @return: mapped id
-  uint64_t Add(const T &elem)
+  size_t Add(const T &elem)
   {
     if (_toNumId.find(elem) == _toNumId.end()) 
     {
@@ -29,7 +29,7 @@ public:
       return _toNumId[elem] ;
   }
 
-  uint64_t Map(const T &elem)
+  size_t Map(const T &elem)
   {
     return _toNumId[elem] ;
   }

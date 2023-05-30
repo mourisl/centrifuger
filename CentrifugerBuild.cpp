@@ -124,14 +124,15 @@ int main(int argc, char *argv[])
   FixedSizeElemArray genomes ;
   genomes.Malloc(alphabetCodeLen, 1000000) ;
   genomes.SetSize(0) ;
-   
+  std::map<size_t, size_t> seqLength ; // we use map here is for the case that a seq show up in the conversion table but not in the actual genome file.
+
   while (refGenomeFile.Next())
   {
     size_t seqid = taxonomy.SeqNameToId(refGenomeFile.id) ;
     if (seqid >= taxonomy.GetSeqCount())
     {
       fprintf(stderr, "WARNING: taxonomy id doesn't exist for %s!\n", refGenomeFile.id) ;
-      taxonomy.AddExtraSeqName(refGenomeFile.id) ;
+      seqid = taxonomy.AddExtraSeqName(refGenomeFile.id) ;
     }
     
     // Remove the Ns and convert lower-case sequences to upper-case
@@ -151,8 +152,9 @@ int main(int argc, char *argv[])
     s[k] = '\0' ;
     for (i = 0 ; i < k ; ++i)
     {
-      genomes.PushBack( alphabets.Encode(s[i])) ;
+      genomes.PushBack( alphabets.Encode(s[i])) ;   
     }
+    seqLength[seqid] = k ;
   }
   
   FixedSizeElemArray BWT ;
@@ -163,13 +165,25 @@ int main(int argc, char *argv[])
   //FMBuilder::Build(genomes, genomes.GetSize(), alphabetSize, BWT, firstISA, sampledSA, precomputedRange, fmBuilderParam) ;
   
   // Convert the sampled point to seqID.
+  
   // .1.cfr file is for the hybrid index
+  FILE *fpOutput = NULL ;
 
   // .2.cfr file is for taxonomy structure
-  FILE *fpOutput = NULL ;
   sprintf(outputFileName, "%s.2.cfr", outputPrefix) ;
   fpOutput = fopen(outputFileName, "wb") ;
   taxonomy.Save(fpOutput) ;
+  fclose(fpOutput) ;
+
+  // .3.cfr file is for sequence length
+  sprintf(outputFileName, "%s.3.cfr", outputPrefix) ;
+  fpOutput = fopen(outputFileName, "wb") ;
+  for (std::map<size_t, size_t>::iterator iter = seqLength.begin() ; 
+      iter ! = seqLength.end() ; ++iter)
+  {
+    size_t tmp[2] = {iter->first, iter->second} ;
+    fwrite(tmp, sizeof(tmp[0]), 2, fpOutput) ;
+  }
   fclose(fpOutput) ;
   
   free(taxonomyFile) ;
