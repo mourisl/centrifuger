@@ -4,7 +4,7 @@
 // Partly based on the taxonomy.h file implemented by Florian Breitwieser in Centrifuge.
 // This class handles the taxonomy-related information, including taxonomy tree and taxonomy id mappings 
 
-#include<map>
+#include <map>
 #include<utility>
 #include<string>
 #include <fstream>

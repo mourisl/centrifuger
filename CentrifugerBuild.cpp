@@ -159,25 +159,30 @@ int main(int argc, char *argv[])
   
   FixedSizeElemArray BWT ;
   size_t firstISA ;
-  size_t *sampledSA ;
-  std::pair<size_t, size_t> *precomputedRange ;
-  //FMBuilder::MallocAuxiliaryArrays(&sampledSA,  &precomputedRange, alphabetCodeLen, genomes.GetSize(), fmBuilderParam) ;
-  //FMBuilder::Build(genomes, genomes.GetSize(), alphabetSize, BWT, firstISA, sampledSA, precomputedRange, fmBuilderParam) ;
+  struct _FMIndexAuxData fmAuxData ;
+  FMBuilder::MallocAuxiliaryData(fmAuxData, alphabetCodeLen, genomes.GetSize(), fmBuilderParam) ;
+  FMBuilder::Build(genomes, genomes.GetSize(), alphabetSize, BWT, firstISA, fmAuxData, fmBuilderParam) ;
+  FMIndex<Sequence_Hybrid> fmIndex ;
+  fmIndex.Init(BWT, genomes.GetSize(), 
+      firstISA, fmAuxData, alphabetList, alphabetSize) ;
   
   // Convert the sampled point to seqID.
-  
-  // .1.cfr file is for the hybrid index
-  FILE *fpOutput = NULL ;
+  FILE *fpOutput ;
+  // .1.cfr file is for the index
+  sprintf(outputFileName, "%s.1.cfr", outputPrefix) ;
+  fpOutput = fopen(outputFileName, "w") ;
+  fmIndex.Save(fpOutput) ;
+  fclose(fpOutput) ;
 
   // .2.cfr file is for taxonomy structure
   sprintf(outputFileName, "%s.2.cfr", outputPrefix) ;
-  fpOutput = fopen(outputFileName, "wb") ;
+  fpOutput = fopen(outputFileName, "w") ;
   taxonomy.Save(fpOutput) ;
   fclose(fpOutput) ;
 
   // .3.cfr file is for sequence length
   sprintf(outputFileName, "%s.3.cfr", outputPrefix) ;
-  fpOutput = fopen(outputFileName, "wb") ;
+  fpOutput = fopen(outputFileName, "w") ;
   for (std::map<size_t, size_t>::iterator iter = seqLength.begin() ; 
       iter != seqLength.end() ; ++iter)
   {
