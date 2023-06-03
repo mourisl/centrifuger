@@ -14,7 +14,7 @@ char usage[] = "./centrifuger-build [OPTIONS]:\n"
   "Optional:\n"
   "\t-o STRING: output prefix [centrifuger]\n"
   "\t-t INT: number of threads [1]\n"
-  "\t--block INT: [16777216]\n"
+  "\t--bmax INT: [16777216]\n"
   "\t--offrate INT: [5]\n"
   "\t--dcv INT: [4096]\n"
   ""
@@ -22,7 +22,6 @@ char usage[] = "./centrifuger-build [OPTIONS]:\n"
 
 static const char *short_options = "r:o:t:" ;
 static struct option long_options[] = {
-      { "block", required_argument, 0, ARGV_SASORT_BLOCK},
       { "bmax", required_argument, 0, ARGV_BMAX},
 			{ "dcv", required_argument, 0, ARGV_DCV},
       { "offrate", required_argument, 0, ARGV_OFFRATE},
@@ -84,7 +83,7 @@ int main(int argc, char *argv[])
     {
       fmBuilderParam.saDcv = atoi(optarg) ;
     }
-    else if (c == ARGV_SASORT_BLOCK)
+    else if (c == ARGV_BMAX)
     {
       fmBuilderParam.saBlockSize = atoi(optarg) ;
     }
@@ -111,11 +110,10 @@ int main(int argc, char *argv[])
     return EXIT_FAILURE ;
   }
 
-  
   const char alphabetList[] = "ACGT" ;
 
   Builder builder ;
-  builder.Init(refGenomeFile, taxonomyFile, nameTable, conversionTable, fmBuilderParam, alphabetList) ;
+  builder.Build(refGenomeFile, taxonomyFile, nameTable, conversionTable, fmBuilderParam, alphabetList) ;
   builder.Save(outputPrefix) ;
 
   free(taxonomyFile) ;

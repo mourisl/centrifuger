@@ -16,6 +16,19 @@ private:
   Taxonomy _taxonomy ;
   std::map<size_t, size_t> _seqLength ; // we use map here is for the case that a seq show up in the conversion table but not in the actual genome file.
 
+  void TransformSampledSAToSeqId(struct _FMBuilderParam &fmBuilderParam, std::vector<size_t> genomeSeqIds,
+      std::vector<size_t> genomeLens)
+  {
+    size_t i ;
+    PartialSum lenPsum ;
+    lenPsum.Init(genomeLens.data(), genomeLens.size()) ;
+    for (i = 0 ; i < fmBuilderParam.sampleSize ; ++i)
+    {
+      fmBuilderParam.sampledSA[i] = genomeSeqIds[lenPsum.Search(fmBuilderParam.sampledSA[i])] ;   
+    }
+    fmBuilderParam.adjustedSA0 = genomeSeqIds[0] ;
+  }
+
 public: 
   Builder() {}
   ~Builder() 
@@ -24,7 +37,7 @@ public:
     _taxonomy.Free() ;
   }
 
-  void Init(ReadFiles &refGenomeFile, char *taxonomyFile, char *nameTable, char *conversionTable, struct _FMBuilderParam &fmBuilderParam, const char *alphabetList)
+  void Build(ReadFiles &refGenomeFile, char *taxonomyFile, char *nameTable, char *conversionTable, struct _FMBuilderParam &fmBuilderParam, const char *alphabetList)
   {
     Alphabet alphabets ;
     const int alphabetSize = strlen(alphabetList) ;
@@ -35,6 +48,8 @@ public:
     FixedSizeElemArray genomes ;
     genomes.Malloc(alphabetCodeLen, 1000000) ;
     genomes.SetSize(0) ;
+    std::vector<size_t> genomeSeqIds ;
+    std::vector<size_t> genomeLens ; 
     while (refGenomeFile.Next())
     {
       size_t seqid = _taxonomy.SeqNameToId(refGenomeFile.id) ;
@@ -64,12 +79,15 @@ public:
         genomes.PushBack( alphabets.Encode(s[i])) ;   
       }
       _seqLength[seqid] = k ;
+      genomeSeqIds.push_back(seqid) ;
+      genomeLens.push_back(k) ;
     }
 
     FixedSizeElemArray BWT ;
     size_t firstISA ;
     FMBuilder::Build(genomes, genomes.GetSize(), alphabetSize, BWT, firstISA, fmBuilderParam) ;
-
+    
+    TransformSampledSAToSeqId(fmBuilderParam, genomeSeqIds, genomeLens) ;
     _fmIndex.Init(BWT, genomes.GetSize(), 
         firstISA, fmBuilderParam, alphabetList, alphabetSize) ;
   }
