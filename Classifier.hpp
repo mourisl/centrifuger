@@ -14,19 +14,38 @@ struct _classifierParam
   int minHitLen ;
   _classifierParam()
   {
-    maxResult = 1 ;
+    maxResult = 5 ;
     minHitLen = 22 ;
   }
 } ;
 
+// classification result for one read
 struct _classifierResult
 {
   size_t score ;
-  int secondaryScore ;
-  int bestMatchCnt ; // the number of matches for best match
-  std::vector<size_t> seqHits ; // sequence id or taxonomy id
+  size_t secondaryScore ;
+  int hitLength ;
+  std::vector<std::string> seqStrNames ; // sequence names 
+  std::vector<uint64_t> taxIds ; // taxonomy ids
+
+  void Clear()
+  {
+    score = secondaryScore = 0 ;
+    hitLength = 0 ;
+    seqStrNames.clear() ;
+    taxIds.clear() ;
+  }
 } ;
 
+// The hit result for each sequence ID
+struct _seqHitRecord
+{
+  size_t seqId ;
+  size_t score ;
+  int hitLength ;
+} ;
+
+// Each individual hit on BWT string
 struct _BWTHit
 {
   size_t sp, ep ; //[sp, ep] range on BWT 
@@ -89,7 +108,8 @@ private:
   size_t GetHitsFromRead(char *r, size_t len, SimpleVector<struct _BWTHit> &hits) 
   {
     size_t i ;
-    size_t sp = 0, ep = 0, l = 0 ;
+    size_t sp = 0, ep = 0 ;
+    int l = 0 ;
     int remaining = len ;
     
     while (remaining >= _param.minHitLen)
@@ -150,7 +170,7 @@ private:
     int i ;
     size_t j ;
     int hitCnt = hits.Size() ;
-    std::map<size_t, size_t> seqIdScore ;
+    std::map<size_t, struct _seqHitRecord > seqIdHitRecord ; 
     for (i = 0 ; i < hitCnt ; ++i)
     {
       size_t score = CalculateHitScore(hits[i]) ;
@@ -158,41 +178,64 @@ private:
       {
         size_t backsearchL = 0 ;
         size_t seqId = _fm.BackwardToSampledSA(j, backsearchL) ;
-        if (seqIdScore.find(seqId) == seqIdScore.end())
-          seqIdScore[seqId] = score ;
+        if (seqIdHitRecord.find(seqId) == seqIdHitRecord.end())
+        {
+          seqIdHitRecord[seqId].seqId = seqId ;
+          seqIdHitRecord[seqId].score = score ;
+          seqIdHitRecord[seqId].hitLength = hits[i].l ;
+        }
         else
-          seqIdScore[seqId] += score ;
+        {
+          seqIdHitRecord[seqId].score += score ;
+          seqIdHitRecord[seqId].hitLength = hits[i].l ;
+        }
       }
     }
 
     // Select the best score
     size_t bestScore = 0 ;
     size_t secondBestScore = 0 ;
-    for (std::map<size_t, size_t>::iterator iter = seqIdScore.begin() ; 
-        iter != seqIdScore.end() ; ++iter)
+    size_t bestScoreHitLength = 0 ;
+    for (std::map<size_t, struct _seqHitRecord>::iterator iter = seqIdHitRecord.begin() ; 
+        iter != seqIdHitRecord.end() ; ++iter)
     {
-      if (iter->second > bestScore)
+      if (iter->second.score > bestScore)
       {
         secondBestScore = bestScore ;
-        bestScore = iter->second ;
+        bestScore = iter->second.score ;
+        bestScoreHitLength = iter->second.hitLength ;
       }
-      else if (iter->second > secondBestScore)
-        secondBestScore = iter->second ;
+      else if (iter->second.score > secondBestScore)
+        secondBestScore = iter->second.score ;
     }
-
+    
+    // Collect match corresponding to the best score.
     result.score = bestScore ;
     result.secondaryScore = secondBestScore ;
-
-    std::vector<size_t> bestSeqIds ;
-    for (std::map<size_t, size_t>::iterator iter = seqIdScore.begin() ; 
-        iter != seqIdScore.end() ; ++iter)
+    result.hitLength = bestScoreHitLength ;
+  
+    SimpleVector<size_t> bestSeqIds ;
+    for (std::map<size_t, struct _seqHitRecord>::iterator iter = seqIdHitRecord.begin() ; 
+        iter != seqIdHitRecord.end() ; ++iter)
     {
-      if (iter->second == bestScore)
-        bestSeqIds.push_back(iter->first) ;
+      if (iter->second.score == bestScore)
+        bestSeqIds.PushBack(iter->first) ;
     }
-    result.bestMatchCnt = bestSeqIds.size() ;
-    //TODO: LCA if above user-specificed 
-    result.seqHits = bestSeqIds ;
+    
+    if (bestSeqIds.Size() <= _param.maxResult)
+    {
+      int size = bestSeqIds.Size() ;
+      for (i = 0 ; i < size ; ++i)
+      {
+        result.seqStrNames.push_back( _taxonomy.SeqIdToName(bestSeqIds[i]) ) ;
+        result.taxIds.push_back( _taxonomy.GetOrigTaxId(_taxonomy.SeqIdToTaxId( bestSeqIds[i] )) ) ;
+      }
+    }
+    else
+    {
+      //TODO: LCA if above user-specificed 
+    }
+    return result.taxIds.size() ;
   }
   
 
@@ -254,7 +297,8 @@ public:
   void Query(char *r1, char *r2, struct _classifierResult &result)
   {
     size_t i ;
-    
+    result.Clear() ;
+
     SimpleVector<struct _BWTHit> hits ;
     int hitCnt = SearchForwardAndReverse(r1, r2, hits) ;
     GetClassificationFromHits(hits, result) ;

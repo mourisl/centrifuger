@@ -460,24 +460,27 @@ public:
     return 0;
   }
 
-  uint64_t GetNodeCount()
+  size_t GetNodeCount()
   {
     return _nodeCnt ;
   }
 
-  uint64_t GetSeqCount()
+  size_t GetSeqCount()
   {
     return _seqCnt ;
   }
 
-  uint64_t GetAllSeqCount()
+  size_t GetAllSeqCount()
   {
     return _seqCnt + _extraSeqCnt ;
   }
   
   uint64_t GetOrigTaxId(uint64_t taxid)
   {
-    return _taxIdMap.Inverse(taxid) ;
+    if (taxid == 0)
+      return 0 ;
+    else
+      return _taxIdMap.Inverse(taxid) ;
   }
 
   const char *GetName(uint64_t ctid) // compact taxtonomy id
@@ -485,7 +488,7 @@ public:
     return _taxonomyName[ctid].c_str() ;
   }
 
-  uint64_t SeqNameToId(std::string &s)
+  size_t SeqNameToId(std::string &s)
   {
     if (!_seqStrNameMap.IsIn(s))
       return _seqStrNameMap.GetSize() ; 
@@ -493,10 +496,15 @@ public:
       return _seqStrNameMap.Map(s) ;
   }
   
-  uint64_t SeqNameToId(const char *s)
+  size_t SeqNameToId(const char *s)
   {
     std::string tmps(s) ;
     return SeqNameToId(tmps) ;
+  }
+
+  std::string SeqIdToName(size_t seqid)
+  {
+    return _seqStrNameMap.Inverse(seqid) ;
   }
  
   // Directly add a seqId(string)
@@ -508,14 +516,14 @@ public:
     return ret ; 
   }
 
-  uint64_t SeqIdToTaxId(uint64_t seqId)
+  uint64_t SeqIdToTaxId(size_t seqId)
   {
     if (seqId < _seqCnt)
       return _seqIdToTaxId[seqId] ;
     else
       return 0 ;
   }
-
+  
   void Save(FILE *fp)
   {
     SAVE_VAR(fp, _nodeCnt) ;
