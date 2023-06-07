@@ -6,9 +6,12 @@
 #include "compactds/FMBuilder.hpp"
 #include "compactds/FMIndex.hpp"
 #include "compactds/Alphabet.hpp"
+#include "compactds/SequenceCompactor.hpp"
 #include "Taxonomy.hpp"
 
 // Holds various method regarding building index
+using namespace compactds ; 
+
 class Builder
 {
 private:
@@ -39,15 +42,14 @@ public:
 
   void Build(ReadFiles &refGenomeFile, char *taxonomyFile, char *nameTable, char *conversionTable, struct _FMBuilderParam &fmBuilderParam, const char *alphabetList)
   {
-    Alphabet alphabets ;
     const int alphabetSize = strlen(alphabetList) ;
-    int alphabetCodeLen = alphabets.InitFromList(alphabetList, alphabetSize) ;
-
+  
     _taxonomy.Init(taxonomyFile, nameTable, conversionTable)  ; 
 
     FixedSizeElemArray genomes ;
-    genomes.Malloc(alphabetCodeLen, 1000000) ;
-    genomes.SetSize(0) ;
+    SequenceCompactor seqCompactor ;
+    seqCompactor.Init(alphabetList, genomes, 1000000) ;
+    
     std::vector<size_t> genomeSeqIds ;
     std::vector<size_t> genomeLens ; 
     while (refGenomeFile.Next())
@@ -59,28 +61,11 @@ public:
         seqid = _taxonomy.AddExtraSeqName(refGenomeFile.id) ;
       }
 
-      // Remove the Ns and convert lower-case sequences to upper-case
-      size_t i, k ;
-      char *s = refGenomeFile.seq ;
-      k = 0 ;
-      for (i = 0 ; s[i] ; ++i)
-      {
-        if (s[i] >= 'a' && s[i] <= 'z')
-          s[i] = s[i] - 'a' + 'A' ;
-        if (alphabets.IsIn(s[i]))
-        {
-          s[k] = s[i] ;
-          ++k ;
-        }
-      }
-      s[k] = '\0' ;
-      for (i = 0 ; i < k ; ++i)
-      {
-        genomes.PushBack( alphabets.Encode(s[i])) ;   
-      }
-      _seqLength[seqid] = k ;
+      size_t len = seqCompactor.Compact(refGenomeFile.seq, genomes) ;
+      
+      _seqLength[seqid] = len ;
       genomeSeqIds.push_back(seqid) ;
-      genomeLens.push_back(k) ;
+      genomeLens.push_back(len) ;
     }
 
     FixedSizeElemArray BWT ;

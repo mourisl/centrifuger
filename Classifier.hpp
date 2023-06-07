@@ -8,6 +8,8 @@
 #include "compactds/Sequence_Hybrid.hpp"
 #include "SimpleVector.hpp"
 
+using namespace compactds ;
+
 struct _classifierParam 
 {
   int maxResult ; // the number of entries in the results    
