@@ -27,13 +27,14 @@ struct _classifierResult
   size_t score ;
   size_t secondaryScore ;
   int hitLength ;
+  int queryLength ;
   std::vector<std::string> seqStrNames ; // sequence names 
   std::vector<uint64_t> taxIds ; // taxonomy ids
 
   void Clear()
   {
     score = secondaryScore = 0 ;
-    hitLength = 0 ;
+    hitLength = queryLength = 0 ;
     seqStrNames.clear() ;
     taxIds.clear() ;
   }
@@ -304,6 +305,9 @@ public:
     SimpleVector<struct _BWTHit> hits ;
     int hitCnt = SearchForwardAndReverse(r1, r2, hits) ;
     GetClassificationFromHits(hits, result) ;
+    result.queryLength = strlen(r1) ;
+    if (r2)
+      result.queryLength += strlen(r1) ;
   }
 } ;
 

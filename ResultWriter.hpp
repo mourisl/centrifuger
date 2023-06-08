@@ -34,7 +34,6 @@ public:
   {
     int i ;
     int matchCnt = r.taxIds.size() ;
-    int readLen = strlen(readid) ;
     if (matchCnt > 0)
     {
       for (i = 0 ; i < matchCnt ; ++i)
@@ -42,13 +41,13 @@ public:
         fprintf(fpClassification,
             "%s\t%s\t%llu\t%llu\t%llu\t%d\t%d\t%d\n",
             readid, r.seqStrNames[i].c_str(), r.taxIds[i],
-            r.score, r.secondaryScore, r.hitLength, readLen, matchCnt) ;
+            r.score, r.secondaryScore, r.hitLength, r.queryLength, matchCnt) ;
       }
     }
     else
     {
       fprintf(fpClassification,
-          "%s\tunclassified\t0\t0\t0\t0\t%d\t1\n", readid, readLen) ;
+          "%s\tunclassified\t0\t0\t0\t0\t%d\t1\n", readid, r.queryLength) ;
     }
   }
 
