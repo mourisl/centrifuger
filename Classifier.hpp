@@ -29,7 +29,7 @@ struct _classifierResult
   int hitLength ;
   int queryLength ;
   std::vector<std::string> seqStrNames ; // sequence names 
-  std::vector<uint64_t> taxIds ; // taxonomy ids
+  std::vector<uint64_t> taxIds ; // taxonomy ids (original, not compacted)
 
   void Clear()
   {
@@ -75,7 +75,7 @@ private:
   void ReverseComplement(char *r, int len)
   {
     int i, j ;
-    for (i = 0, j = len - 1 ; i < j ; ++i)
+    for (i = 0, j = len - 1 ; i < j ; ++i, --j)
     {
       char tmp ;
       tmp = r[i] ;
@@ -110,7 +110,6 @@ private:
   //@return: the number of hits 
   size_t GetHitsFromRead(char *r, size_t len, SimpleVector<struct _BWTHit> &hits) 
   {
-    size_t i ;
     size_t sp = 0, ep = 0 ;
     int l = 0 ;
     int remaining = len ;
@@ -143,7 +142,6 @@ private:
     
     GetHitsFromRead(r1, r1len, forwardHits) ;
     GetHitsFromRead(rcR1, r1len, reverseHits) ;
-
     if (r2)
     {
       rcR2 = strdup(r2) ;
@@ -153,8 +151,8 @@ private:
       GetHitsFromRead(r2, r2len, reverseHits) ;
     }
     
-    int forwardScore = CalculateHitsScore(forwardHits) ;
-    int reverseScore = CalculateHitsScore(reverseHits) ;
+    size_t forwardScore = CalculateHitsScore(forwardHits) ;
+    size_t reverseScore = CalculateHitsScore(reverseHits) ;
     
     if (forwardScore >= reverseScore)
       hits = forwardHits ;
@@ -177,6 +175,7 @@ private:
     for (i = 0 ; i < hitCnt ; ++i)
     {
       size_t score = CalculateHitScore(hits[i]) ;
+      //TODO: need a local seqIdHitRecord incase one segment hits multiple regions of a seq
       for (j = hits[i].sp ; j <= hits[i].ep ; ++j)
       {
         size_t backsearchL = 0 ;
@@ -236,12 +235,26 @@ private:
     }
     else
     {
-      //TODO: LCA if above user-specificed 
+      int size = bestSeqIds.Size() ;
+      SimpleVector<size_t> bestSeqTaxIds ;
+      bestSeqTaxIds.Reserve(size) ;
+      for (i = 0 ; i < size ; ++i)
+        bestSeqTaxIds.PushBack( _taxonomy.SeqIdToTaxId(bestSeqIds[i]) ) ;
+
+      SimpleVector<size_t> taxIds ;
+      _taxonomy.ReduceTaxIds(bestSeqTaxIds, taxIds, _param.maxResult) ;
+      
+      size = taxIds.Size() ;
+      for (i = 0 ; i < size ; ++i)
+      {
+        std::string rankName(_taxonomy.GetTaxRankString( _taxonomy.GetTaxIdRank(taxIds[i])) ) ;
+        result.seqStrNames.push_back( rankName ) ;
+        result.taxIds.push_back( _taxonomy.GetOrigTaxId(taxIds[i]) ) ;
+      }
     }
     return result.taxIds.size() ;
   }
   
-
 public:
   Classifier() 
   {
@@ -299,15 +312,20 @@ public:
   // Main function to return the classification results 
   void Query(char *r1, char *r2, struct _classifierResult &result)
   {
-    size_t i ;
     result.Clear() ;
 
     SimpleVector<struct _BWTHit> hits ;
-    int hitCnt = SearchForwardAndReverse(r1, r2, hits) ;
+    
+    SearchForwardAndReverse(r1, r2, hits) ;
     GetClassificationFromHits(hits, result) ;
     result.queryLength = strlen(r1) ;
     if (r2)
       result.queryLength += strlen(r1) ;
+  }
+
+  const Taxonomy &GetTaxonomy()
+  {
+    return _taxonomy ;
   }
 } ;
 

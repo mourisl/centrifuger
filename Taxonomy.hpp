@@ -14,6 +14,7 @@
 #include <stdio.h> 
 
 #include "MapID.hpp"
+#include "SimpleVector.hpp"
 
 enum 
 {
@@ -444,7 +445,7 @@ public:
   }
 
   // Also returns compact tax id
-  uint64_t GetTaxIdAtParentRank(uint64_t taxid, uint8_t at_rank) 
+  size_t GetTaxIdAtParentRank(uint64_t taxid, uint8_t at_rank) 
   {
     while (true) {
       const TaxonomyNode& node = _taxonomyTree[taxid] ;
@@ -452,12 +453,12 @@ public:
       if (node.rank == at_rank) {
         return taxid;
       } else if (node.rank > at_rank || node.parentTid == taxid) {
-        return 0;
+        return _nodeCnt ;
       }
 
       taxid = node.parentTid;
     }
-    return 0;
+    return _nodeCnt;
   }
 
   size_t GetNodeCount()
@@ -475,15 +476,23 @@ public:
     return _seqCnt + _extraSeqCnt ;
   }
   
-  uint64_t GetOrigTaxId(uint64_t taxid)
+  uint64_t GetOrigTaxId(size_t taxid)
   {
-    if (taxid == 0)
+    if (taxid >= _nodeCnt)
       return 0 ;
     else
       return _taxIdMap.Inverse(taxid) ;
   }
 
-  const char *GetName(uint64_t ctid) // compact taxtonomy id
+  uint8_t GetTaxIdRank(size_t ctid)
+  {
+    if (ctid >= _nodeCnt)
+      return RANK_UNKNOWN ;
+    else
+      return _taxonomyTree[ctid].rank ;
+  }
+
+  const char *GetTaxIdName(uint64_t ctid) // compact taxtonomy id
   {
     return _taxonomyName[ctid].c_str() ;
   }
@@ -521,7 +530,62 @@ public:
     if (seqId < _seqCnt)
       return _seqIdToTaxId[seqId] ;
     else
-      return 0 ;
+      return _nodeCnt ;
+  }
+
+  // Promote the tax id to higher level until number of taxids <= k, or reach LCA 
+  void ReduceTaxIds(const SimpleVector<size_t> &taxIds, SimpleVector<size_t> &promotedTaxIds, int k)
+  {
+    int i ;
+    int taxCnt = taxIds.Size() ;
+    std::vector< SimpleVector<size_t> > taxPaths ;
+    promotedTaxIds.Clear() ;
+
+    // If there is a tax id not in the tree, we 
+    //   give it no rank directly.
+    for (i = 0 ; i < taxCnt ; ++i)
+      if (taxIds[i] >= _nodeCnt)
+      {
+        promotedTaxIds.PushBack(_nodeCnt) ;
+        return ;
+      }
+    // For each tax level, collect the found tax id on this level 
+    std::map<size_t, int> taxIdsInRank[RANK_MAX] ;
+    for (i = 0 ; i < taxCnt ; ++i)
+    {
+      size_t t = taxIds[i]; 
+      uint8_t prevRank = 0 ;
+      uint8_t ri ;// rank index
+      taxIdsInRank[prevRank][t] = 1 ;
+      do
+      {
+        uint8_t rank = _taxonomyTree[t].rank ;
+        if (rank != 0)
+        {
+          // Handle the case of missing taxonomy level in between
+          for (ri = rank - 1 ; ri > prevRank ; --ri)
+            taxIdsInRank[ri][t] = 1 ;
+
+          if (taxIdsInRank[rank].find(t) == taxIdsInRank[rank].end())
+            taxIdsInRank[rank][t] = 1 ;
+          else
+            break ; // the upper tax id has already been added, so no need to process anymore
+        }
+        t = _taxonomyTree[t].parentTid ; 
+        if (rank > prevRank)
+          prevRank = rank ;
+      } while (t != _taxonomyTree[t].parentTid) ;
+    }
+
+    // Go through the levels until the tax ids <= k
+    uint8_t ri ;
+    for (ri = 0 ; ri < RANK_MAX ; ++ri)
+      if ((int)taxIdsInRank[ri].size() <= k)
+        break ;
+    
+    for (std::map<size_t, int>::iterator iter = taxIdsInRank[ri].begin() ;
+        iter != taxIdsInRank[ri].end() ; ++iter)
+      promotedTaxIds.PushBack(iter->first) ;
   }
   
   void Save(FILE *fp)
