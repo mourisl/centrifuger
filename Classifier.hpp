@@ -53,12 +53,13 @@ struct _BWTHit
 {
   size_t sp, ep ; //[sp, ep] range on BWT 
   int l ; // hit length
-
-  _BWTHit(size_t isp, size_t iep, int il)
+  int strand ; // -1: minus strand, 0: unkonwn, 1: plus strand 
+  _BWTHit(size_t isp, size_t iep, int il, int istrand)
   {
     sp = isp ;
     ep = iep ;
     l = il ;
+    strand = istrand ;
   }
 } ;
 
@@ -119,7 +120,7 @@ private:
       l = _fm.BackwardSearch(r, remaining, sp, ep) ;
       if (l >= _param.minHitLen)
       {
-        struct _BWTHit nh(sp, ep, l) ;
+        struct _BWTHit nh(sp, ep, l, 0) ;
         hits.PushBack(nh) ;
       }
 
@@ -132,33 +133,45 @@ private:
   //@return: the size of the hits after selecting the strand 
   size_t SearchForwardAndReverse(char *r1, char *r2, SimpleVector<struct _BWTHit> &hits)
   {
+    int i, k ;
     char *rcR1 = NULL ;
     char *rcR2 = NULL ;
     int r1len = strlen(r1) ;
     rcR1 = strdup(r1) ;
     ReverseComplement(rcR1, r1len) ;
 
-    SimpleVector<struct _BWTHit> forwardHits, reverseHits ;
+    SimpleVector<struct _BWTHit> strandHits[2] ; // 0: minus strand, 1: postiive strand
     
-    GetHitsFromRead(r1, r1len, forwardHits) ;
-    GetHitsFromRead(rcR1, r1len, reverseHits) ;
+    GetHitsFromRead(r1, r1len, strandHits[1]) ;
+    GetHitsFromRead(rcR1, r1len, strandHits[0]) ;
     if (r2)
     {
       rcR2 = strdup(r2) ;
       int r2len = strlen(r2) ;
       ReverseComplement(rcR2, r2len) ;
-      GetHitsFromRead(rcR2, r2len, forwardHits) ;
-      GetHitsFromRead(r2, r2len, reverseHits) ;
+      GetHitsFromRead(rcR2, r2len, strandHits[1]) ;
+      GetHitsFromRead(r2, r2len, strandHits[0]) ;
     }
     
-    size_t forwardScore = CalculateHitsScore(forwardHits) ;
-    size_t reverseScore = CalculateHitsScore(reverseHits) ;
-    
-    if (forwardScore >= reverseScore)
-      hits = forwardHits ;
+    size_t strandScore[2] ;
+    for (k = 0 ; k < 2 ; ++k)
+    {
+      int size = strandHits[k].Size() ;
+      for (i = 0 ; i < size ; ++i)
+        strandHits[k][i].strand = 2 * k - 1 ; // the strand is with respect to the template, not read
+      strandScore[k] = CalculateHitsScore(strandHits[k]) ;
+    }
+   
+    if (strandScore[1] > strandScore[0])
+      hits = strandHits[1] ;
+    else if (strandScore[0] > strandScore[1])
+      hits = strandHits[0] ;
     else
-      hits = reverseHits ;
-
+    {
+      hits = strandHits[1] ;
+      hits.PushBack(strandHits[0]) ;
+    }
+    
     free(rcR1) ;
     if (rcR2)
       free(rcR2) ;
@@ -168,28 +181,40 @@ private:
 
   size_t GetClassificationFromHits(const SimpleVector<struct _BWTHit> &hits, struct _classifierResult &result)
   {
-    int i ;
+    int i, k ;
     size_t j ;
     int hitCnt = hits.Size() ;
-    std::map<size_t, struct _seqHitRecord > seqIdHitRecord ; 
+    std::map<size_t, struct _seqHitRecord > seqIdStrandHitRecord[2] ;
+
+    // The hit seqId need to consider the strand separately.
+    //   Because sometimes a read can hit both the plus and minus strand and will artifically double the hit length.
     for (i = 0 ; i < hitCnt ; ++i)
     {
       size_t score = CalculateHitScore(hits[i]) ;
-      //TODO: need a local seqIdHitRecord incase one segment hits multiple regions of a seq
+      std::map<size_t, int> localSeqIdHit ;
+      k = (hits[i].strand + 1) / 2 ;
+
       for (j = hits[i].sp ; j <= hits[i].ep ; ++j)
       {
         size_t backsearchL = 0 ;
         size_t seqId = _fm.BackwardToSampledSA(j, backsearchL) ;
-        if (seqIdHitRecord.find(seqId) == seqIdHitRecord.end())
+        localSeqIdHit[seqId] = 1 ;
+      }
+
+      for (std::map<size_t, int>::iterator iter = localSeqIdHit.begin() ;
+          iter != localSeqIdHit.end() ; ++iter)
+      {
+        size_t seqId = iter->first ;
+        if (seqIdStrandHitRecord[k].find(seqId) == seqIdStrandHitRecord[k].end())
         {
-          seqIdHitRecord[seqId].seqId = seqId ;
-          seqIdHitRecord[seqId].score = score ;
-          seqIdHitRecord[seqId].hitLength = hits[i].l ;
+          seqIdStrandHitRecord[k][seqId].seqId = seqId ;
+          seqIdStrandHitRecord[k][seqId].score = score ;
+          seqIdStrandHitRecord[k][seqId].hitLength = hits[i].l ;
         }
         else
         {
-          seqIdHitRecord[seqId].score += score ;
-          seqIdHitRecord[seqId].hitLength = hits[i].l ;
+          seqIdStrandHitRecord[k][seqId].score += score ;
+          seqIdStrandHitRecord[k][seqId].hitLength += hits[i].l ;
         }
       }
     }
@@ -198,32 +223,46 @@ private:
     size_t bestScore = 0 ;
     size_t secondBestScore = 0 ;
     size_t bestScoreHitLength = 0 ;
-    for (std::map<size_t, struct _seqHitRecord>::iterator iter = seqIdHitRecord.begin() ; 
-        iter != seqIdHitRecord.end() ; ++iter)
+    for (k = 0 ; k <= 1 ; ++k)
     {
-      if (iter->second.score > bestScore)
+      for (std::map<size_t, struct _seqHitRecord>::iterator iter = seqIdStrandHitRecord[k].begin() ; 
+          iter != seqIdStrandHitRecord[k].end() ; ++iter)
       {
-        secondBestScore = bestScore ;
-        bestScore = iter->second.score ;
-        bestScoreHitLength = iter->second.hitLength ;
+        if (iter->second.score > bestScore)
+        {
+          secondBestScore = bestScore ;
+          bestScore = iter->second.score ;
+          bestScoreHitLength = iter->second.hitLength ;
+        }
+        else if (iter->second.score > secondBestScore)
+          secondBestScore = iter->second.score ;
       }
-      else if (iter->second.score > secondBestScore)
-        secondBestScore = iter->second.score ;
     }
-    
+
     // Collect match corresponding to the best score.
     result.score = bestScore ;
     result.secondaryScore = secondBestScore ;
     result.hitLength = bestScoreHitLength ;
-  
+
     SimpleVector<size_t> bestSeqIds ;
-    for (std::map<size_t, struct _seqHitRecord>::iterator iter = seqIdHitRecord.begin() ; 
-        iter != seqIdHitRecord.end() ; ++iter)
+    std::map<size_t, int> bestSeqIdUsed ;
+    for (k = 0 ; k <= 1 ; ++k)
     {
-      if (iter->second.score == bestScore)
-        bestSeqIds.PushBack(iter->first) ;
+      for (std::map<size_t, struct _seqHitRecord>::iterator iter = seqIdStrandHitRecord[k].begin() ; 
+          iter != seqIdStrandHitRecord[k].end() ; ++iter)
+      {
+        if (iter->second.score == bestScore && 
+            bestSeqIdUsed.find(iter->first) == bestSeqIdUsed.end())
+        {
+          bestSeqIds.PushBack(iter->first) ;
+          bestSeqIdUsed[iter->first] = 1 ;
+        }
+      }
     }
-    
+
+    if (bestSeqIds.Size() > 1)
+      result.secondaryScore = bestScore ;
+
     if (bestSeqIds.Size() <= _param.maxResult)
     {
       int size = bestSeqIds.Size() ;
@@ -243,7 +282,7 @@ private:
 
       SimpleVector<size_t> taxIds ;
       _taxonomy.ReduceTaxIds(bestSeqTaxIds, taxIds, _param.maxResult) ;
-      
+
       size = taxIds.Size() ;
       for (i = 0 ; i < size ; ++i)
       {
