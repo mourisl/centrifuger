@@ -12,9 +12,11 @@
 #include <sstream>
 
 #include <stdio.h> 
+#include <string.h>
 
 #include "MapID.hpp"
 #include "SimpleVector.hpp"
+#include "compactds/Utils.hpp"
 
 enum 
 {
@@ -636,6 +638,32 @@ public:
       LoadString(fp, seqStr) ;
       _seqStrNameMap.Add(seqStr) ;
     }
+  }
+
+  void PrintTaxonomyTree(FILE *fp)
+  {
+    size_t i ;
+    for (i = 0 ; i < _nodeCnt ; ++i)
+      printf("%lu\t|\t%lu\t|\t%s\n", 
+          GetOrigTaxId(i), GetOrigTaxId( _taxonomyTree[i].parentTid ), 
+          GetTaxRankString(_taxonomyTree[i].rank)) ;
+  }
+
+  void PrintNameTable(FILE *fp)
+  {
+    size_t i ;
+    for (i = 0 ; i < _nodeCnt ; ++i)
+    {
+      printf("%lu\t%s\n", GetOrigTaxId(i), _taxonomyName[i].c_str()) ;
+    }
+  }
+
+  void PrintConversionTable(FILE *fp)
+  {
+    size_t i ;
+    for (i = 0 ; i < _seqCnt + _extraSeqCnt ; ++i)
+      printf("%s\t%lu\n",_seqStrNameMap.Inverse(i).c_str(),
+          GetOrigTaxId( SeqIdToTaxId(i) ) ) ;
   }
 } ;
 
