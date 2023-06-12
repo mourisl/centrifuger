@@ -2,6 +2,8 @@
 #define _MOURISL_MAPID
 
 #include <map>
+#include <vector>
+
 #include <stdint.h>
 
 // This class that maps of arbitrary object to numeric ID in range of [0, n)

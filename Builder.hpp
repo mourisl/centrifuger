@@ -19,17 +19,26 @@ private:
   Taxonomy _taxonomy ;
   std::map<size_t, size_t> _seqLength ; // we use map here is for the case that a seq show up in the conversion table but not in the actual genome file.
 
+  // SampledSA need to be processed before FMIndex.Init() because the sampledSA is represented by FixedElemLengthArray, which requires the largest element size
   void TransformSampledSAToSeqId(struct _FMBuilderParam &fmBuilderParam, std::vector<size_t> genomeSeqIds,
-      std::vector<size_t> genomeLens)
+      std::vector<size_t> genomeLens, size_t n)
   {
     size_t i ;
     PartialSum lenPsum ;
     lenPsum.Init(genomeLens.data(), genomeLens.size()) ;
     for (i = 0 ; i < fmBuilderParam.sampleSize ; ++i)
     {
-      fmBuilderParam.sampledSA[i] = genomeSeqIds[lenPsum.Search(fmBuilderParam.sampledSA[i])] ;   
+      // The precomputeWidth + 1 here to handle the fuzzy boundary
+      fmBuilderParam.sampledSA[i] = genomeSeqIds[lenPsum.Search(
+          fmBuilderParam.sampledSA[i] + fmBuilderParam.precomputeWidth + 1)] ;   
     }
     fmBuilderParam.adjustedSA0 = genomeSeqIds[0] ;
+
+    for (std::map<size_t, size_t>::iterator iter = fmBuilderParam.selectedSA.begin() ;
+        iter != fmBuilderParam.selectedSA.end() ; ++iter)
+    {
+      iter->second = genomeSeqIds[lenPsum.Search(iter->second + fmBuilderParam.precomputeWidth + 1)] ; // the selected SA stores the fuzzy start position for the next genome, so we need to plus the adjusted boundary.
+    }
   }
 
 public: 
@@ -42,6 +51,7 @@ public:
 
   void Build(ReadFiles &refGenomeFile, char *taxonomyFile, char *nameTable, char *conversionTable, struct _FMBuilderParam &fmBuilderParam, const char *alphabetList)
   {
+    size_t i ;
     const int alphabetSize = strlen(alphabetList) ;
   
     _taxonomy.Init(taxonomyFile, nameTable, conversionTable)  ; 
@@ -70,9 +80,23 @@ public:
 
     FixedSizeElemArray BWT ;
     size_t firstISA ;
-    FMBuilder::Build(genomes, genomes.GetSize(), alphabetSize, BWT, firstISA, fmBuilderParam) ;
     
-    TransformSampledSAToSeqId(fmBuilderParam, genomeSeqIds, genomeLens) ;
+    // Put in the genome boundary information for selected SA in our FM index
+    size_t genomeCnt = genomeLens.size() ;
+    if (genomeCnt == 0)
+      return ;
+
+    size_t psum = 0 ; // genome length partial sum
+    for (i = 0 ; i < genomeCnt - 1 ; ++i)
+    {
+      psum += genomeLens[i] ;
+      if (psum < (size_t)fmBuilderParam.precomputeWidth + 1ull) // default: 12bp fuzzy boundary
+        continue ;
+      fmBuilderParam.selectedISA[psum - fmBuilderParam.precomputeWidth - 1] ;
+    }
+
+    FMBuilder::Build(genomes, genomes.GetSize(), alphabetSize, BWT, firstISA, fmBuilderParam) ;
+    TransformSampledSAToSeqId(fmBuilderParam, genomeSeqIds, genomeLens, genomes.GetSize()) ;
     _fmIndex.Init(BWT, genomes.GetSize(), 
         firstISA, fmBuilderParam, alphabetList, alphabetSize) ;
   }
