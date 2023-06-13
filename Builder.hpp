@@ -29,8 +29,12 @@ private:
     for (i = 0 ; i < fmBuilderParam.sampleSize ; ++i)
     {
       // The precomputeWidth + 1 here to handle the fuzzy boundary
-      fmBuilderParam.sampledSA[i] = genomeSeqIds[lenPsum.Search(
-          fmBuilderParam.sampledSA[i] + fmBuilderParam.precomputeWidth + 1)] ;   
+      if (fmBuilderParam.sampledSA[i] + fmBuilderParam.precomputeWidth + 1 < n)
+        fmBuilderParam.sampledSA[i] = genomeSeqIds[lenPsum.Search(
+            fmBuilderParam.sampledSA[i] + fmBuilderParam.precomputeWidth + 1)] ;  
+      else
+        fmBuilderParam.sampledSA[i] = genomeSeqIds[lenPsum.Search(
+            fmBuilderParam.sampledSA[i])] ;
     }
     fmBuilderParam.adjustedSA0 = genomeSeqIds[0] ;
 
