@@ -53,12 +53,15 @@ struct _BWTHit
 {
   size_t sp, ep ; //[sp, ep] range on BWT 
   int l ; // hit length
-  int strand ; // -1: minus strand, 0: unkonwn, 1: plus strand 
-  _BWTHit(size_t isp, size_t iep, int il, int istrand)
+  int strand ; // -1: minus strand, 0: unkonwn, 1: plus strand
+  int offset ; // 0-based offset to the end of the read (because the search is in backward fashion)
+
+  _BWTHit(size_t isp, size_t iep, int il, int ioffset, int istrand)
   {
     sp = isp ;
     ep = iep ;
     l = il ;
+    offset = ioffset ;
     strand = istrand ;
   }
 } ;
@@ -118,9 +121,9 @@ private:
     while (remaining >= _param.minHitLen)
     {
       l = _fm.BackwardSearch(r, remaining, sp, ep) ;
-      if (l >= _param.minHitLen)
+      if (l >= _param.minHitLen && sp <= ep)
       {
-        struct _BWTHit nh(sp, ep, l, 0) ;
+        struct _BWTHit nh(sp, ep, l, len - remaining, 0) ;
         hits.PushBack(nh) ;
       }
 
@@ -128,6 +131,69 @@ private:
       remaining -= (l + 1) ;
     }
     return hits.Size() ;
+  }
+
+  // The hit search method has strand bias, so we shall use the other strand
+  //   information to mitigate the bias. This is important if some strain's 
+  //   sequence is reverse-complemented.
+  //  
+  // E.g.: 100bp read: 90bp-N-9bp from two strains, one forward, one rc 
+  //   Forward search probably would be ~20bp random hits + ~80 real hit
+  //   Reverse-complement search: will be 90bp real hit
+  //   As a result, we will lose the forward candidate
+  void AdjustHitBoundaryFromStrandHits(char *r, char *rc, int len, 
+      SimpleVector<struct _BWTHit> *strandHits)
+  {
+    int i, j ;
+    if (!strandHits[0].Size() || !strandHits[1].Size())
+      return ;
+    int hitSize[2] = {strandHits[0].Size(), strandHits[1].Size()} ;
+  
+    size_t sp, ep ;
+    int l ;
+    j = hitSize[0] - 1 ;
+    for (i = 0 ; i < hitSize[1] ; ++i)
+    {
+      int left, right ; // range on the read, original read
+      right = len - strandHits[1][i].offset - 1 ; 
+      left = right - strandHits[1][i].l + 1 ;
+      for ( ; j >= 0 ; --j)
+      {
+        int rcLeft, rcRight ;
+        rcLeft = strandHits[0][j].offset ;
+        rcRight = rcLeft + strandHits[0][j].l - 1 ;
+        
+        if (rcLeft >= right) // no overlap yet 
+          continue ;
+        if (left >= rcRight) // already passed
+          break ;
+        if (left == rcLeft && right == rcRight) // both hits are good
+          break ;
+        if (left < rcLeft && rcRight < right) // forward hit contains reverse hit
+          break ;
+        if (rcLeft < left && right < rcRight) // reverse hit contains forward hit
+          break ;
+        if (rcRight > right)
+        {
+          l = _fm.BackwardSearch(r, rcRight + 1, sp, ep) ;
+          if (rcRight - l + 1 == left && sp <= ep)
+          {
+            struct _BWTHit nh(sp, ep, l, len - rcRight + 1, 1) ;
+            strandHits[1][i] = nh ;
+          }
+        }
+
+        if (left < rcLeft)
+        {
+          l = _fm.BackwardSearch(rc, len - left, sp, ep) ;
+          if (left + l - 1 == rcRight && sp <= ep)
+          {
+            struct _BWTHit nh(sp, ep, l, left, -1) ;
+            strandHits[0][j] = nh ;
+          }
+        }
+      }
+    }
   }
 
   //@return: the size of the hits after selecting the strand 
@@ -140,17 +206,23 @@ private:
     rcR1 = strdup(r1) ;
     ReverseComplement(rcR1, r1len) ;
 
-    SimpleVector<struct _BWTHit> strandHits[2] ; // 0: minus strand, 1: postiive strand
+    SimpleVector<struct _BWTHit> strandHits[2] ; // 0: minus strand, 1: postive strand
     
     GetHitsFromRead(r1, r1len, strandHits[1]) ;
     GetHitsFromRead(rcR1, r1len, strandHits[0]) ;
+    AdjustHitBoundaryFromStrandHits(r1, rcR1, r1len, strandHits) ;
     if (r2)
     {
       rcR2 = strdup(r2) ;
       int r2len = strlen(r2) ;
       ReverseComplement(rcR2, r2len) ;
-      GetHitsFromRead(rcR2, r2len, strandHits[1]) ;
-      GetHitsFromRead(r2, r2len, strandHits[0]) ;
+      SimpleVector<struct _BWTHit> r2StrandHits[2] ; // 0: minus strand, 1: postive strand
+      
+      GetHitsFromRead(r2, r2len, r2StrandHits[1]) ;
+      GetHitsFromRead(rcR2, r2len, r2StrandHits[0]) ;
+      AdjustHitBoundaryFromStrandHits(r2, rcR2, r2len, r2StrandHits) ;
+      for (i = 0 ; i <= 1 ; ++i)
+        strandHits[i].PushBack(r2StrandHits[1 - i]) ;
     }
     
     size_t strandScore[2] ;
