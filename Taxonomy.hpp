@@ -486,6 +486,14 @@ public:
       return _taxIdMap.Inverse(taxid) ;
   }
 
+  size_t CompactTaxId(uint64_t taxid)
+  {
+    if (_taxIdMap.IsIn(taxid))
+      return _taxIdMap.Map(taxid) ;
+    else
+      return _nodeCnt ;
+  }
+
   uint8_t GetTaxIdRank(size_t ctid)
   {
     if (ctid >= _nodeCnt)
@@ -588,6 +596,53 @@ public:
     for (std::map<size_t, int>::iterator iter = taxIdsInRank[ri].begin() ;
         iter != taxIdsInRank[ri].end() ; ++iter)
       promotedTaxIds.PushBack(iter->first) ;
+  }
+
+  // @return: Number of children tax ids. childrenTax: compact tax ids below or equal to ctid.
+  size_t GetChildrenTax(size_t ctid, std::map<size_t, int> &childrenTax)
+  {
+    childrenTax.clear() ;
+    if (ctid >= _nodeCnt)
+      return 0 ;
+
+    size_t i, j ;
+    size_t t ;
+    int *visited ; // -1: not visited, 0: not a children, 1: is a children
+    visited = (int *)malloc(sizeof(int) * _nodeCnt) ;
+    memset(visited, -1, sizeof(visited[0]) * _nodeCnt) ;
+    
+    visited[ctid] = 1 ;
+    SimpleVector<size_t> path ;
+    for (i = 0 ; i < _nodeCnt ; ++i)
+    {
+      t = i ;
+      path.Clear() ;
+      
+      while (t != _taxonomyTree[t].parentTid) // It's fine to put the while before
+                          // we only need to add root if ctid is the root
+      {
+        if (visited[t] != -1)
+          break ;
+        path.PushBack(t) ;
+        t = _taxonomyTree[t].parentTid ;
+      }
+      size_t pathSize = path.Size() ;
+      int res = visited[t] ;
+      if (res == -1)
+        res = 0 ;
+      
+      for (j = 0 ; j < pathSize ; ++j)
+        visited[ path[j] ] = res ;       
+    }
+
+    for (i = 0 ; i < _nodeCnt ; ++i)
+    {
+      if (visited[i] == 1)
+        childrenTax[i] = 1 ;
+    }
+    free(visited) ;
+  
+    return childrenTax.size() ;
   }
   
   void Save(FILE *fp)

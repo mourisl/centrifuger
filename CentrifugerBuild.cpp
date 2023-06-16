@@ -14,9 +14,10 @@ char usage[] = "./centrifuger-build [OPTIONS]:\n"
   "Optional:\n"
   "\t-o STRING: output prefix [centrifuger]\n"
   "\t-t INT: number of threads [1]\n"
-  "\t--bmax INT: [16777216]\n"
-  "\t--offrate INT: [5]\n"
-  "\t--dcv INT: [4096]\n"
+  "\t--bmax INT: block size for blockwise suffix array sorting [16777216]\n"
+  "\t--offrate INT: sample rate for stored SA values in 2 to the INT [5]\n"
+  "\t--dcv INT: difference cover period [4096]\n"
+  "\t--subset-tax INT: only consider the subset of input genomes [0]\n"
   ""
   ;
 
@@ -28,6 +29,7 @@ static struct option long_options[] = {
       { "taxonomy-tree", required_argument, 0, ARGV_TAXONOMY_TREE},
       { "conversion-table", required_argument, 0, ARGV_CONVERSION_TABLE},
 			{ "name-table", required_argument, 0, ARGV_NAME_TABLE},
+      { "subset-tax", required_argument, 0, ARGV_SUBSET_TAXONOMY}, 
 			{ (char *)0, 0, 0, 0} 
 			} ;
 
@@ -44,6 +46,7 @@ int main(int argc, char *argv[])
   char *taxonomyFile = NULL ; // taxonomy tree file
   char *nameTable = NULL ;
   char *conversionTable = NULL ;
+  uint64_t subsetTax = 0 ; 
   ReadFiles refGenomeFile ;
 
   struct _FMBuilderParam fmBuilderParam ;
@@ -87,6 +90,10 @@ int main(int argc, char *argv[])
     {
       fmBuilderParam.saBlockSize = atoi(optarg) ;
     }
+    else if (c == ARGV_SUBSET_TAXONOMY)
+    {
+      sscanf(optarg, "%lu", &subsetTax) ;
+    }
 		else
 		{
 			fprintf( stderr, "Unknown parameter found\n%s", usage ) ;
@@ -113,7 +120,7 @@ int main(int argc, char *argv[])
   const char alphabetList[] = "ACGT" ;
 
   Builder builder ;
-  builder.Build(refGenomeFile, taxonomyFile, nameTable, conversionTable, fmBuilderParam, alphabetList) ;
+  builder.Build(refGenomeFile, taxonomyFile, nameTable, conversionTable, subsetTax, fmBuilderParam, alphabetList) ;
   builder.Save(outputPrefix) ;
 
   free(taxonomyFile) ;

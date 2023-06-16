@@ -53,7 +53,7 @@ public:
     _taxonomy.Free() ;
   }
 
-  void Build(ReadFiles &refGenomeFile, char *taxonomyFile, char *nameTable, char *conversionTable, struct _FMBuilderParam &fmBuilderParam, const char *alphabetList)
+  void Build(ReadFiles &refGenomeFile, char *taxonomyFile, char *nameTable, char *conversionTable, uint64_t subsetTax, struct _FMBuilderParam &fmBuilderParam, const char *alphabetList)
   {
     size_t i ;
     const int alphabetSize = strlen(alphabetList) ;
@@ -64,11 +64,22 @@ public:
     SequenceCompactor seqCompactor ;
     seqCompactor.Init(alphabetList, genomes, 1000000) ;
     
+    std::map<size_t, int> selectedTaxIds ;
+    if (subsetTax != 0)
+      _taxonomy.GetChildrenTax(_taxonomy.CompactTaxId(subsetTax), selectedTaxIds) ; 
     std::vector<size_t> genomeSeqIds ;
     std::vector<size_t> genomeLens ; 
     while (refGenomeFile.Next())
     {
       size_t seqid = _taxonomy.SeqNameToId(refGenomeFile.id) ;
+      
+      if (subsetTax != 0)
+      {
+        size_t taxid = _taxonomy.SeqIdToTaxId(seqid) ;
+        if (selectedTaxIds.find(taxid) == selectedTaxIds.end())
+          continue ;
+      }
+      
       if (seqid >= _taxonomy.GetSeqCount())
       {
         fprintf(stderr, "WARNING: taxonomy id doesn't exist for %s!\n", refGenomeFile.id) ;
@@ -88,8 +99,10 @@ public:
     // Put in the genome boundary information for selected SA in our FM index
     size_t genomeCnt = genomeLens.size() ;
     if (genomeCnt == 0)
-      return ;
-
+    {
+      fprintf(stderr, "ERROR: found 0 genomes in the input or after filtering.\n") ;
+      exit(EXIT_FAILURE) ;
+    }
     size_t psum = 0 ; // genome length partial sum
     for (i = 0 ; i < genomeCnt - 1 ; ++i)
     {
@@ -98,6 +111,9 @@ public:
         continue ;
       fmBuilderParam.selectedISA[psum - fmBuilderParam.precomputeWidth - 1] ;
     }
+
+    Utils::PrintLog("Found %lu sequences with total length %lu bp", 
+        genomeCnt, genomes.GetSize()) ;
 
     FMBuilder::Build(genomes, genomes.GetSize(), alphabetSize, BWT, firstISA, fmBuilderParam) ;
     TransformSampledSAToSeqId(fmBuilderParam, genomeSeqIds, genomeLens, genomes.GetSize()) ;
