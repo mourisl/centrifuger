@@ -39,7 +39,7 @@ public:
       for (i = 0 ; i < matchCnt ; ++i)
       {
         fprintf(fpClassification,
-            "%s\t%s\t%llu\t%llu\t%llu\t%d\t%d\t%d\n",
+            "%s\t%s\t%lu\t%lu\t%lu\t%d\t%d\t%d\n",
             readid, r.seqStrNames[i].c_str(), r.taxIds[i],
             r.score, r.secondaryScore, r.hitLength, r.queryLength, matchCnt) ;
       }

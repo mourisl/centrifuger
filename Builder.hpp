@@ -3,6 +3,7 @@
 
 #include "ReadFiles.hpp"
 #include "compactds/Sequence_Hybrid.hpp"
+#include "compactds/Sequence_RunBlock.hpp"
 #include "compactds/FMBuilder.hpp"
 #include "compactds/FMIndex.hpp"
 #include "compactds/Alphabet.hpp"
@@ -15,7 +16,7 @@ using namespace compactds ;
 class Builder
 {
 private:
-  FMIndex<Sequence_Hybrid> _fmIndex ;
+  FMIndex<Sequence_RunBlock> _fmIndex ;
   Taxonomy _taxonomy ;
   std::map<size_t, size_t> _seqLength ; // we use map here is for the case that a seq show up in the conversion table but not in the actual genome file.
 

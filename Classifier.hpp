@@ -6,6 +6,7 @@
 #include "Taxonomy.hpp"
 #include "compactds/FMIndex.hpp"
 #include "compactds/Sequence_Hybrid.hpp"
+#include "compactds/Sequence_RunBlock.hpp"
 #include "SimpleVector.hpp"
 
 using namespace compactds ;
@@ -69,7 +70,7 @@ struct _BWTHit
 class Classifier
 {
 private:
-  FMIndex<Sequence_Hybrid> _fm ;
+  FMIndex<Sequence_RunBlock> _fm ;
   Taxonomy _taxonomy ;
   std::map<size_t, size_t> _seqLength ;
   _classifierParam _param ;

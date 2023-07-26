@@ -19,7 +19,7 @@ char usage[] = "./centrifuger-inspect [OPTIONS]:\n"
 static const char *short_options = "x:" ;
 static struct option long_options[] = {
   {"summary", no_argument, 0, ARGV_INSPECT_SUMMARY},
-  {"name", no_argument, 0, ARGV_INSPECT_SEQNAME},
+  {"seq-name", no_argument, 0, ARGV_INSPECT_SEQNAME},
   {"conversion-table", no_argument, 0, ARGV_CONVERSION_TABLE},
   {"taxonomy-tree", no_argument, 0, ARGV_TAXONOMY_TREE},
   {"name-table", no_argument, 0, ARGV_NAME_TABLE},
@@ -61,11 +61,31 @@ int main(int argc, char *argv[])
   taxonomy.Load(fp) ;
   fclose(fp) ;
 
+  std::map<size_t, size_t> seqLength ;
+  sprintf(buffer, "%s.3.cfr", idxPrefix) ;
+  fp = fopen(buffer, "r") ;
+  size_t tmp[2] ;
+  while (fread(tmp, sizeof(tmp[0]), 2, fp))
+    seqLength[tmp[0]] = tmp[1] ;
+  fclose(fp) ;
+
   if (inspectItem == ARGV_INSPECT_SEQNAME)
   {
+    
   }
   else if (inspectItem == ARGV_INSPECT_SUMMARY)
   {
+    for (std::map<size_t, size_t>::iterator iter = seqLength.begin() ;
+        iter != seqLength.end() ; ++iter)
+    {
+      size_t ctid = taxonomy.SeqIdToTaxId(iter->first) ; 
+      fprintf(stdout, "%s\t%lu\t%lu\t%s\n", 
+          taxonomy.SeqIdToName(iter->first).c_str(), // sequence name
+          taxonomy.GetOrigTaxId(ctid),
+          iter->second, // sequence length
+          taxonomy.GetTaxIdName(ctid).c_str()
+          ) ;
+    }
   }
   else if (inspectItem == ARGV_CONVERSION_TABLE)
   {

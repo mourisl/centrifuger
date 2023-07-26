@@ -502,9 +502,15 @@ public:
       return _taxonomyTree[ctid].rank ;
   }
 
-  const char *GetTaxIdName(uint64_t ctid) // compact taxtonomy id
+  std::string GetTaxIdName(size_t ctid)
   {
-    return _taxonomyName[ctid].c_str() ;
+    if (ctid < _nodeCnt)
+      return _taxonomyName[ctid] ;
+    else
+    {
+      std::string tmp("Unknown") ;
+      return tmp ;
+    }
   }
 
   size_t SeqNameToId(std::string &s)
