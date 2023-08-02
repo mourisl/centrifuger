@@ -48,6 +48,10 @@ def GetSubTree(taxonomyTree, taxid):
   return ret
 
 def PromoteTaxLevel(taxonomyTree, taxid, rank):
+  tid = taxid
+  if (tid not in taxonomyTree):
+    return -1
+
   while (True):
     if (taxonomyTree[tid][1] == rank):
       return tid 
@@ -81,5 +85,5 @@ if (__name__ == "__main__"):
     fp.close()
     
     for taxid in taxidList:
-      print(PromotTaxLevel(taxonomyTree, taxid, args.taxRank))
+      print(PromoteTaxLevel(taxonomyTree, taxid, args.taxRank))
     
