@@ -120,6 +120,7 @@ private:
     _taxRankNum[RANK_SUB_TRIBE] = rank;
     _taxRankNum[RANK_TRIBE] = rank;
     _taxRankNum[RANK_VARIETAS] = rank;
+    _taxRankNum[RANK_LIFE] = rank;
     _taxRankNum[RANK_UNKNOWN] = rank;
   }
   
@@ -556,6 +557,11 @@ public:
     int taxCnt = taxIds.Size() ;
     std::vector< SimpleVector<size_t> > taxPaths ;
     promotedTaxIds.Clear() ;
+    if (taxIds.Size() <= k)
+    {
+      promotedTaxIds = taxIds ;
+      return ;
+    }
 
     // If there is a tax id not in the tree, we 
     //   give it no rank directly.
@@ -566,42 +572,43 @@ public:
         return ;
       }
     // For each tax level, collect the found tax id on this level 
-    std::map<size_t, int> taxIdsInRank[RANK_MAX] ;
+    std::map<size_t, int> taxIdsInRankNum[RANK_MAX] ;
     for (i = 0 ; i < taxCnt ; ++i)
     {
       size_t t = taxIds[i]; 
-      uint8_t prevRank = 0 ;
+      uint8_t prevRankNum = 0 ;
       uint8_t ri ;// rank index
-      taxIdsInRank[prevRank][t] = 1 ;
+      taxIdsInRankNum[prevRankNum][t] = 1 ; // the input is at the base level
       do
       {
-        uint8_t rank = _taxonomyTree[t].rank ;
-        if (rank != 0)
+        uint8_t rankNum = _taxRankNum[_taxonomyTree[t].rank] ;
+        if (rankNum != _taxRankNum[RANK_UNKNOWN] && rankNum > prevRankNum)
         {
           // Handle the case of missing taxonomy level in between
-          for (ri = rank - 1 ; ri > prevRank ; --ri)
-            taxIdsInRank[ri][t] = 1 ;
+          for (ri = rankNum - 1 ; ri > prevRankNum ; --ri)
+            taxIdsInRankNum[ri][t] = 1 ;
 
-          if (taxIdsInRank[rank].find(t) == taxIdsInRank[rank].end())
-            taxIdsInRank[rank][t] = 1 ;
+          if (taxIdsInRankNum[rankNum].find(t) == taxIdsInRankNum[rankNum].end())
+            taxIdsInRankNum[rankNum][t] = 1 ;
           else
             break ; // the upper tax id has already been added, so no need to process anymore
+          prevRankNum = rankNum ;
         }
         t = _taxonomyTree[t].parentTid ; 
-        if (rank > prevRank)
-          prevRank = rank ;
       } while (t != _taxonomyTree[t].parentTid) ;
     }
 
     // Go through the levels until the tax ids <= k
     uint8_t ri ;
-    for (ri = 0 ; ri < RANK_MAX ; ++ri)
-      if ((int)taxIdsInRank[ri].size() <= k)
+    for (ri = 0 ; ri < _taxRankNum[RANK_UNKNOWN] ; ++ri)
+      if ((int)taxIdsInRankNum[ri].size() <= k)
         break ;
     
-    for (std::map<size_t, int>::iterator iter = taxIdsInRank[ri].begin() ;
-        iter != taxIdsInRank[ri].end() ; ++iter)
+    for (std::map<size_t, int>::iterator iter = taxIdsInRankNum[ri].begin() ;
+        iter != taxIdsInRankNum[ri].end() ; ++iter)
       promotedTaxIds.PushBack(iter->first) ;
+    if (promotedTaxIds.Size() == 0)
+      promotedTaxIds.PushBack(_nodeCnt) ;
   }
 
   // @return: Number of children tax ids. childrenTax: compact tax ids below or equal to ctid.

@@ -17,6 +17,7 @@ char usage[] = "./centrifuger-build [OPTIONS]:\n"
   "\t--bmax INT: block size for blockwise suffix array sorting [16777216]\n"
   "\t--offrate INT: sample rate for stored SA values in 2 to the INT [5]\n"
   "\t--dcv INT: difference cover period [4096]\n"
+  "\t--build-mem STR: automatic infer bmax and dcv to match memory constraints, can use P,G,M,K to specify the memory size [not used]\n"
   "\t--subset-tax INT: only consider the subset of input genomes [0]\n"
   ""
   ;
@@ -25,6 +26,7 @@ static const char *short_options = "r:o:t:" ;
 static struct option long_options[] = {
       { "bmax", required_argument, 0, ARGV_BMAX},
 			{ "dcv", required_argument, 0, ARGV_DCV},
+      { "build-mem", required_argument, 0, ARGV_BUILD_MEMORY},
       { "offrate", required_argument, 0, ARGV_OFFRATE},
       { "taxonomy-tree", required_argument, 0, ARGV_TAXONOMY_TREE},
       { "conversion-table", required_argument, 0, ARGV_CONVERSION_TABLE},
@@ -47,6 +49,7 @@ int main(int argc, char *argv[])
   char *nameTable = NULL ;
   char *conversionTable = NULL ;
   uint64_t subsetTax = 0 ; 
+  size_t buildMemoryConstraint = 0 ;
   ReadFiles refGenomeFile ;
 
   struct _FMBuilderParam fmBuilderParam ;
@@ -90,6 +93,10 @@ int main(int argc, char *argv[])
     {
       fmBuilderParam.saBlockSize = atoi(optarg) ;
     }
+    else if (c == ARGV_BUILD_MEMORY)
+    {
+      buildMemoryConstraint = Utils::SpaceStringToBytes(optarg) ;
+    }
     else if (c == ARGV_SUBSET_TAXONOMY)
     {
       sscanf(optarg, "%lu", &subsetTax) ;
@@ -120,7 +127,7 @@ int main(int argc, char *argv[])
   const char alphabetList[] = "ACGT" ;
 
   Builder builder ;
-  builder.Build(refGenomeFile, taxonomyFile, nameTable, conversionTable, subsetTax, fmBuilderParam, alphabetList) ;
+  builder.Build(refGenomeFile, taxonomyFile, nameTable, conversionTable, subsetTax, buildMemoryConstraint, fmBuilderParam, alphabetList) ;
   builder.Save(outputPrefix) ;
 
   free(taxonomyFile) ;

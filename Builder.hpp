@@ -54,7 +54,7 @@ public:
     _taxonomy.Free() ;
   }
 
-  void Build(ReadFiles &refGenomeFile, char *taxonomyFile, char *nameTable, char *conversionTable, uint64_t subsetTax, struct _FMBuilderParam &fmBuilderParam, const char *alphabetList)
+  void Build(ReadFiles &refGenomeFile, char *taxonomyFile, char *nameTable, char *conversionTable, uint64_t subsetTax, size_t memoryConstraint, struct _FMBuilderParam &fmBuilderParam, const char *alphabetList)
   {
     size_t i ;
     const int alphabetSize = strlen(alphabetList) ;
@@ -88,7 +88,14 @@ public:
       }
 
       size_t len = seqCompactor.Compact(refGenomeFile.seq, genomes) ;
-      
+      if (len < fmBuilderParam.precomputeWidth + 1ull) // A genome too short
+      {
+        fprintf(stderr, "WARNING: %s is filtered due to its short length (could be from masker)!\n", refGenomeFile.id) ;
+        size_t size = genomes.GetSize() ;
+        genomes.SetSize(size - len) ;
+        continue ;
+      }
+
       _seqLength[seqid] = len ;
       genomeSeqIds.push_back(seqid) ;
       genomeLens.push_back(len) ;
@@ -115,7 +122,9 @@ public:
 
     Utils::PrintLog("Found %lu sequences with total length %lu bp", 
         genomeCnt, genomes.GetSize()) ;
-
+    
+    if (memoryConstraint != 0)
+      FMBuilder::InferParametersGivenMemory(genomes.GetSize(), alphabetSize, memoryConstraint,fmBuilderParam) ;
     FMBuilder::Build(genomes, genomes.GetSize(), alphabetSize, BWT, firstISA, fmBuilderParam) ;
     TransformSampledSAToSeqId(fmBuilderParam, genomeSeqIds, genomeLens, genomes.GetSize()) ;
     _fmIndex.Init(BWT, genomes.GetSize(), 
