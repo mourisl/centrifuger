@@ -15,10 +15,12 @@ struct _classifierParam
 {
   int maxResult ; // the number of entries in the results    
   int minHitLen ;
+  int maxResultPerHitsFactor ; // Get the SA/tax id for at most maxREsultPerHitsFactor * maxResult entries for each hit 
   _classifierParam()
   {
     maxResult = 5 ;
     minHitLen = 22 ;
+    maxResultPerHitsFactor = 40 ;
   }
 } ;
 
@@ -267,11 +269,37 @@ private:
       std::map<size_t, int> localSeqIdHit ;
       k = (hits[i].strand + 1) / 2 ;
 
-      for (j = hits[i].sp ; j <= hits[i].ep ; ++j)
+      const size_t maxEntries = _param.maxResult * _param.maxResultPerHitsFactor ;
+      if (hits[i].ep - hits[i].sp + 1 <= maxEntries)
       {
-        size_t backsearchL = 0 ;
-        size_t seqId = _fm.BackwardToSampledSA(j, backsearchL) ;
-        localSeqIdHit[seqId] = 1 ;
+        for (j = hits[i].sp ; j <= hits[i].ep ; ++j)
+        {
+          size_t backsearchL = 0 ;
+          size_t seqId = _fm.BackwardToSampledSA(j, backsearchL) ;
+          localSeqIdHit[seqId] = 1 ;
+        }
+      }
+      else
+      {
+        // Since the first entry and last entry are likely to be more different
+        //   taxonomy wisely, we shall search "bidirectionally" to make sure 
+        //   both end is covered
+        size_t rangeSize = hits[i].ep - hits[i].sp + 1 ;
+        size_t step = DIV_CEIL(rangeSize, maxEntries) ;
+        size_t remainder = maxEntries - rangeSize / step ;
+        for (j = hits[i].sp ; j <= hits[i].ep ; j += step)
+        {
+          size_t backsearchL = 0 ;
+          size_t seqId = _fm.BackwardToSampledSA(j, backsearchL) ;
+          localSeqIdHit[seqId] = 1 ;
+        }
+
+        for (j = hits[i].ep ; j >= hits[i].sp && j <= hits[i].ep ; j -= step)
+        {
+          size_t backsearchL = 0 ;
+          size_t seqId = _fm.BackwardToSampledSA(j, backsearchL) ;
+          localSeqIdHit[seqId] = 1 ;
+        }
       }
 
       for (std::map<size_t, int>::iterator iter = localSeqIdHit.begin() ;
