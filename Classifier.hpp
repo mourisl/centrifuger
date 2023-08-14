@@ -15,12 +15,12 @@ struct _classifierParam
 {
   int maxResult ; // the number of entries in the results    
   int minHitLen ;
-  int maxResultPerHitsFactor ; // Get the SA/tax id for at most maxREsultPerHitsFactor * maxResult entries for each hit 
+  int maxResultPerHitFactor ; // Get the SA/tax id for at most maxREsultPerHitsFactor * maxResult entries for each hit 
   _classifierParam()
   {
     maxResult = 5 ;
     minHitLen = 22 ;
-    maxResultPerHitsFactor = 40 ;
+    maxResultPerHitFactor = 40 ;
   }
 } ;
 
@@ -269,7 +269,7 @@ private:
       std::map<size_t, int> localSeqIdHit ;
       k = (hits[i].strand + 1) / 2 ;
 
-      const size_t maxEntries = _param.maxResult * _param.maxResultPerHitsFactor ;
+      const size_t maxEntries = _param.maxResult * _param.maxResultPerHitFactor ;
       if (hits[i].ep - hits[i].sp + 1 <= maxEntries)
       {
         for (j = hits[i].sp ; j <= hits[i].ep ; ++j)
@@ -286,12 +286,13 @@ private:
         //   both end is covered
         size_t rangeSize = hits[i].ep - hits[i].sp + 1 ;
         size_t step = DIV_CEIL(rangeSize, maxEntries) ;
-        size_t remainder = maxEntries - rangeSize / step ;
+        size_t resolvedCnt = 0 ;
         for (j = hits[i].sp ; j <= hits[i].ep ; j += step)
         {
           size_t backsearchL = 0 ;
           size_t seqId = _fm.BackwardToSampledSA(j, backsearchL) ;
           localSeqIdHit[seqId] = 1 ;
+          ++resolvedCnt ;
         }
 
         for (j = hits[i].ep ; j >= hits[i].sp && j <= hits[i].ep ; j -= step)
@@ -299,6 +300,9 @@ private:
           size_t backsearchL = 0 ;
           size_t seqId = _fm.BackwardToSampledSA(j, backsearchL) ;
           localSeqIdHit[seqId] = 1 ;
+          ++resolvedCnt ;
+          if (resolvedCnt >= maxEntries)
+            break ;
         }
       }
 
