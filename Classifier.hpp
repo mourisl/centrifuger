@@ -18,7 +18,7 @@ struct _classifierParam
   int maxResultPerHitFactor ; // Get the SA/tax id for at most maxREsultPerHitsFactor * maxResult entries for each hit 
   _classifierParam()
   {
-    maxResult = 5 ;
+    maxResult = 1 ;
     minHitLen = 22 ;
     maxResultPerHitFactor = 40 ;
   }
@@ -270,7 +270,8 @@ private:
       k = (hits[i].strand + 1) / 2 ;
 
       const size_t maxEntries = _param.maxResult * _param.maxResultPerHitFactor ;
-      if (hits[i].ep - hits[i].sp + 1 <= maxEntries)
+      if (hits[i].ep - hits[i].sp + 1 <= maxEntries 
+          || _param.maxResultPerHitFactor <= 0)
       {
         for (j = hits[i].sp ; j <= hits[i].ep ; ++j)
         {

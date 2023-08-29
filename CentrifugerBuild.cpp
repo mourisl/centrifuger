@@ -7,7 +7,7 @@
 
 char usage[] = "./centrifuger-build [OPTIONS]:\n"
   "Required:\n"
-  "\t-r FILE: reference sequence file\n"
+  "\t-r FILE: reference sequence file (can use multiple -r to specify more than one input file)\n"
   "\t--taxonomy-tree FILE: \n"
   "\t--name-table FILE: \n"
   "\t--conversion-table FILE: \n"
