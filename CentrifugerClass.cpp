@@ -23,8 +23,8 @@ char usage[] = "./centrifuger-class [OPTIONS]:\n"
   "\t-o STRING: output prefix [centrifuger]\n"
   "\t-t INT: number of threads [1]\n"
   "\t-k INT: report upto <int> distinct, primary assignments for each read pair [1]\n"
-  "\t--min-hitlen INT: minimum length of partial hits [22]"
-  "\t--hitk-factor INT: resolve at most <int>*k entries for each hit [40; use 0 for no restriction]"
+  "\t--min-hitlen INT: minimum length of partial hits [22]\n"
+  "\t--hitk-factor INT: resolve at most <int>*k entries for each hit [40; use 0 for no restriction]\n"
   ;
 
 static const char *short_options = "x:1:2:u:o:t:k:" ;
