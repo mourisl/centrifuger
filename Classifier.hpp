@@ -11,6 +11,8 @@
 
 using namespace compactds ;
 
+//#define LI_DEBUG
+
 struct _classifierParam 
 {
   int maxResult ; // the number of entries in the results    
@@ -58,7 +60,7 @@ struct _BWTHit
   int l ; // hit length
   int strand ; // -1: minus strand, 0: unkonwn, 1: plus strand
   int offset ; // 0-based offset to the end of the read (because the search is in backward fashion)
-
+  
   _BWTHit(size_t isp, size_t iep, int il, int ioffset, int istrand)
   {
     sp = isp ;
@@ -93,12 +95,18 @@ private:
       r[i] = _compChar[(int)r[i]] ; 
   }
 
-  // one hit
-  size_t CalculateHitScore(struct _BWTHit hit)
+  //l: hit length
+  size_t CalculateHitScore(int l)
   {
-    if (hit.l < _param.minHitLen)
+    if (l < _param.minHitLen)
       return 0 ;
-    return (hit.l - _scoreHitLenAdjust) * (hit.l - _scoreHitLenAdjust) ;
+    return (l - _scoreHitLenAdjust) * (l - _scoreHitLenAdjust) ;
+  }
+
+  // one hit
+  size_t CalculateHitScore(const struct _BWTHit &hit)
+  {
+    return CalculateHitScore(hit.l) ;
   }
 
   // hit list
@@ -260,6 +268,21 @@ private:
     size_t j ;
     int hitCnt = hits.Size() ;
     std::map<size_t, struct _seqHitRecord > seqIdStrandHitRecord[2] ;
+    
+    struct _seqHitRecord prevUniqHitRecord ; // record information from previous unique hit 
+    prevUniqHitRecord.seqId = 0 ;
+    prevUniqHitRecord.hitLength = 0 ;
+    prevUniqHitRecord.score = 0 ;
+
+    bool mixStrand = false ;
+    for (i = 1 ; i < hitCnt ; ++i)
+    {
+      if (hits[i].strand != hits[i - 1].strand)
+      {
+        mixStrand = true ;
+        break ;
+      }
+    }
 
     // The hit seqId need to consider the strand separately.
     //   Because sometimes a read can hit both the plus and minus strand and will artifically double the hit length.
@@ -268,7 +291,9 @@ private:
       size_t score = CalculateHitScore(hits[i]) ;
       std::map<size_t, int> localSeqIdHit ;
       k = (hits[i].strand + 1) / 2 ;
-
+#ifdef LI_DEBUG
+      printf("hit: %d sp-ep: %lu %lu %lu offset_l: %d %d\n", i, hits[i].sp, hits[i].ep, hits[i].ep - hits[i].sp + 1, hits[i].offset, hits[i].l) ;
+#endif
       const size_t maxEntries = _param.maxResult * _param.maxResultPerHitFactor ;
       if (hits[i].ep - hits[i].sp + 1 <= maxEntries 
           || _param.maxResultPerHitFactor <= 0)
@@ -277,6 +302,9 @@ private:
         {
           size_t backsearchL = 0 ;
           size_t seqId = _fm.BackwardToSampledSA(j, backsearchL) ;
+#ifdef LI_DEBUG
+          printf("%lu\n", _taxonomy.GetOrigTaxId( _taxonomy.SeqIdToTaxId(seqId) )) ;
+#endif
           localSeqIdHit[seqId] = 1 ;
         }
       }
@@ -292,6 +320,9 @@ private:
         {
           size_t backsearchL = 0 ;
           size_t seqId = _fm.BackwardToSampledSA(j, backsearchL) ;
+#ifdef LI_DEBUG
+          printf("%lu\n", _taxonomy.GetOrigTaxId( _taxonomy.SeqIdToTaxId(seqId) )) ;
+#endif
           localSeqIdHit[seqId] = 1 ;
           ++resolvedCnt ;
         }
@@ -300,6 +331,9 @@ private:
         {
           size_t backsearchL = 0 ;
           size_t seqId = _fm.BackwardToSampledSA(j, backsearchL) ;
+#ifdef LI_DEBUG
+          printf("%lu\n", _taxonomy.GetOrigTaxId( _taxonomy.SeqIdToTaxId(seqId) )) ;
+#endif
           localSeqIdHit[seqId] = 1 ;
           ++resolvedCnt ;
           if (resolvedCnt >= maxEntries)
@@ -307,20 +341,44 @@ private:
         }
       }
 
+      // Update the scores for each seqid
       for (std::map<size_t, int>::iterator iter = localSeqIdHit.begin() ;
           iter != localSeqIdHit.end() ; ++iter)
       {
         size_t seqId = iter->first ;
-        if (seqIdStrandHitRecord[k].find(seqId) == seqIdStrandHitRecord[k].end())
+        if (!mixStrand && hits[i].ep == hits[i].sp && 
+            hits[i - 1].ep == hits[i - 1].sp && 
+            hits[i - 1].strand == hits[i].strand &&
+            hits[i - 1].offset + hits[i - 1].l + 1 == hits[i].offset && // the other strand adjustication may cause overlaps of the hit regions. Make sure the two hits only separate by 1 base.
+            seqId == prevUniqHitRecord.seqId) // Merge adjacent unique hits
         {
-          seqIdStrandHitRecord[k][seqId].seqId = seqId ;
-          seqIdStrandHitRecord[k][seqId].score = score ;
-          seqIdStrandHitRecord[k][seqId].hitLength = hits[i].l ;
-        }
-        else
-        {
-          seqIdStrandHitRecord[k][seqId].score += score ;
+          seqIdStrandHitRecord[k][seqId].score -= prevUniqHitRecord.score ;
+
+          prevUniqHitRecord.hitLength += hits[i].l ;
+          prevUniqHitRecord.score = CalculateHitScore(prevUniqHitRecord.hitLength) ;
+          seqIdStrandHitRecord[k][seqId].score += prevUniqHitRecord.score ;
           seqIdStrandHitRecord[k][seqId].hitLength += hits[i].l ;
+        }
+        else // Regularly update the score
+        {
+          if (seqIdStrandHitRecord[k].find(seqId) == seqIdStrandHitRecord[k].end())
+          {
+            seqIdStrandHitRecord[k][seqId].seqId = seqId ;
+            seqIdStrandHitRecord[k][seqId].score = score ;
+            seqIdStrandHitRecord[k][seqId].hitLength = hits[i].l ;
+          }
+          else
+          {
+            seqIdStrandHitRecord[k][seqId].score += score ;
+            seqIdStrandHitRecord[k][seqId].hitLength += hits[i].l ;
+          }
+        
+          if (hits[i].ep == hits[i].sp)
+          {
+            prevUniqHitRecord.seqId = seqId ;
+            prevUniqHitRecord.score = score ;
+            prevUniqHitRecord.hitLength = hits[i].l ;
+          }
         }
       }
     }
@@ -334,6 +392,9 @@ private:
       for (std::map<size_t, struct _seqHitRecord>::iterator iter = seqIdStrandHitRecord[k].begin() ; 
           iter != seqIdStrandHitRecord[k].end() ; ++iter)
       {
+#ifdef LI_DEBUG
+        printf("score: %lu %lu %d\n", _taxonomy.GetOrigTaxId( _taxonomy.SeqIdToTaxId(iter->first)), iter->second.score, iter->second.hitLength) ;
+#endif
         if (iter->second.score > bestScore)
         {
           secondBestScore = bestScore ;
