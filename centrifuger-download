@@ -1,0 +1,394 @@
+#!/bin/bash
+
+# Based on Florian Breitwieser's implementation at https://github.com/DaehwanKimLab/centrifuge/blob/master/centrifuge-download 
+
+set -eu -o pipefail
+
+exists() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+cut_after_first_space_or_second_pipe() {
+    grep '^>' | sed 's/ .*//' | sed 's/\([^|]*|[^|]*\).*/\1/'
+}
+export -f cut_after_first_space_or_second_pipe
+
+map_headers_to_taxid() {
+    grep '^>' | cut_after_first_space_or_second_pipe | sed -e "s/^>//" -e  "s/\$/    $1/"
+}
+export -f map_headers_to_taxid
+
+
+
+#########################################################
+## Functions
+
+function download_n_process() {
+    IFS=$'\t' read -r TAXID FILEPATH <<< "$1"
+
+    NAME=`basename $FILEPATH .gz`
+    GZIPPED_FILE="$LIBDIR/$DOMAIN/$NAME.gz"
+    UNZIPPED_FILE="$LIBDIR/$DOMAIN/$NAME"
+    DUSTMASKED_FILE="$LIBDIR/$DOMAIN/${NAME%.fna}_dustmasked.fna"
+    [[ "$DO_DUST" == "1" ]] && RES_FILE=$DUSTMASKED_FILE || RES_FILE=$UNZIPPED_FILE
+
+    if [[ ! -s "$RES_FILE" ]]; then
+        if [ $DL_MODE = "rsync" ]; then
+            FILEPATH=${FILEPATH/ftp/rsync}
+            $DL_CMD "$FILEPATH" "$LIBDIR/$DOMAIN/$NAME.gz" || \
+            { printf "\nError downloading $FILEPATH!\n" >&2 && exit 1; }
+        else
+            $DL_CMD "$LIBDIR/$DOMAIN/$NAME.gz" "$FILEPATH" || \
+            $DL_CMD "$LIBDIR/$DOMAIN/$NAME.gz" "$FILEPATH" || \
+            $DL_CMD "$LIBDIR/$DOMAIN/$NAME.gz" "$FILEPATH" || \
+	    { printf "\nError downloading $FILEPATH!\n" >&2 && exit 1; }
+        fi
+    
+        [[ -s "$LIBDIR/$DOMAIN/$NAME.gz" ]] || return;
+        gunzip -f "$LIBDIR/$DOMAIN/$NAME.gz" ||{ printf "\nError gunzipping $LIBDIR/$DOMAIN/$NAME.gz [ downloaded from $FILEPATH ]!\n" >&2 &&  exit 255; }
+    
+        
+        if [[ "$CHANGE_HEADER" == "1" ]]; then
+            sed -i "s/^>/>kraken:taxid|$TAXID /" $LIBDIR/$DOMAIN/$NAME
+        fi
+    
+        if [[ "$FILTER_UNPLACED" == "1" ]]; then
+            echo TODO 2>&1
+            ##sed -n '1,/^>.*unplaced/p; /'
+        fi
+    
+        if [[ "$DO_DUST" == "1" ]]; then
+          ## TODO: Consider hard-masking only low-complexity stretches with 10 or more bps
+          dustmasker -infmt fasta -in $LIBDIR/$DOMAIN/$NAME -level 20 -outfmt fasta | sed '/^>/! s/[^AGCT]/N/g' > $DUSTMASKED_FILE
+          rm $LIBDIR/$DOMAIN/$NAME
+        fi
+    fi
+
+    ## Output sequenceID to taxonomy ID map to STDOUT
+    cat $RES_FILE | map_headers_to_taxid $TAXID
+    echo done
+}
+export -f download_n_process
+
+
+
+function download_n_process_nofail() {
+    download_n_process "$@" || true
+}
+export -f download_n_process_nofail
+
+
+ceol=`tput el || echo -n ""` # terminfo clr_eol
+
+function count {
+   typeset C=0
+   while read L; do
+      if [[ "$L" == "done" ]]; then
+        [[ "$VERBOSE" == 1 ]] && continue;
+        C=$(( C + 1 ))
+        _progress=$(( (${C}*100/${1}*100)/100 ))
+        _done=$(( (${_progress}*4)/10 ))
+        _left=$(( 40-$_done ))
+        # Build progressbar string lengths
+        _done=$(printf "%${_done}s")
+        _left=$(printf "%${_left}s")
+
+        printf "\rProgress : [${_done// /#}${_left// /-}] ${_progress}%% $C/$1"  1>&2
+      else
+        echo "$L"
+      fi
+   done
+}
+
+function check_or_mkdir_no_fail {
+    #echo -n "Creating $1 ... " >&2
+    if [[ -d $1 && ! -n `find $1 -prune -empty -type d` ]]; then
+        echo "Directory $1 exists.  Continuing" >&2
+        return `true`
+    else 
+        #echo "Done" >&2
+        mkdir -p $1
+        return `true`
+    fi
+}
+
+function c_echo() {
+        printf "\033[34m$*\033[0m\n"
+}
+
+
+
+## Check if GNU parallel exists
+command -v parallel >/dev/null 2>&1 && PARALLEL=1 || PARALLEL=0
+
+
+ALL_GENOMES="bacteria viral archaea fungi protozoa invertebrate plant vertebrate_mammalian vertebrate_other"
+ALL_DATABASES="refseq genbank taxonomy contaminants"
+ALL_ASSEMBLY_LEVELS="Complete\ Genome Chromosome Scaffold Contig"
+
+## Option parsing
+DATABASE="refseq"
+ASSEMBLY_LEVEL="Complete Genome"
+REFSEQ_CATEGORY=""
+TAXID=""
+
+
+DL_PROG="NA"
+if hash curl 2>/dev/null; then
+  DL_PROG="curl"
+elif hash wget 2>/dev/null; then
+  DL_PROG="wget"
+elif hash rsync 2>/dev/null; then
+  DL_PROG="rsync"
+fi
+
+
+BASE_DIR="."
+N_PROC=1
+CHANGE_HEADER=0
+DOWNLOAD_RNA=0
+DO_DUST=0
+FILTER_UNPLACED=0
+VERBOSE=0
+
+USAGE="
+`basename $0` [<options>] <database>
+
+ARGUMENT
+ <database>        One of refseq, genbank, contaminants or taxonomy:
+                     - use refseq or genbank for genomic sequences,
+                     - contaminants gets contaminant sequences from UniVec and EmVec,
+                     - taxonomy for taxonomy mappings.
+
+COMMON OPTIONS
+ -o <directory>         Folder to which the files are downloaded. Default: '$BASE_DIR'.
+ -P <# of threads>      Number of processes when downloading (uses xargs). Default: '$N_PROC'
+
+WHEN USING database refseq OR genbank:
+ -d <domain>            What domain to download. One or more of ${ALL_GENOMES// /, } (comma separated).
+ -a <assembly level>    Only download genomes with the specified assembly level. Default: '$ASSEMBLY_LEVEL'. Use 'Any' for any assembly level.
+ -c <refseq category>   Only download genomes in the specified refseq category. Default: any.
+ -t <taxids>            Only download the specified taxonomy IDs, comma separated. Default: any.
+ -g <program>           Download using program. Options: rsync, curl, wget. Default $DL_PROG (auto-detected).
+ -r                     Download RNA sequences, too.
+ -u                     Filter unplaced sequences.
+ -m                     Mask low-complexity regions using dustmasker. Default: off.
+ -l                     Modify header to include taxonomy ID. Default: off.
+ -v                     Verbose mode
+"
+
+# arguments: $OPTFIND (current index), $OPTARG (argument for option), $OPTERR (bash-specific)
+while getopts "o:P:d:a:c:t:g:urlmv" OPT "$@"; do
+    case $OPT in
+        o) BASE_DIR="$OPTARG" ;;
+        P) N_PROC="$OPTARG" ;;
+        d) DOMAINS=${OPTARG//,/ } ;;
+        a) ASSEMBLY_LEVEL="$OPTARG" ;;
+        c) REFSEQ_CATEGORY="$OPTARG" ;;
+        g) DL_PROG="$OPTARG" ;;
+        t) TAXID="$OPTARG" ;;
+        r) DOWNLOAD_RNA=1 ;;
+        u) FILTER_UNPLACED=1 ;;
+        m) DO_DUST=1 ;;
+        v) VERBOSE=1 ;;
+        l) CHANGE_HEADER=1 ;;
+        \?) echo "Invalid option: -$OPTARG" >&2 
+            exit 1 
+        ;;
+        :) echo "Option -$OPTARG requires an argument." >&2
+           exit 1
+        ;;
+    esac
+done
+shift $((OPTIND-1))
+
+[[ $# -eq 1 ]] || { printf "$USAGE" >&2 && exit 1; };
+DATABASE=$1
+
+
+if [[ "$DL_PROG" == "rsync" ]]; then
+    DL_CMD="rsync --no-motd"
+        DL_MODE="rsync"
+elif [[ "$DL_PROG" == "wget" ]]; then
+    DL_CMD="wget -N --reject=index.html -qO"
+        DL_MODE="https"
+elif [[ "$DL_PROG" == "curl" ]]; then
+    DL_CMD="curl -s -o"
+        DL_MODE="https"
+else
+        echo "Unknown download program - please install one of rsync, wget or curl, and specify it with the -g option" >&2
+        exit 1
+fi
+
+cecho() {
+  echo $* 1>&2
+  $*
+}
+
+if [[ "$VERBOSE" == "1" ]]; then
+  export -f cecho
+  DL_CMD="cecho $DL_CMD"
+fi
+
+export DL_CMD DL_MODE VERBOSE
+
+#### TAXONOMY DOWNLOAD
+FTP="https://ftp.ncbi.nih.gov"
+if [[ "$DATABASE" == "taxonomy" ]]; then 
+  echo "Downloading NCBI taxonomy ... " >&2
+  if check_or_mkdir_no_fail "$BASE_DIR"; then
+    cd "$BASE_DIR" > /dev/null
+    if [ $DL_MODE = "rsync" ]; then
+        $DL_CMD ${FTP/ftp/rsync}/pub/taxonomy/taxdump.tar.gz taxdump.tar.gz
+    else
+        $DL_CMD taxdump.tar.gz $FTP/pub/taxonomy/taxdump.tar.gz
+    fi
+    tar -zxvf taxdump.tar.gz nodes.dmp
+    tar -zxvf taxdump.tar.gz names.dmp
+    rm taxdump.tar.gz
+    cd - > /dev/null
+  fi
+  exit 0
+fi
+
+dat_to_fna() {
+    grep -E '^DE|^ ' | awk '/^DE/ { sub(/DE */,">"); gsub(/[ |]/,"_") }; { print }' | awk '/^ / { gsub(/ /,""); sub(/[0-9]*$/,"") }; { print }' 
+}
+
+#### CONTAMINANT SEQ DOWNLOAD
+if [[ "$DATABASE" == "contaminants" ]]; then 
+  echo "Downloading contaminant databases ... " >&2
+  CONTAMINANT_TAXID=32630
+  CONTAMINANT_DIR="$BASE_DIR/contaminants"
+  if check_or_mkdir_no_fail "$CONTAMINANT_DIR"; then
+    cd "$CONTAMINANT_DIR" > /dev/null
+
+    # download UniVec and EmVec database
+    if [ $DL_MODE = "rsync" ]; then
+        $DL_CMD rsync://ftp.ncbi.nlm.nih.gov/pub/UniVec/UniVec UniVec.fna
+        $DL_CMD rsync://ftp.ebi.ac.uk/pub/databases/emvec/emvec.dat.gz emvec.dat.gz
+    else
+        $DL_CMD UniVec.fna https://ftp.ncbi.nlm.nih.gov/pub/UniVec/UniVec
+        $DL_CMD emvec.dat.gz https://ftp.ebi.ac.uk/pub/databases/emvec/emvec.dat.gz
+    fi
+    gunzip -c emvec.dat.gz | dat_to_fna > EmVec.fna
+ 
+    if [[ "$CHANGE_HEADER" == "1" ]]; then
+        sed -i "s/^>/>taxid|$CONTAMINANT_TAXID /" UniVec.fna
+        sed -i "s/^>/>taxid|$CONTAMINANT_TAXID /" EmVec.fna
+    else 
+    cat UniVec.fna | map_headers_to_taxid $CONTAMINANT_TAXID
+    cat EmVec.fna | map_headers_to_taxid $CONTAMINANT_TAXID
+    fi
+
+   #sed ':a $!N; s/^>.*\n>/>/; P; D' Contaminants/emvec.fa  > Contaminants/emvec.fa
+    rm emvec.dat.gz
+
+    cd - > /dev/null
+    exit 0;
+  fi
+fi
+
+
+
+#### REFSEQ/GENBANK DOWNLOAD
+
+export LIBDIR="$BASE_DIR"
+export DO_DUST="$DO_DUST"
+export CHANGE_HEADER="$CHANGE_HEADER"
+
+## Fields in the assembly_summary.txt file
+REFSEQ_CAT_FIELD=5
+TAXID_FIELD=6
+SPECIES_TAXID_FIELD=7
+VERSION_STATUS_FIELD=11
+ASSEMBLY_LEVEL_FIELD=12
+FTP_PATH_FIELD=20
+FTP_PATH_FIELD2=21  ## Needed for wrongly formatted virus files - hopefully just a temporary fix
+
+AWK_QUERY="\$$VERSION_STATUS_FIELD==\"latest\""
+[[ "$ASSEMBLY_LEVEL" != "Any" ]] && AWK_QUERY="$AWK_QUERY && \$$ASSEMBLY_LEVEL_FIELD==\"$ASSEMBLY_LEVEL\""
+[[ "$REFSEQ_CATEGORY" != "" ]] && AWK_QUERY="$AWK_QUERY && \$$REFSEQ_CAT_FIELD==\"$REFSEQ_CATEGORY\""
+
+TAXID=${TAXID//,/|}
+[[ "$TAXID" != "" ]] && AWK_QUERY="$AWK_QUERY && match(\$$TAXID_FIELD,\"^($TAXID)\$\")"
+
+#echo "$AWK_QUERY" >&2
+
+#echo "Downloading genomes for $DOMAINS at assembly level $ASSEMBLY_LEVEL" >&2
+if exists wget; then
+    wget -qO- --no-remove-listing https://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/ > /dev/null
+else
+    curl --disable-epsv -s https://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/ > .listing
+fi
+
+if [[ "$CHANGE_HEADER" == "1" ]]; then
+    echo "Modifying header to include taxonomy ID" >&2
+fi
+
+
+for DOMAIN in $DOMAINS; do
+    if [[ -s .listing ]]; then
+        if [[ ! `grep "^d.* $DOMAIN" .listing` ]]; then
+            c_echo "$DOMAIN is not a valid domain - use one of the following:" >&2
+            grep '^d' .listing  | sed 's/.* //' | sed 's/^/  /' 1>&2
+            exit 1
+        fi
+    fi
+    
+    #if [[ "$CHANGE_HEADER" != "1" ]]; then
+        #echo "Writing taxonomy ID to sequence ID map to STDOUT" >&2
+        #[[ -s "$LIBDIR/$DOMAIN.map" ]] && rm "$LIBDIR/$DOMAIN.map"
+    #fi
+
+    export DOMAIN=$DOMAIN
+    check_or_mkdir_no_fail $LIBDIR/$DOMAIN
+
+    FULL_ASSEMBLY_SUMMARY_FILE="$LIBDIR/$DOMAIN/assembly_summary.txt"
+    ASSEMBLY_SUMMARY_FILE="$LIBDIR/$DOMAIN/assembly_summary_filtered.txt"
+
+    echo "Downloading https://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/$DOMAIN/assembly_summary.txt ..." >&2
+    if [ $DL_MODE = "rsync" ]; then
+        $DL_CMD rsync://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/$DOMAIN/assembly_summary.txt "$FULL_ASSEMBLY_SUMMARY_FILE" || {
+            c_echo "rsync Download failed! Have a look at valid domains at https://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE ." >&2
+            exit 1;
+        }
+    else
+        $DL_CMD "$FULL_ASSEMBLY_SUMMARY_FILE" https://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/$DOMAIN/assembly_summary.txt > /dev/null || {
+            c_echo "Download failed! Have a look at valid domains at https://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE ." >&2
+            exit 1;
+        }
+    fi
+
+    awk -F "\t" "BEGIN {OFS=\"\t\"} $AWK_QUERY" "$FULL_ASSEMBLY_SUMMARY_FILE" > "$ASSEMBLY_SUMMARY_FILE"
+
+    N_EXPECTED=`cat "$ASSEMBLY_SUMMARY_FILE" | wc -l`
+    [[ $N_EXPECTED -gt 0 ]] || { echo "Domain $DOMAIN has no genomes with specified filter." >&2; exit 1; }
+    echo "Downloading $N_EXPECTED $DOMAIN genomes at assembly level $ASSEMBLY_LEVEL ... (will take a while)" >&2
+
+    if [[ "$DOMAIN" != "" ]]; then
+      ## Wrong columns in viral assembly summary files - the path is sometimes in field 20, sometimes 21
+      #cut -f "$TAXID_FIELD,$FTP_PATH_FIELD,$FTP_PATH_FIELD2" "$ASSEMBLY_SUMMARY_FILE" | \
+      # sed 's/^\(.*\)\t\(ftp:.*\)\t.*/\1\t\2/;s/^\(.*\)\t.*\t\(ftp:.*\)/\1\t\2/' | \
+      #sed 's#\([^/]*\)$#\1/\1_genomic.fna.gz#' |\
+      #   tr '\n' '\0' | xargs -0 -n1 -P $N_PROC bash -c 'download_n_process_nofail "$@"' _ | count $N_EXPECTED
+      cut -f "$TAXID_FIELD,$FTP_PATH_FIELD,$FTP_PATH_FIELD2" "$ASSEMBLY_SUMMARY_FILE" | \
+        awk -F "\t" '{if ($2~/ftp/) print $1"\t"$2; if ($3~/ftp/) print $1"\t"$3}' | \
+        sed 's#\([^/]*\)$#\1/\1_genomic.fna.gz#' |\
+        tr '\n' '\0' | xargs -0 -n1 -P $N_PROC bash -c 'download_n_process_nofail "$@"' _ | count $N_EXPECTED
+
+    else
+      cut -f "$TAXID_FIELD,$FTP_PATH_FIELD" "$ASSEMBLY_SUMMARY_FILE" | sed 's#\([^/]*\)$#\1/\1_genomic.fna.gz#' |\
+         tr '\n' '\0' | xargs -0 -n1 -P $N_PROC bash -c 'download_n_process_nofail "$@"' _ | count $N_EXPECTED
+    fi
+    echo >&2
+
+
+
+    if [[ "$DOWNLOAD_RNA" == "1" && ! `echo $DOMAIN | egrep 'bacteria|viral|archaea'` ]]; then
+        echo "Downloadinging rna sequence files" >&2
+        cut -f $TAXID_FIELD,$FTP_PATH_FIELD  "$ASSEMBLY_SUMMARY_FILE"| sed 's#\([^/]*\)$#\1/\1_rna.fna.gz#' |\
+            tr '\n' '\0' | xargs -0 -n1 -P $N_PROC bash -c 'download_n_process_nofail "$@"' _ | count $N_EXPECTED
+        echo >&2
+    fi
+done
