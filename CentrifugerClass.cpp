@@ -23,7 +23,7 @@ char usage[] = "./centrifuger-class [OPTIONS]:\n"
   "\t-o STRING: output prefix [centrifuger]\n"
   "\t-t INT: number of threads [1]\n"
   "\t-k INT: report upto <int> distinct, primary assignments for each read pair [1]\n"
-  "\t--min-hitlen INT: minimum length of partial hits [22]\n"
+  "\t--min-hitlen INT: minimum length of partial hits [auto]\n"
   "\t--hitk-factor INT: resolve at most <int>*k entries for each hit [40; use 0 for no restriction]\n"
   ;
 
@@ -69,7 +69,7 @@ int main(int argc, char *argv[])
 		fprintf( stderr, "%s", usage ) ;
 		return 0 ;
   }
-  Utils::PrintLog("Centrifuger starts.\n" ) ;
+  Utils::PrintLog("Centrifuger starts." ) ;
 	
   int c, option_index ;
 	option_index = 0 ;
@@ -138,7 +138,7 @@ int main(int argc, char *argv[])
 
   if (idxPrefix == NULL)
   {
-    Utils::PrintLog("Need to use -x to specify index prefix.\n") ;
+    Utils::PrintLog("Need to use -x to specify index prefix.") ;
     return EXIT_FAILURE ;
   }
 
@@ -179,7 +179,7 @@ int main(int argc, char *argv[])
       int tmp = mateReads.GetBatch( readBatch2, maxBatchSize, fileInd2, true, true ) ;
       if ( tmp != batchSize )
       {
-        Utils::PrintLog("ERROR: The two mate-pair read files have different number of reads.\n" ) ;
+        Utils::PrintLog("ERROR: The two mate-pair read files have different number of reads." ) ;
         return EXIT_FAILURE ;
       }
     }
@@ -212,6 +212,6 @@ int main(int argc, char *argv[])
   delete[] classifierBatchResults ;
   free(idxPrefix) ;
 
-  Utils::PrintLog("Centrifuger finishes.\n" ) ;
+  Utils::PrintLog("Centrifuger finishes." ) ;
   return 0 ;
 }

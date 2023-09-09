@@ -21,7 +21,7 @@ struct _classifierParam
   _classifierParam()
   {
     maxResult = 1 ;
-    minHitLen = 22 ;
+    minHitLen = 0 ;
     maxResultPerHitFactor = 40 ;
   }
 } ;
@@ -93,6 +93,21 @@ private:
     }
     for (i = 0 ; i < len ; ++i)
       r[i] = _compChar[(int)r[i]] ; 
+  }
+
+  void InferMinHitLen()
+  {
+    int mhl = 22 ;
+    int alphabetSize = _fm.GetAlphabetSize() ; 
+    uint64_t kmerspace = Utils::PowerInt(alphabetSize, mhl)/ 2 ;
+    uint64_t n = _fm.GetSize() ;
+    for ( ; mhl <= 32 ; ++mhl)
+    {
+      if (kmerspace >= 100 * n)
+        break ;
+      kmerspace *= alphabetSize ;
+    }
+    _param.minHitLen = mhl ;
   }
 
   //l: hit length
@@ -511,6 +526,11 @@ public:
     fclose(fp) ;
     
     _param = param ;
+    if (_param.minHitLen <= 0)
+    {
+      InferMinHitLen() ;
+      Utils::PrintLog("Inferred --min-hitlen: %d", _param.minHitLen) ;
+    }
 
     free(nameBuffer) ;
   }
