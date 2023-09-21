@@ -1,18 +1,21 @@
 #include <stdio.h>
 #include <getopt.h>
 
-#include "Taxonomy.hpp"
 #include "argvdefs.h"
+#include "Taxonomy.hpp"
+#include "compactds/FMIndex.hpp"
+#include "compactds/Sequence_RunBlock.hpp"
 
 char usage[] = "./centrifuger-inspect [OPTIONS]:\n"
   "Required:\n"
-  "\t-x STRING: index prefix"
+  "\t-x STRING: index prefix\n"
   "One of:\n"
   "\t--summary: \n"
   "\t--name: \n"
   "\t--conversion-table: \n"
   "\t--taxonomy-tree: \n"
   "\t--name-table: \n"
+  "\t--index-size: \n"
   ""
   ;
 
@@ -23,8 +26,11 @@ static struct option long_options[] = {
   {"conversion-table", no_argument, 0, ARGV_CONVERSION_TABLE},
   {"taxonomy-tree", no_argument, 0, ARGV_TAXONOMY_TREE},
   {"name-table", no_argument, 0, ARGV_NAME_TABLE},
+  {"index-size", no_argument, 0, ARGV_INSPECT_INDEXSIZE},
   { (char *)0, 0, 0, 0} 
 } ;
+
+using namespace compactds ;
 
 int main(int argc, char *argv[])
 {
@@ -98,6 +104,16 @@ int main(int argc, char *argv[])
   else if (inspectItem == ARGV_NAME_TABLE)
   {
     taxonomy.PrintNameTable(stdout) ;
+  }
+  else if (inspectItem == ARGV_INSPECT_INDEXSIZE)
+  {
+    sprintf(buffer, "%s.1.cfr", idxPrefix) ; 
+    FMIndex<Sequence_RunBlock> fm ;
+    FILE *fp = fopen(buffer, "r") ;
+    fm.Load(fp) ;
+    fclose(fp) ;
+
+    fm.PrintSpace() ;
   }
   else
   {
