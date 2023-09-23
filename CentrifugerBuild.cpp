@@ -97,6 +97,10 @@ int main(int argc, char *argv[])
     {
       buildMemoryConstraint = Utils::SpaceStringToBytes(optarg) ;
     }
+    else if (c == ARGV_OFFRATE)
+    {
+      fmBuilderParam.sampleRate = (1<<atoi(optarg)) ;
+    }
     else if (c == ARGV_SUBSET_TAXONOMY)
     {
       sscanf(optarg, "%lu", &subsetTax) ;

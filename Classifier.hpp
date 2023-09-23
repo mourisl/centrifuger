@@ -525,6 +525,8 @@ public:
     }
     fclose(fp) ;
     
+    Utils::PrintLog("Finishes loading index.") ;
+    
     _param = param ;
     if (_param.minHitLen <= 0)
     {

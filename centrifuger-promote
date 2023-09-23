@@ -104,7 +104,7 @@ sub OutputPromotedLines
 		{
 			my @cols = split /\t+/, $lines[ $i ] ;
 			my $newTid = PromoteTaxId( $cols[2] ) ;
-			if ( $newTid <= 1 )
+      if ( $newTid <= 1 )
 			{
 				$newTid = $cols[2] ;
 			}
