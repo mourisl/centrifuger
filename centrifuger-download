@@ -29,10 +29,10 @@ function download_n_process() {
     NAME=`basename $FILEPATH .gz`
     GZIPPED_FILE="$LIBDIR/$DOMAIN/$NAME.gz"
     UNZIPPED_FILE="$LIBDIR/$DOMAIN/$NAME"
-    DUSTMASKED_FILE="$LIBDIR/$DOMAIN/${NAME%.fna}_dustmasked.fna"
+    DUSTMASKED_FILE="$LIBDIR/$DOMAIN/${NAME%.fna.gz}_dustmasked.fna.gz"
     [[ "$DO_DUST" == "1" ]] && RES_FILE=$DUSTMASKED_FILE || RES_FILE=$UNZIPPED_FILE
 
-    if [[ ! -s "$RES_FILE" ]]; then
+    if [[ ! -s "$RES_FILE" || -n `gzip -t "$RES_FILE" 2>&1 >/dev/null` ]]; then
         if [ $DL_MODE = "rsync" ]; then
             FILEPATH=${FILEPATH/ftp/rsync}
             $DL_CMD "$FILEPATH" "$LIBDIR/$DOMAIN/$NAME.gz" || \
@@ -44,12 +44,13 @@ function download_n_process() {
 	    { printf "\nError downloading $FILEPATH!\n" >&2 && exit 1; }
         fi
     
-        [[ -s "$LIBDIR/$DOMAIN/$NAME.gz" ]] || return;
-        gunzip -f "$LIBDIR/$DOMAIN/$NAME.gz" ||{ printf "\nError gunzipping $LIBDIR/$DOMAIN/$NAME.gz [ downloaded from $FILEPATH ]!\n" >&2 &&  exit 255; }
-    
+        [[ -s "$GZIPPED_FILE" ]] || return;
+        # Difference to centrifuge, centrifuger can directly work on gzipped files 
+        #gunzip -f "$LIBDIR/$DOMAIN/$NAME.gz" ||{ printf "\nError gunzipping $LIBDIR/$DOMAIN/$NAME.gz [ downloaded from $FILEPATH ]!\n" >&2 &&  exit 255; }
         
         if [[ "$CHANGE_HEADER" == "1" ]]; then
-            sed -i "s/^>/>kraken:taxid|$TAXID /" $LIBDIR/$DOMAIN/$NAME
+            #sed -i "s/^>/>kraken:taxid|$TAXID /" $LIBDIR/$DOMAIN/$NAME
+            echo TODO 2>&1
         fi
     
         if [[ "$FILTER_UNPLACED" == "1" ]]; then
@@ -59,13 +60,14 @@ function download_n_process() {
     
         if [[ "$DO_DUST" == "1" ]]; then
           ## TODO: Consider hard-masking only low-complexity stretches with 10 or more bps
-          dustmasker -infmt fasta -in $LIBDIR/$DOMAIN/$NAME -level 20 -outfmt fasta | sed '/^>/! s/[^AGCT]/N/g' > $DUSTMASKED_FILE
-          rm $LIBDIR/$DOMAIN/$NAME
+          gunzip -f "$GZIPPED_FILE" ||{ printf "\nError gunzipping $LIBDIR/$DOMAIN/$NAME.gz [ downloaded from $FILEPATH ]!\n" >&2 &&  exit 255; }
+          dustmasker -infmt fasta -in $UNZIPPED_FILE -level 20 -outfmt fasta | gzip -c > $DUSTMASKED_FILE
+          rm $UNZIPPED_FILE
         fi
     fi
 
     ## Output sequenceID to taxonomy ID map to STDOUT
-    cat $RES_FILE | map_headers_to_taxid $TAXID
+    zcat $RES_FILE | map_headers_to_taxid $TAXID
     echo done
 }
 export -f download_n_process
