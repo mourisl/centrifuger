@@ -361,7 +361,7 @@ private:
           iter != localSeqIdHit.end() ; ++iter)
       {
         size_t seqId = iter->first ;
-        if (!mixStrand && hits[i].ep == hits[i].sp && 
+        if (!mixStrand && i > 0 && hits[i].ep == hits[i].sp && 
             hits[i - 1].ep == hits[i - 1].sp && 
             hits[i - 1].strand == hits[i].strand &&
             hits[i - 1].offset + hits[i - 1].l + 1 == hits[i].offset && // the other strand adjustication may cause overlaps of the hit regions. Make sure the two hits only separate by 1 base.
