@@ -64,7 +64,6 @@ class ReadFiles
       }
 
       opened = true ;
-
       gzFp = gzopen( fileNames[fileInd].c_str(), "r" ) ;
       inSeq = kseq_init( gzFp ) ;
 
@@ -162,7 +161,8 @@ class ReadFiles
       while ( currentFpInd < fileCnt && ( kseq_read( inSeq ) < 0 ) )
       {
         ++currentFpInd ;
-        OpenFile(currentFpInd) ;
+        if (currentFpInd < fileCnt)
+          OpenFile(currentFpInd) ;
       }
       if ( currentFpInd >= fileCnt )
         return 0 ;

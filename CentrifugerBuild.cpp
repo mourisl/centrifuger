@@ -8,21 +8,23 @@
 char usage[] = "./centrifuger-build [OPTIONS]:\n"
   "Required:\n"
   "\t-r FILE: reference sequence file (can use multiple -r to specify more than one input file)\n"
-  "\t--taxonomy-tree FILE: \n"
+  "\t\tor\n"
+  "\t-l FILE: list of reference sequence file, one file per row\n"
+  "\t--taxonomy-tree FILE: tax\n"
   "\t--name-table FILE: \n"
   "\t--conversion-table FILE: \n"
   "Optional:\n"
   "\t-o STRING: output prefix [centrifuger]\n"
   "\t-t INT: number of threads [1]\n"
   "\t--bmax INT: block size for blockwise suffix array sorting [16777216]\n"
-  "\t--offrate INT: sample rate for stored SA values in 2 to the INT [5]\n"
+  "\t--offrate INT: SA/offset is sampled every (2^INT) BWT chars [4]\n"
   "\t--dcv INT: difference cover period [4096]\n"
   "\t--build-mem STR: automatic infer bmax and dcv to match memory constraints, can use P,G,M,K to specify the memory size [not used]\n"
   "\t--subset-tax INT: only consider the subset of input genomes [0]\n"
   ""
   ;
 
-static const char *short_options = "r:o:t:" ;
+static const char *short_options = "r:l:o:t:" ;
 static struct option long_options[] = {
       { "bmax", required_argument, 0, ARGV_BMAX},
 			{ "dcv", required_argument, 0, ARGV_DCV},
@@ -53,6 +55,7 @@ int main(int argc, char *argv[])
   ReadFiles refGenomeFile ;
 
   struct _FMBuilderParam fmBuilderParam ;
+  fmBuilderParam.sampleRate = 16 ;
 
   while (1)
   {
@@ -64,6 +67,15 @@ int main(int argc, char *argv[])
     if (c == 'r') // reference genome file
     {
       refGenomeFile.AddReadFile(optarg, false) ;
+    }
+    else if (c == 'l')
+    {
+      char *fileName = (char *)malloc(sizeof(char) * 4096) ;
+      FILE *fpList = fopen(optarg, "r") ;
+      while (fscanf(fpList, "%s", fileName) != EOF)
+        refGenomeFile.AddReadFile(fileName, false) ;
+      fclose(fpList) ;
+      free(fileName) ;
     }
     else if (c == 'o')
     {
