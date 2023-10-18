@@ -58,11 +58,27 @@ Centrifuger depends on [pthreads](http://en.wikipedia.org/wiki/POSIX_Threads).
       --hitk-factor INT: resolve at most <int>*k entries for each hit [40; use 0 for no restriction]
 
 ### Input/Output
-    
+
+The primary input to Centrifuger is the index of the genome database (-x), and gzipped or uncompressed read fastq files (-1/-2 for paired; -u for single-end).
+
+The output is to stdout, with the TSV format as following:
+```
+readID    seqID   taxID score      2ndBestScore    hitLength    queryLength numMatches
+1_1       MT019531.1     2697049   4225       0               80   80      1
+
+The first column is the read ID from a raw sequencing read (e.g., 1_1 in the example).
+The second column is the sequence ID of the genomic sequence, where the read is classified (e.g., MT019531.1).
+The third column is the taxonomic ID of the genomic sequence in the second column (e.g., 2697049).
+The fourth column is the score for the classification, which is the weighted sum of hits (e.g., 4225)
+The fifth column is the score for the next best classification (e.g., 0).
+The sixth column is a pair of two numbers: (1) an approximate number of base pairs of the read that match the genomic sequence and (2) the length of a read or the combined length of mate pairs (e.g., 80 / 80).
+The seventh column is a pair of two numbers: (1) an approximate number of base pairs of the read that match the genomic sequence and (2) the length of a read or the combined length of mate pairs (e.g., 80 / 80). 
+The eighth column is the number of classifications for this read, indicating how many assignments were made (e.g.,1).
+```
 
 ### Practical notes
-#### Download your own sequences
-The download procedure is similar to [Centrifuge's](), but with names changing to centrifuger. For example, centrifuge-download is centrifuger-download. 
+#### Build custom database index 
+The index building procedure is similar to [Centrifuge's](http://www.ccb.jhu.edu/software/centrifuge/manual.shtml#database-download-and-index-building), but with names changing to centrifuger. For example, centrifuge-download is centrifuger-download. 
 
 ### Example
 
