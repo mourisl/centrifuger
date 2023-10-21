@@ -47,6 +47,17 @@ def GetSubTree(taxonomyTree, taxid):
 
   return ret
 
+def GetAncestors(taxonomyTree, taxid):
+  path = []
+  tid = taxid 
+  while (True):
+    path.append(tid)
+    if (tid == taxonomyTree[tid][0]):
+      break
+    tid = taxonomyTree[tid][0]
+  path.reverse() ; 
+  return path
+
 def PromoteTaxLevel(taxonomyTree, taxid, rank):
   tid = taxid
   if (tid not in taxonomyTree):
@@ -62,6 +73,12 @@ def PromoteTaxLevel(taxonomyTree, taxid, rank):
       tid = parentTid ;
   return -1 
 
+def PrintTax(taxid):
+  if (taxid in taxonomyTree):
+    print("\t".join([taxid, "|", taxonomyTree[taxid][0], "|", taxonomyTree[taxid][1], "|"]))
+  else:
+    print("\t".join([taxid, "|", "", "|", "", "|"]))
+
 if (__name__ == "__main__"):
   parser = argparse.ArgumentParser(description="")
   parser.add_argument("--op", help="operation: subtree,promote", dest="op", required=True)
@@ -76,7 +93,10 @@ if (__name__ == "__main__"):
 
   if (args.op == "subtree"):
     for taxid in GetSubTree(taxonomyTree, args.taxid):
-      print(taxid)
+      PrintTax(taxid)
+  elif (args.op == "ancestors"):
+    for taxid in GetAncestors(taxonomyTree, args.taxid):
+      PrintTax(taxid)
   elif (args.op == "promote"):
     taxidList = []
     fp = open(args.taxidListFile, "r")
