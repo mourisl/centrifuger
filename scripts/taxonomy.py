@@ -90,20 +90,29 @@ if (__name__ == "__main__"):
   args = parser.parse_args()
   
   taxonomyTree = ReadTaxonomyTree(args.tree)
+  taxidList = []
 
-  if (args.op == "subtree"):
-    for taxid in GetSubTree(taxonomyTree, args.taxid):
-      PrintTax(taxid)
-  elif (args.op == "ancestors"):
-    for taxid in GetAncestors(taxonomyTree, args.taxid):
-      PrintTax(taxid)
-  elif (args.op == "promote"):
-    taxidList = []
+  if (args.taxid != None):
+    taxidList = args.taxid.split(",")
+  if (args.taxidListFile != None):
     fp = open(args.taxidListFile, "r")
     for line in fp:
       taxidList.append(line.rstrip())
     fp.close()
-    
+  
+  if (args.op == "subtree"):
+    outputTaxIds = set({})
     for taxid in taxidList:
-      print(PromoteTaxLevel(taxonomyTree, taxid, args.taxRank))
+      outputTaxIds.update(GetSubTree(taxonomyTree, taxid))
+    for taxid in sorted(outputTaxIds, key=lambda x:int(x)):
+        PrintTax(taxid)
+  elif (args.op == "ancestors"):
+    outputTaxIds = set({})
+    for taxid in taxidList:
+      outputTaxIds.update(GetAncestors(taxonomyTree, taxid))
+    for taxid in sorted(outputTaxIds, key=lambda x:int(x)):
+        PrintTax(taxid)
+  elif (args.op == "promote"):
+    for taxid in taxidList:
+      PrintTax(PromoteTaxLevel(taxonomyTree, taxid, args.taxRank))
     

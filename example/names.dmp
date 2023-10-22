@@ -1,0 +1,65 @@
+1	|	all	|		|	synonym	|
+1	|	root	|		|	scientific name	|
+2	|	Bacteria	|	Bacteria <bacteria>	|	scientific name	|
+2	|	bacteria	|		|	blast name	|
+2	|	eubacteria	|		|	genbank common name	|
+2	|	Monera	|	Monera <bacteria>	|	in-part	|
+2	|	Procaryotae	|	Procaryotae <bacteria>	|	in-part	|
+2	|	Prokaryotae	|	Prokaryotae <bacteria>	|	in-part	|
+2	|	Prokaryota	|	Prokaryota <bacteria>	|	in-part	|
+2	|	prokaryote	|	prokaryote <bacteria>	|	in-part	|
+2	|	prokaryotes	|	prokaryotes <bacteria>	|	in-part	|
+444	|	Legionellaceae Brenner et al. 1979 (Approved Lists 1980)	|		|	authority	|
+444	|	Legionellaceae Brenner et al. 1979 (Approved Lists 1980) emend. Saini and Gupta 2021	|		|	authority	|
+444	|	Legionellaceae	|		|	scientific name	|
+445	|	Legionella Brenner et al. 1979 (Approved Lists 1980)	|		|	authority	|
+445	|	Legionella Brenner et al. 1979 (Approved Lists 1980) emend. Saini and Gupta 2021	|		|	authority	|
+445	|	Legionella	|		|	scientific name	|
+445	|	Sarcobium Drozanski 1991	|		|	authority	|
+445	|	Sarcobium	|		|	synonym	|
+446	|	ATCC 33152	|	ATCC 33152 <type strain>	|	type material	|
+446	|	ATCC:33152D-5	|	ATCC:33152D-5 <type strain>	|	type material	|
+446	|	CCUG 9568	|	CCUG 9568 <type strain>	|	type material	|
+446	|	CIP 103854	|	CIP 103854 <type strain>	|	type material	|
+446	|	DSM 7513	|	DSM 7513 <type strain>	|	type material	|
+446	|	JCM 7571	|	JCM 7571 <type strain>	|	type material	|
+446	|	Legionella pneumophila Brenner et al. 1979 (Approved Lists 1980)	|		|	authority	|
+446	|	Legionella pneumophila	|		|	scientific name	|
+446	|	NCTC 11192	|	NCTC 11192 <type strain>	|	type material	|
+446	|	strain Philadelphia 1	|	strain Philadelphia 1 <type strain>	|	type material	|
+446	|	strain PHILADELPHIA 1	|	strain PHILADELPHIA 1 <type strain>	|	type material	|
+1224	|	Alphaproteobacteriota	|		|	synonym	|
+1224	|	"Alphaproteobacteriota" Whitman et al. 2018	|		|	synonym	|
+1224	|	proteobacteria	|		|	blast name	|
+1224	|	"Proteobacteria" Garrity et al. 2005	|		|	authority	|
+1224	|	Proteobacteria Stackebrandt et al. 1988	|		|	authority	|
+1224	|	Proteobacteria	|		|	synonym	|
+1224	|	"Proteobacteriota" Panda et al. 2022	|		|	authority	|
+1224	|	Proteobacteriota	|		|	synonym	|
+1224	|	Pseudomonadota corrig. Garrity et al. 2021	|		|	authority	|
+1224	|	Pseudomonadota	|		|	scientific name	|
+1224	|	purple photosynthetic bacteria and relatives	|		|	common name	|
+1236	|	Gammaproteobacteria Garrity et al. 2005 emend. Williams and Kelly 2013	|		|	authority	|
+1236	|	Gammaproteobacteria	|		|	scientific name	|
+1236	|	gamma proteobacteria	|		|	synonym	|
+1236	|	gamma subdivision	|		|	synonym	|
+1236	|	gamma subgroup	|		|	synonym	|
+1236	|	g-proteobacteria	|		|	blast name	|
+1236	|	Proteobacteria gamma subdivision	|		|	synonym	|
+1236	|	"Pseudomonadia" Oren et al. 2016	|		|	authority	|
+1236	|	Pseudomonadia	|		|	synonym	|
+1236	|	Purple bacteria, gamma subdivision	|		|	synonym	|
+91891	|	Legionella pneumophila subsp. pneumophila Brenner et al. 1979 (Approved Lists 1980)	|		|	authority	|
+91891	|	Legionella pneumophila subsp. pneumophila	|		|	scientific name	|
+118969	|	Legionellaceae group	|		|	synonym	|
+118969	|	Legionellales Garrity et al. 2005	|		|	authority	|
+118969	|	Legionellales Garrity et al. 2005 emend. Saini and Gupta 2021	|		|	authority	|
+118969	|	Legionellales	|		|	scientific name	|
+131567	|	biota	|		|	synonym	|
+131567	|	cellular organisms	|		|	scientific name	|
+272624	|	Legionella pneumophila subsp. pneumophila 'Philadelphia 1'	|		|	equivalent name	|
+272624	|	Legionella pneumophila subsp. pneumophila strain Philadelphia 1	|		|	equivalent name	|
+272624	|	Legionella pneumophila subsp. pneumophila str. Philadelphia 1	|		|	scientific name	|
+272624	|	Legionella pneumophila subsp. pneumophila str. Philadelphia-1	|		|	synonym	|
+297246	|	Legionella pneumophila Paris	|		|	synonym	|
+297246	|	Legionella pneumophila str. Paris	|		|	scientific name	|

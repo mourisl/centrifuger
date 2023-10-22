@@ -13,21 +13,24 @@
 #include "Classifier.hpp"
 #include "ResultWriter.hpp"
 
-char usage[] = "./centrifuger-class [OPTIONS]:\n"
+#define CENTRIFUGER_VERSION "Centrifuger v1.0.0"
+
+char usage[] = "./centrifuger [OPTIONS]:\n"
   "Required:\n"
   "\t-x FILE: index prefix\n"
   "\t-1 FILE -2 FILE: paired-end read\n"
   "\t-u FILE: single-end read\n"
   //"\t--sample-sheet FILE: \n"
   "Optional:\n"
-  "\t-o STRING: output prefix [centrifuger]\n"
+  //"\t-o STRING: output prefix [centrifuger]\n"
   "\t-t INT: number of threads [1]\n"
   "\t-k INT: report upto <int> distinct, primary assignments for each read pair [1]\n"
+  "\t-v: print the version information and quit\n"
   "\t--min-hitlen INT: minimum length of partial hits [auto]\n"
   "\t--hitk-factor INT: resolve at most <int>*k entries for each hit [40; use 0 for no restriction]\n"
   ;
 
-static const char *short_options = "x:1:2:u:o:t:k:" ;
+static const char *short_options = "x:1:2:u:o:t:k:v" ;
 static struct option long_options[] = {
   { "min-hitlen", required_argument, 0, ARGV_MIN_HITLEN},
   { "hitk-factor", required_argument, 0, ARGV_MAX_RESULT_PER_HIT_FACTOR},
@@ -69,7 +72,6 @@ int main(int argc, char *argv[])
 		fprintf( stderr, "%s", usage ) ;
 		return 0 ;
   }
-  Utils::PrintLog("Centrifuger starts." ) ;
 	
   int c, option_index ;
 	option_index = 0 ;
@@ -121,6 +123,11 @@ int main(int argc, char *argv[])
     {
       classifierParam.maxResult = atoi(optarg) ;
     }
+    else if (c == 'v')
+    {
+      printf(CENTRIFUGER_VERSION"\n") ;
+      exit(0) ; 
+    }
     else if (c == ARGV_MIN_HITLEN)
     {
       classifierParam.minHitLen = atoi(optarg) ;
@@ -136,6 +143,7 @@ int main(int argc, char *argv[])
 		}
   }
 
+  Utils::PrintLog("Centrifuger starts." ) ;
   if (idxPrefix == NULL)
   {
     Utils::PrintLog("Need to use -x to specify index prefix.") ;

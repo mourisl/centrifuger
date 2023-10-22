@@ -1,0 +1,12 @@
+1	|	1	|	no rank	|
+2	|	131567	|	superkingdom	|
+444	|	118969	|	family	|
+445	|	444	|	genus	|
+446	|	445	|	species	|
+1224	|	2	|	phylum	|
+1236	|	1224	|	class	|
+91891	|	446	|	subspecies	|
+118969	|	1236	|	order	|
+131567	|	1	|	no rank	|
+272624	|	91891	|	strain	|
+297246	|	446	|	strain	|

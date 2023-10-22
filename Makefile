@@ -11,12 +11,12 @@ ifneq ($(asan),)
 	LDFLAGS+=-fsanitize=address -ldl -g
 endif
 
-all: centrifuger-class centrifuger-build centrifuger-inspect
+all: centrifuger centrifuger-build centrifuger-inspect
 
 centrifuger-build: CentrifugerBuild.o
 	$(CXX) -o $@ $(LINKPATH) $(CXXFLAGS) $< $(LINKFLAGS)
 
-centrifuger-class: CentrifugerClass.o
+centrifuger: CentrifugerClass.o
 	$(CXX) -o $@ $(LINKPATH) $(CXXFLAGS) $< $(LINKFLAGS)
 
 centrifuger-inspect: CentrifugerInspect.o
@@ -26,4 +26,4 @@ CentrifugerBuild.o: CentrifugerBuild.cpp Builder.hpp ReadFiles.hpp Taxonomy.hpp 
 CentrifugerClass.o: CentrifugerClass.cpp Classifier.hpp ReadFiles.hpp Taxonomy.hpp defs.h ResultWriter.hpp compactds/*.hpp 
 CentrifugerInspect: CentrifugerInspect.cpp Taxonomy.hpp 
 clean:
-	rm -f *.o centrifuger-build centrifuger-class centrifuger-inspect
+	rm -f *.o centrifuger-build centrifuger centrifuger-inspect

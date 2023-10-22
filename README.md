@@ -17,7 +17,7 @@ Centrifuger is a
 1. Clone the [GitHub repo](https://github.com/mourisl/centrifuger), e.g. with `git clone https://github.com/mourisl/centrifuger.git`
 2. Run `make` in the repo directory
 
-You will find the executable files in the downloaded directory. If you want to run Centrifuger without specifying the directory, you can either add the directory of Centrifuger to the environment variable PATH or create a soft link ("ln -s") of the file "centrifuger-class" to a directory in PATH.
+You will find the executable files in the downloaded directory. If you want to run Centrifuger without specifying the directory, you can either add the directory of Centrifuger to the environment variable PATH or create a soft link ("ln -s") of the file "centrifuger" to a directory in PATH.
 
 Centrifuger depends on [pthreads](http://en.wikipedia.org/wiki/POSIX_Threads). 
 
@@ -44,7 +44,7 @@ Centrifuger depends on [pthreads](http://en.wikipedia.org/wiki/POSIX_Threads).
 
 #### Classification
 
-    Usage: ./centrifuger-class [OPTIONS]
+    Usage: ./centrifuger [OPTIONS]
       Required:
         -x FILE: index prefix
         -1 FILE -2 FILE: paired-end read
