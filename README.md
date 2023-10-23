@@ -82,7 +82,21 @@ The index building procedure is similar to [Centrifuge's](http://www.ccb.jhu.edu
 
 ### Example
 
+The directory "./example" in this distribution contains files for building Centrifuger index and classification. Suppose you are in the example folder, and Centrifuger has been compiled with "make" command.
 
+* Build index:
+   
+    ../centrifuger-build -r ref.fa --taxonomy-tree nodes.dmp --name-table names.dmp --conversion-table ref_seqid.map -o cfr_ref_idx
+  
+After running the above command, you shall see the index file "cfr_ref_idx.*.cfr" in the example folder.
+
+* Classification
+
+    ./centrifuger -1 example_1.fq -2 example_2.fq -x cfr_ref_idx > output.tsv
+
+The output.tsv should be similar to the example_class.out file in the folder. 
+
+#### Classify the reads
 
 ### Support
 
