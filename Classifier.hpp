@@ -7,7 +7,7 @@
 #include "compactds/FMIndex.hpp"
 #include "compactds/Sequence_Hybrid.hpp"
 #include "compactds/Sequence_RunBlock.hpp"
-#include "SimpleVector.hpp"
+#include "compactds/SimpleVector.hpp"
 
 using namespace compactds ;
 
