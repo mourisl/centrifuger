@@ -15,7 +15,7 @@
 #include <string.h>
 
 #include "MapID.hpp"
-#include "SimpleVector.hpp"
+#include "compactds/SimpleVector.hpp"
 #include "compactds/Utils.hpp"
 
 enum 
