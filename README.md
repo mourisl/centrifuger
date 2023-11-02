@@ -10,7 +10,7 @@ Described in:
 
 ### What is Centrifuger?
 
-Centrifuger is a 
+Centrifuger is an efficient taxonomic classification method that compares sequencing reads against a microbial genome database. It implemented a novel lossless compression method, run-block comprssed BWT, and other strategies to efficiently reduce the size of the microbial genome database like RefSeq. For example, Centrifuger can classify reads against the 2023 RefSeq prokaryotic genomes containing about 140G nucleotides using 43 GB memory. Despite running on a compressed data structure, Centrifuger is also highly efficient and can process a typical sequencing sample within an hour. 
 
 ### Install
 
