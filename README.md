@@ -42,6 +42,8 @@ Centrifuger depends on [pthreads](http://en.wikipedia.org/wiki/POSIX_Threads).
         --build-mem STR: automatic infer bmax and dcv to match memory constraints, can use P,G,M,K to specify the memory size [not used]
         --subset-tax INT: only consider the subset of input genomes under taxonomy node <int> [0]
 
+An example of pre-built index containing human, bacteria, archea, and virus genomes from RefSeq plus SARS-CoV-2 variants from GenBank is available at [Zenodo](https://zenodo.org/records/10023239).
+
 #### Classification
 
     Usage: ./centrifuger [OPTIONS]
