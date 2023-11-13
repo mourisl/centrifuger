@@ -13,7 +13,7 @@
 #include "Classifier.hpp"
 #include "ResultWriter.hpp"
 
-#define CENTRIFUGER_VERSION "Centrifuger v1.0.0"
+//#define CENTRIFUGER_VERSION "Centrifuger v1.0.0"
 
 char usage[] = "./centrifuger [OPTIONS]:\n"
   "Required:\n"
@@ -125,7 +125,7 @@ int main(int argc, char *argv[])
     }
     else if (c == 'v')
     {
-      printf(CENTRIFUGER_VERSION"\n") ;
+      printf("Centrifuger v"CENTRIFUGER_VERSION"\n") ;
       exit(0) ; 
     }
     else if (c == ARGV_MIN_HITLEN)

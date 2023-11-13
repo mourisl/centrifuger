@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <getopt.h>
 
+#include "defs.h"
 #include "argvdefs.h"
 #include "Taxonomy.hpp"
 #include "compactds/FMIndex.hpp"

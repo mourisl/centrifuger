@@ -131,6 +131,18 @@ public:
         firstISA, fmBuilderParam, alphabetList, alphabetSize) ;
   }
 
+  void OutputBuilderMeta(FILE *fp, const FMIndex<Sequence_RunBlock> &fm) 
+  {
+    fprintf(fp, "version\t"CENTRIFUGER_VERSION"\n") ;
+    fprintf(fp, "SA_sample_rate\t%d\n", fm._auxData.sampleRate) ;
+
+    time_t mytime = time(NULL) ;
+    struct tm *localT = localtime( &mytime ) ;
+    char stime[500] ;
+    strftime( stime, sizeof( stime ), "%c", localT ) ;
+    fprintf(fp, "build_date\t%s", stime) ;
+  }
+
   void Save(const char *outputPrefix)
   {
     char outputFileName[1024] ; 
@@ -159,6 +171,11 @@ public:
     }
     fclose(fpOutput) ;
 
+    // .4.cfr file is tsv file for some version information
+    sprintf(outputFileName, "%s.4.cfr", outputPrefix) ;
+    fpOutput = fopen(outputFileName, "w") ;
+    OutputBuilderMeta(fpOutput, _fmIndex) ;
+    fclose(fpOutput) ;
   }
 } ;
 
