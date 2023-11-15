@@ -133,7 +133,7 @@ public:
 
   void OutputBuilderMeta(FILE *fp, const FMIndex<Sequence_RunBlock> &fm) 
   {
-    fprintf(fp, "version\t"CENTRIFUGER_VERSION"\n") ;
+    fprintf(fp, "version\t" CENTRIFUGER_VERSION "\n") ;
     fprintf(fp, "SA_sample_rate\t%d\n", fm._auxData.sampleRate) ;
 
     time_t mytime = time(NULL) ;
