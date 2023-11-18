@@ -3,7 +3,7 @@ Centrifuger
 
 Described in: 
 
-  Song, L., Langmead B.. Centrifuger: lossless compression of microbial genomes for efficient and accurate metagenomic sequence classification.
+  Song, L., Langmead B.. Centrifuger: lossless compression of microbial genomes for efficient and accurate metagenomic sequence classification. Biorxiv (2023). https://doi.org/10.1101/2023.11.15.567129
 
   Copyright (C) 2023-, Li Song
 
