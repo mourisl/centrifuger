@@ -13,19 +13,15 @@ Described in:
 Centrifuger is an efficient taxonomic classification method that compares sequencing reads against a microbial genome database. It implemented a novel lossless compression method, run-block comprssed BWT, and other strategies to efficiently reduce the size of the microbial genome database like RefSeq. For example, Centrifuger can classify reads against the 2023 RefSeq prokaryotic genomes containing about 140G nucleotides using 43 GB memory. Despite running on a compressed data structure, Centrifuger is also highly efficient and can process a typical sequencing sample within an hour. 
 
 ### Install
-#### Conda
-![](https://anaconda.org/bioconda/centrifuger/badges/version.svg) ![](https://anaconda.org/bioconda/centrifuger/badges/platforms.svg) ![](https://anaconda.org/bioconda/centrifuger/badges/latest_release_date.svg
-) ![](https://anaconda.org/bioconda/centrifuger/badges/downloads.svg)
-```
-conda install -c conda-forge -c bioconda centrifuger
-```
-#### Compiling
+
 1. Clone the [GitHub repo](https://github.com/mourisl/centrifuger), e.g. with `git clone https://github.com/mourisl/centrifuger.git`
 2. Run `make` in the repo directory
 
 You will find the executable files in the downloaded directory. If you want to run Centrifuger without specifying the directory, you can either add the directory of Centrifuger to the environment variable PATH or create a soft link ("ln -s") of the file "centrifuger" to a directory in PATH.
 
 Centrifuger depends on [pthreads](http://en.wikipedia.org/wiki/POSIX_Threads). 
+
+Centrifuger is also available from [Bioconda](https://anaconda.org/bioconda/centrifuger). You can install Centrifuger with `conda install -c conda-forge -c bioconda centrifuger`.
 
 ### Usage
 
