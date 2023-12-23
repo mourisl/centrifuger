@@ -182,7 +182,7 @@ private:
     // Flatten the taxonomy tree to the array
     _nodeCnt = _taxIdMap.GetSize() ;
     _taxonomyTree = new struct TaxonomyNode[_nodeCnt] ;
-    memset(_taxonomyTree, 0, sizeof(TaxonomyNode) * _nodeCnt) ;
+    //memset(_taxonomyTree, 0, sizeof(TaxonomyNode) * _nodeCnt) ;
     for (std::map<uint64_t, struct TaxonomyNode>::iterator it = cleanTree.begin() ;
         it != cleanTree.end() ; ++it)
     {
