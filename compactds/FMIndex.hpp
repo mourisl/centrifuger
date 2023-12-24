@@ -297,7 +297,7 @@ public:
     {
       ++_plainAlphabetPartialSum[BWT.Read(i)] ; 
     }
-    for (i = 1 ; i < alphabetSize ; ++i)
+    for (i = 1 ; (int)i < alphabetSize ; ++i)
       _plainAlphabetPartialSum[i] += _plainAlphabetPartialSum[i - 1] ;
     for (i = alphabetSize ; i >= 1 ; --i)
       _plainAlphabetPartialSum[i] = _plainAlphabetPartialSum[i - 1] ;

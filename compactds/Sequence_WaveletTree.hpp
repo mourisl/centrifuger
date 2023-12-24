@@ -291,8 +291,6 @@ public:
     return i ;
   }
 
-
-
   // return: the index of the ith (1-based) c 
   size_t Select(ALPHABET c, size_t i) const 
   {
