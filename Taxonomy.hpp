@@ -63,20 +63,6 @@ struct TaxonomyNode
     	parentTid(_parent_tid), rank(_rank), leaf(_leaf) {};
 
     TaxonomyNode(): parentTid(0), rank(RANK_UNKNOWN), leaf(false) {};
-
-    void Save(FILE *fp)
-    {
-      SAVE_VAR(fp, parentTid) ;
-      SAVE_VAR(fp, rank) ;
-      SAVE_VAR(fp, leaf) ;
-    }
-
-    void Load(FILE *fp)
-    {
-      LOAD_VAR(fp, parentTid) ;
-      LOAD_VAR(fp, rank) ;
-      LOAD_VAR(fp, leaf) ;
-    }
 };
 
 
@@ -196,7 +182,7 @@ private:
     // Flatten the taxonomy tree to the array
     _nodeCnt = _taxIdMap.GetSize() ;
     _taxonomyTree = new struct TaxonomyNode[_nodeCnt] ;
-    //memset(_taxonomyTree, 0, sizeof(TaxonomyNode) * _nodeCnt) ;
+    memset(_taxonomyTree, 0, sizeof(TaxonomyNode) * _nodeCnt) ;
     for (std::map<uint64_t, struct TaxonomyNode>::iterator it = cleanTree.begin() ;
         it != cleanTree.end() ; ++it)
     {
@@ -678,11 +664,9 @@ public:
     SAVE_VAR(fp, _seqCnt) ;
     SAVE_VAR(fp, _extraSeqCnt) ;
     // Save the taxnomoy information
-    //fwrite(_taxonomyTree, sizeof(_taxonomyTree[0]), _nodeCnt, fp) ;
-    size_t i ;
-    for (i = 0 ; i < _nodeCnt ; ++i)
-      _taxonomyTree[i].Save(fp) ;
+    fwrite(_taxonomyTree, sizeof(_taxonomyTree[0]), _nodeCnt, fp) ;
     _taxIdMap.Save(fp) ;
+    size_t i ;
     for (i = 0 ; i < _nodeCnt ; ++i)
       SaveString(fp, _taxonomyName[i]) ;
     
@@ -706,12 +690,9 @@ public:
 
     // Load the taxnomoy information
     _taxonomyTree = new struct TaxonomyNode[_nodeCnt] ;
-    //fread(_taxonomyTree, sizeof(_taxonomyTree[0]), _nodeCnt, fp) ;
-    size_t i ;
-    for (i = 0 ; i < _nodeCnt ; ++i)
-      _taxonomyTree[i].Load(fp) ;
-
+    fread(_taxonomyTree, sizeof(_taxonomyTree[0]), _nodeCnt, fp) ;
     _taxIdMap.Load(fp) ;
+    size_t i ;
     _taxonomyName = new std::string[_nodeCnt] ;
     for (i = 0 ; i < _nodeCnt ; ++i)
       LoadString(fp, _taxonomyName[i]) ;
