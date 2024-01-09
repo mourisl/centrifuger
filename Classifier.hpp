@@ -97,7 +97,7 @@ private:
 
   void InferMinHitLen()
   {
-    int mhl = 22 ;
+    int mhl = 23 ; // Though centrifuge uses 22, but internally it filter length <= 22, so in our implementation, it should corresponds to 23.
     int alphabetSize = _fm.GetAlphabetSize() ; 
     uint64_t kmerspace = Utils::PowerInt(alphabetSize, mhl)/ 2 ;
     uint64_t n = _fm.GetSize() ;
@@ -222,6 +222,66 @@ private:
     }
   }
 
+  // It seems the performance for not synchronize mate pair direction works better
+  size_t SearchForwardAndReverseWithWeakMateDirection(char *r1, char *r2, SimpleVector<struct _BWTHit> &hits)
+  {
+    int i, k, ridx ;
+    
+    hits.Clear() ;
+    SimpleVector<struct _BWTHit> strandHits[2] ; // 0: minus strand, 1: postive strand
+    
+    for (ridx = 0 ; ridx <= 1 ; ++ridx) //0-r1, 1-r2
+    {
+      if (ridx == 1 && r2 == NULL)
+        break ;
+
+      char *r = r1 ;
+      if (ridx == 1)
+        r = r2 ;
+      char *rc = NULL ;
+
+      int rlen = strlen(r) ;
+      rc = strdup(r) ;
+      ReverseComplement(rc, rlen) ;
+
+      strandHits[0].Clear() ; 
+      strandHits[1].Clear() ;
+      //Notice that GetHitsFromRead will not clear the hits
+      GetHitsFromRead(r, rlen, strandHits[1]) ;
+      GetHitsFromRead(rc, rlen, strandHits[0]) ;
+      AdjustHitBoundaryFromStrandHits(r, rc, rlen, strandHits) ;
+      
+      size_t strandScore[2] ;
+      //int strandLongestHit[2] = {0, 0} ;
+      for (k = 0 ; k < 2 ; ++k)
+      {
+        int size = strandHits[k].Size() ;
+        for (i = 0 ; i < size ; ++i)
+        {
+          strandHits[k][i].strand = (2 * k - 1) * (ridx == 0 ? 1 : -1) ; // the strand is with respect to the template, not read
+          //if (strandHits[k][i].l > strandLongestHit[k])
+          //  strandLongestHit[k] = strandHits[k][i].l ;
+        }
+        strandScore[k] = CalculateHitsScore(strandHits[k]) ;
+      }
+      
+      if (strandScore[1] >= strandScore[0])
+        hits.PushBack(strandHits[1]) ;
+      if (strandScore[0] >= strandScore[1]) // if equal, both strands will be added
+        hits.PushBack(strandHits[0]) ;
+      /*else
+      {
+        if (strandLongestHit[1] >= strandLongestHit[0])
+          hits.PushBack(strandHits[1]) ;
+        if (strandLongestHit[0] >= strandLongestHit[1]) 
+          hits.PushBack(strandHits[0]) ;
+      }*/
+
+      free(rc) ;
+    }
+    return hits.Size() ;
+  }
+
   //@return: the size of the hits after selecting the strand 
   size_t SearchForwardAndReverse(char *r1, char *r2, SimpleVector<struct _BWTHit> &hits)
   {
@@ -231,7 +291,7 @@ private:
     int r1len = strlen(r1) ;
     rcR1 = strdup(r1) ;
     ReverseComplement(rcR1, r1len) ;
-
+    
     SimpleVector<struct _BWTHit> strandHits[2] ; // 0: minus strand, 1: postive strand
     
     GetHitsFromRead(r1, r1len, strandHits[1]) ;
@@ -326,7 +386,7 @@ private:
       else
       {
         // Since the first entry and last entry are likely to be more different
-        //   taxonomy wisely, we shall search "bidirectionally" to make sure 
+        //   taxonomy-wisely, we shall search "bidirectionally" to make sure 
         //   both end is covered
         size_t rangeSize = hits[i].ep - hits[i].sp + 1 ;
         size_t step = DIV_CEIL(rangeSize, maxEntries) ;
