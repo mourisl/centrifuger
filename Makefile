@@ -24,6 +24,6 @@ centrifuger-inspect: CentrifugerInspect.o
 
 CentrifugerBuild.o: CentrifugerBuild.cpp Builder.hpp ReadFiles.hpp Taxonomy.hpp defs.h compactds/*.hpp 
 CentrifugerClass.o: CentrifugerClass.cpp Classifier.hpp ReadFiles.hpp Taxonomy.hpp defs.h ResultWriter.hpp compactds/*.hpp 
-CentrifugerInspect: CentrifugerInspect.cpp Taxonomy.hpp 
+CentrifugerInspect: CentrifugerInspect.cpp Taxonomy.hpp compactds/*.hpp 
 clean:
 	rm -f *.o centrifuger-build centrifuger centrifuger-inspect
