@@ -193,14 +193,16 @@ int main(int argc, char *argv[])
   int batchSize ;
     
   
-  bool useLoadOutputThreads = false ;
+  int useInputThread = 0 ;
+  int useOutputThread = 0 ;
 
   int classificationThreadCnt = threadCnt ;
+  if (threadCnt > 7)
+    useInputThread = 1 ;
   if (threadCnt > 12)
-  {
-    classificationThreadCnt = threadCnt - 2 ;
-    useLoadOutputThreads = true ;
-  }
+    useOutputThread = 1 ;
+
+  classificationThreadCnt = threadCnt - useInputThread - useOutputThread ;
 
   pthread_t *threads = (pthread_t *)malloc( sizeof( pthread_t ) * classificationThreadCnt ) ;
   struct _threadArg *args = (struct _threadArg *)malloc( sizeof( struct _threadArg ) * classificationThreadCnt ) ;
@@ -209,7 +211,7 @@ int main(int argc, char *argv[])
   pthread_attr_setdetachstate( &attr, PTHREAD_CREATE_JOINABLE ) ;
   
   //useLoadOutputThreads = false ;
-  if (!useLoadOutputThreads)
+  if (!useInputThread && !useOutputThread)
   {
     struct _Read *readBatch = NULL, *readBatch2 = NULL ;
     readBatch = ( struct _Read *)calloc( sizeof( struct _Read ), maxBatchSize ) ;
@@ -256,7 +258,93 @@ int main(int argc, char *argv[])
       free(readBatch2) ;
     delete[] classifierBatchResults ;
   }
-  else
+  else if (useInputThread == 1 && useOutputThread == 0)
+  {
+    pthread_t inputThread ;
+    struct _inputThreadArg inputThreadArg ;
+
+    struct _Read *readBatch[2] ;
+    struct _Read *readBatch2[2] ;
+    struct _classifierResult *classifierBatchResults[2] ;
+    
+    for (i = 0 ; i < 2 ; ++i)
+    {
+      readBatch[i] = ( struct _Read *)calloc( sizeof( struct _Read ), maxBatchSize ) ;
+      if ( hasMate )
+        readBatch2[i] = ( struct _Read *)calloc( sizeof( struct _Read ), maxBatchSize ) ;
+      else
+        readBatch2[i] = NULL ;
+      classifierBatchResults[i] = new struct _classifierResult[maxBatchSize] ;
+    }
+    int batchSize[2] ;
+    
+    bool started = false ;
+    // Load in the first batch
+    batchSize[0] = GetReadBatch(reads, readBatch[0], mateReads, readBatch2[0], maxBatchSize) ;
+    
+    int tag = 0 ; // which batch to use
+    inputThreadArg.reads = &reads ;
+    inputThreadArg.mateReads = &mateReads ;
+    inputThreadArg.maxBatchSize = maxBatchSize ;
+    for ( i = 0 ; i < classificationThreadCnt ; ++i )
+    {
+      args[i].threadCnt = classificationThreadCnt ;
+      args[i].tid = i ;
+      args[i].classifier = &classifier ;
+    }
+
+    while (1)
+    {
+      int nextTag = 1 - tag ;
+
+      if (started)
+        pthread_join(inputThread, NULL) ;
+
+      if (batchSize[tag] == 0)
+        break ;
+
+      // Load in the next batch
+      inputThreadArg.readBatch = readBatch[nextTag] ;
+      inputThreadArg.readBatch2 = readBatch2[nextTag] ;
+      inputThreadArg.pBatchSize = &batchSize[nextTag] ;
+      pthread_create(&inputThread, &attr, LoadReads_Thread, (void *)&inputThreadArg) ;
+
+      // Process the current batch
+      for ( i = 0 ; i < classificationThreadCnt ; ++i )
+      {
+        args[i].readBatch = readBatch[tag] ;
+        args[i].readBatch2 = readBatch2[tag] ;
+        args[i].results = classifierBatchResults[tag] ;
+        args[i].batchSize = batchSize[tag] ;
+
+        pthread_create( &threads[i], &attr, ClassifyReads_Thread, (void *)&args[i] ) ;	
+      }
+
+      for (i = 0 ; i < classificationThreadCnt ; ++i)
+        pthread_join(threads[i], NULL) ;
+
+      for (i = 0 ; i < batchSize[tag] ; ++i)
+        resWriter.Output(readBatch[tag][i].id, 
+            NULL, classifierBatchResults[tag][i]) ;
+
+
+      started = true ;
+      tag = nextTag ;
+    }
+
+    for (i = 0 ; i < 2 ; ++i)
+    {
+      reads.FreeBatch(readBatch[i], maxBatchSize) ;
+      free(readBatch[i]) ;
+      if (hasMate)
+      {
+        mateReads.FreeBatch(readBatch2[i], maxBatchSize) ;
+        free(readBatch2[i]) ;
+      }
+      delete[] classifierBatchResults[i] ;
+    }
+  }
+  else //use both input and output thread
   {
     pthread_t inputThread ;
     struct _inputThreadArg inputThreadArg ;
