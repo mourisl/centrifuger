@@ -12,6 +12,7 @@
 #include "Taxonomy.hpp"
 #include "Classifier.hpp"
 #include "ResultWriter.hpp"
+#include "ReadPairMerger.hpp"
 
 //#define CENTRIFUGER_VERSION "Centrifuger v1.0.0"
 
@@ -28,12 +29,14 @@ char usage[] = "./centrifuger [OPTIONS]:\n"
   "\t-v: print the version information and quit\n"
   "\t--min-hitlen INT: minimum length of partial hits [auto]\n"
   "\t--hitk-factor INT: resolve at most <int>*k entries for each hit [40; use 0 for no restriction]\n"
+  "\t--merge-readpair: merge overlapped paired-end reads and trim adapters [no merge]\n"
   ;
 
 static const char *short_options = "x:1:2:u:o:t:k:v" ;
 static struct option long_options[] = {
   { "min-hitlen", required_argument, 0, ARGV_MIN_HITLEN},
   { "hitk-factor", required_argument, 0, ARGV_MAX_RESULT_PER_HIT_FACTOR},
+  { "merge-readpair", no_argument, 0, ARGV_MERGE_READ_PAIR },
   { (char *)0, 0, 0, 0} 
 } ;
 
@@ -47,15 +50,17 @@ struct _inputThreadArg
 
 struct _threadArg 
 {
-	struct _Read *readBatch, *readBatch2 ;
-  
-	int threadCnt ;
-	int batchSize ;
+  struct _Read *readBatch, *readBatch2 ;
 
-	Classifier *classifier ;
+  int threadCnt ;
+  int batchSize ;
+
+  ReadPairMerger *readPairMerger ;
+
+  Classifier *classifier ;
   struct _classifierResult *results ;
 
-	int tid ;
+  int tid ;
 } ;
 
 int GetReadBatch(ReadFiles &reads, struct _Read *readBatch, 
@@ -94,7 +99,39 @@ void *ClassifyReads_Thread(void *pArg)
   {
     if (i % arg.threadCnt != arg.tid)
       continue ;
-    arg.classifier->Query(arg.readBatch[i].seq, arg.readBatch2 ? arg.readBatch2[i].seq : NULL, arg.results[i]) ;
+    
+    // Merge two read pairs
+    char *r1, *q1, *r2, *q2 ;
+    char *rm, *qm ;
+    
+    r1 = arg.readBatch[i].seq ;
+    q1 = arg.readBatch[i].qual ;
+
+    r2 = NULL ;
+    q2 = NULL ;
+    if (arg.readBatch2)
+    {
+      r2 = arg.readBatch2[i].seq ;
+      q2 = arg.readBatch2[i].qual ;
+    }
+
+    int mergeResult = 0 ;
+    if (arg.readPairMerger != NULL)
+      mergeResult = arg.readPairMerger->Merge(r1, q1, r2, q2, &rm, &qm) ;
+
+    if (mergeResult == 0)
+    {
+      arg.classifier->Query(r1, r2, arg.results[i]) ;
+    }
+    else
+    {
+      arg.classifier->Query(rm, NULL, arg.results[i]) ;
+      free(rm) ;
+      if (qm)
+        free(qm) ;
+    }
+
+    //arg.classifier->Query(arg.readBatch[i].seq, arg.readBatch2 ? arg.readBatch2[i].seq : NULL, arg.results[i]) ;
   }
   pthread_exit(NULL) ;
 }
@@ -103,14 +140,14 @@ int main(int argc, char *argv[])
 {
   int i ;
 
-	if ( argc <= 1 )
-	{
-		fprintf( stderr, "%s", usage ) ;
-		return 0 ;
+  if ( argc <= 1 )
+  {
+    fprintf( stderr, "%s", usage ) ;
+    return 0 ;
   }
-	
+
   int c, option_index ;
-	option_index = 0 ;
+  option_index = 0 ;
   
   char outputPrefix[1024] = "centrifuger" ;
   char *idxPrefix = NULL ;
@@ -121,14 +158,16 @@ int main(int argc, char *argv[])
   ReadFiles mateReads ;
   bool hasMate = false ;
   ResultWriter resWriter ;
-
+  ReadPairMerger readPairMerger ;
+  bool mergeReadPair = false ;
+  
   while (1)
   {
-		c = getopt_long( argc, argv, short_options, long_options, &option_index ) ;
-		
-		if (c == -1)
-			break ;
-  
+    c = getopt_long( argc, argv, short_options, long_options, &option_index ) ;
+
+    if (c == -1)
+      break ;
+
     if (c == 'x') // reference genome file
     {
       idxPrefix = strdup(optarg) ;
@@ -144,8 +183,8 @@ int main(int argc, char *argv[])
     }
     else if (c == '2')
     {
-			mateReads.AddReadFile( optarg, true ) ;
-			hasMate = true ;
+      mateReads.AddReadFile( optarg, true ) ;
+      hasMate = true ;
     }
     else if (c == 'o')
     {
@@ -164,6 +203,10 @@ int main(int argc, char *argv[])
       printf("Centrifuger v" CENTRIFUGER_VERSION "\n") ;
       exit(0) ; 
     }
+    else if (c == 'm')
+    {
+      mergeReadPair = true ;
+    }
     else if (c == ARGV_MIN_HITLEN)
     {
       classifierParam.minHitLen = atoi(optarg) ;
@@ -172,11 +215,15 @@ int main(int argc, char *argv[])
     {
       classifierParam.maxResultPerHitFactor = atoi(optarg) ;
     }
-		else
-		{
+    else if (c == ARGV_MERGE_READ_PAIR)
+    {
+      mergeReadPair = true ;
+    }
+    else
+    {
       Utils::PrintLog("Unknown parameter found.\n%s", usage ) ;
-			return EXIT_FAILURE ;
-		}
+      return EXIT_FAILURE ;
+    }
   }
 
   Utils::PrintLog("Centrifuger starts." ) ;
@@ -227,6 +274,7 @@ int main(int argc, char *argv[])
       args[i].readBatch2 = readBatch2 ;
       args[i].results = classifierBatchResults ;
       args[i].classifier = &classifier ;
+      args[i].readPairMerger = mergeReadPair ? &readPairMerger : NULL ;
     }
     
     while ( 1 )
@@ -239,7 +287,7 @@ int main(int argc, char *argv[])
       for ( i = 0 ; i < classificationThreadCnt ; ++i )
       {
         args[i].batchSize = batchSize ;
-        pthread_create( &threads[i], &attr, ClassifyReads_Thread, (void *)&args[i] ) ;	
+        pthread_create( &threads[i], &attr, ClassifyReads_Thread, (void *)&args[i] ) ;
       }
 
       for ( i = 0 ; i < classificationThreadCnt ; ++i )
@@ -291,6 +339,7 @@ int main(int argc, char *argv[])
       args[i].threadCnt = classificationThreadCnt ;
       args[i].tid = i ;
       args[i].classifier = &classifier ;
+      args[i].readPairMerger = mergeReadPair ? &readPairMerger : NULL ;
     }
 
     while (1)
@@ -317,7 +366,7 @@ int main(int argc, char *argv[])
         args[i].results = classifierBatchResults[tag] ;
         args[i].batchSize = batchSize[tag] ;
 
-        pthread_create( &threads[i], &attr, ClassifyReads_Thread, (void *)&args[i] ) ;	
+        pthread_create( &threads[i], &attr, ClassifyReads_Thread, (void *)&args[i] ) ;
       }
 
       for (i = 0 ; i < classificationThreadCnt ; ++i)
@@ -377,6 +426,7 @@ int main(int argc, char *argv[])
       args[i].threadCnt = classificationThreadCnt ;
       args[i].tid = i ;
       args[i].classifier = &classifier ;
+      args[i].readPairMerger = mergeReadPair ? &readPairMerger : NULL ;
     }
 
     while (1)
@@ -411,7 +461,7 @@ int main(int argc, char *argv[])
           args[i].results = classifierBatchResults[tag] ;
           args[i].batchSize = batchSize[tag] ;
 
-          pthread_create( &threads[i], &attr, ClassifyReads_Thread, (void *)&args[i] ) ;	
+          pthread_create( &threads[i], &attr, ClassifyReads_Thread, (void *)&args[i] ) ;
         }
       }
 

@@ -319,6 +319,9 @@ private:
         strandHits[k][i].strand = 2 * k - 1 ; // the strand is with respect to the template, not read
       strandScore[k] = CalculateHitsScore(strandHits[k]) ;
     }
+#ifdef LI_DEBUG
+    printf("%s %lu %lu\n", __func__, strandScore[0], strandScore[1]) ;    
+#endif
    
     if (strandScore[1] > strandScore[0])
       hits = strandHits[1] ;
