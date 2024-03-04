@@ -104,8 +104,8 @@ To build the index, first put the downloaded files in a list (this part is diffe
 
 	## build centrifuger index with 4 threads on a server with 300GB memory
 	./centrifuger-build -t 4 --conversion-table seqid2taxid.map \
-	                 --taxonomy-tree taxonomy/nodes.dmp --name-table taxonomy/names.dmp \
-									 -l file.list -o refseq_abv --build-mem 240G
+		--taxonomy-tree taxonomy/nodes.dmp --name-table taxonomy/names.dmp \
+		-l file.list -o refseq_abv --build-mem 240G
 	
 After building the index, all but the refseq_abv.[1234].cfr index files may be removed.
 
