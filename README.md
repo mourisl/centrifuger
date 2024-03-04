@@ -82,6 +82,33 @@ The eighth column is the number of classifications for this read, indicating how
 ```
 
 ### Practical notes
+#### Create index for genomes from NCBI.
+
+You can use "centrifuger-download" to download reference sequences from NCBI. The following two commands download the NCBI taxonomy to taxonomy/ in the current directory, and all complete archaeal, bacterial and viral genomes to library/.
+
+	./centrifuger-download -o taxonomy taxonomy
+	./centrifuger-download -o library -d "archaea,bacteria,viral" refseq > seqid2taxid.map
+
+To add human (taxonomy ID 9606) or mouse (taxonomy ID 10090) genome to the downloaded files, you can use the following command
+
+	# human: T2T-CHM13
+	./centrifuger-download -o library -d "vertebrate_mammalian" -t 9606 refseq >> seqid.map
+	# human: hg38 reference genome
+	./centrifuger-download -o library -d "vertebrate_mammalian" -a "Chromosome" -t 9606 -c 'reference genome' refseq	
+	# mouse
+	./centrifuger-download -o library -d "vertebrate_mammalian" -a "Chromosome" -t 10090 -c 'reference genome' refseq >> seqid.map
+
+To build the index, first put the downloaded files in a list (this part is different from Centrifuge, where the files need to be concatendated) and then run centrifuger-build:
+	
+	ls library/*/*.fna.gz > file.list
+
+	## build centrifuger index with 4 threads on a server with 300GB memory
+	./centrifuger-build -t 4 --conversion-table seqid2taxid.map \
+	                 --taxonomy-tree taxonomy/nodes.dmp --name-table taxonomy/names.dmp \
+									 -l file.list -o refseq_abv --build-mem 240G
+	
+After building the index, all but the refseq_abv.[1234].cfr index files may be removed.
+
 #### Build custom database index 
 The index building procedure is similar to [Centrifuge's](http://www.ccb.jhu.edu/software/centrifuge/manual.shtml#database-download-and-index-building), but with names changing to centrifuger. For example, centrifuge-download is centrifuger-download. 
 
