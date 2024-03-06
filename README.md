@@ -100,7 +100,7 @@ To add human (taxonomy ID 9606) or mouse (taxonomy ID 10090) genome to the downl
 
 To build the index, first put the downloaded files in a list (this part is different from Centrifuge, where the files need to be concatendated) and then run centrifuger-build:
 	
-	ls library/*/*.fna.gz > file.list
+	ls library/*/*.fna.gz > file.list # use *_dustmasked.fna.gz as the file list if using dustmasker in centrifuger-download 
 
 	## build centrifuger index with 4 threads on a server with 300GB memory
 	./centrifuger-build -t 4 --conversion-table seqid2taxid.map \
