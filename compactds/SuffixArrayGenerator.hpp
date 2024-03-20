@@ -7,7 +7,7 @@
 #include "DifferenceCover.hpp"
 
 // The class handle the generation of suffix array by chunks
-// The chunk creation is based the sampled difference cover (Algorithm 11.9 is commented out)
+// The chunk creation is based the sampled difference cover (Algorithm 11.9 from the textbook is commented out)
 namespace compactds {
 class SuffixArrayGenerator
 {
@@ -289,7 +289,101 @@ private:
     QSortWithDC(sa, m, pi, e, n) ;
   }
 
-  // Sort T[s..e], and only consider the positions in sa of size m 
+  // Compare two SA's in the same h-group
+  // sai: SA[i], saj: SA[j]
+  // return: sign(T[sai..] - T[saj..]), i.e. sign(rank[sa[i+h]] - rank[sa[j+h]])
+  int CompareMultikeyQSortForLSandDC(size_t *rank, size_t n, size_t sai, size_t saj, size_t h)
+  {
+    if (sai == saj)
+      return 0 ;
+    if (sai + h >= _n && saj + h >= _dcSize)
+      return (sai + h > saj + h) ? -1 : 1 ; 
+    else if (sai + h >= n && saj + h < n)
+      return -1 ;
+    else if (sai + h < n && saj + h >= n)
+      return 1 ;
+    else
+    {
+      size_t rih = rank[ _dc.CompactIndex(sai + h) ] ;
+      size_t rjh = rank[ _dc.CompactIndex(saj + h) ] ;
+      if (rih == rjh)
+        return 0 ;
+      else
+        return rih > rjh ? 1 : -1 ; 
+    }
+  }
+
+  // The internal same-rank q sort for the Larsson-Sadakane SA sorting's h groupd
+  // Sort SA[s..e] inclusive, using their +h as the value to sort
+  // This sort NO need to be stable! The entries with the same value will have the same rank.
+  void MultikeyQSortForLSandDC(size_t *sa, size_t *rank, size_t n, size_t s, size_t e, size_t h, size_t *newRank)
+  {
+    if (s > e)
+      return ;
+    if (s == e)
+    {
+      newRank[ _dc.CompactIndex(sa[s]) ] = s ;
+      return ;
+    }
+
+    size_t i ;
+    /*if (e - s + 1 <= 5) // Use select sort for short intervals, but seems not useful in my implementation
+    {
+      size_t j ;
+      size_t r = e ; // track the rank
+      for (i = e ; i >= s && i <= e ; --i) // for right to left so the update of newRank is easier
+      {
+        for (j = s ; j < i ; ++j)
+          if (CompareMultikeyQSortForLSandDC(rank, n, sa[i], sa[j], h) < 0)
+            Swap(sa[i], sa[j]) ;
+
+        if (i < e 
+            && CompareMultikeyQSortForLSandDC(rank, n, sa[i], sa[i + 1], h) == 0)
+          newRank[ _dc.CompactIndex(sa[i]) ] = r ;
+        else
+        {
+          newRank[ _dc.CompactIndex(sa[i]) ] = i ;
+          r = i ;
+        }
+      }
+      return ;
+    }*/
+
+    // Partition
+    size_t pivot = sa[(s+e)/2] ;
+    size_t pi, pj, pk ; // partiation indexes
+    pi = s ; // pi points to the first element of the middle chunk
+    pj = s ; // pj is the current element
+    pk = e ; // pk points the last element of the middle chunk
+    while (pj <= pk)
+    {
+      int comparePivot = CompareMultikeyQSortForLSandDC(rank, n, sa[pj], pivot, h) ;
+
+      if (comparePivot == -1) // less than pivot
+      {
+        Swap(sa[pi], sa[pj]) ;
+        ++pi ; ++pj ;
+      }
+      else if (comparePivot == 1)
+      {
+        Swap(sa[pj], sa[pk]) ;
+        if (pk == 0)
+          break ;
+        --pk ;
+      }
+      else
+        ++pj ;
+    }
+    //printf("===%d %d. %d %d %d\n", s, e, pi, pj, pk) ;
+
+    if (pi >= 1)
+      MultikeyQSortForLSandDC(sa, rank, n, s, pi - 1, h, newRank) ;
+    for (i = pi ; i <= pk ; ++i)
+      newRank[ _dc.CompactIndex(sa[i]) ] = pk ;
+    MultikeyQSortForLSandDC(sa, rank, n, pj, e, h, newRank) ;
+  } 
+
+  // Sort T, and only consider the positions in sa[s..e], and total size of sa is m 
   // s, e: the range for sa
   // d: the preifx already matched in T[s..e], kind of as depth.
   // dcStrategy: how to use the difference cover. 0-no _dc, 1-use _dc, 2-return when reach _dcv
@@ -327,21 +421,26 @@ private:
         foundw = T.PackRead(sa[s] + d, block) ;
       else
         passEnd = true ;
-      for (i = s + 1 ; i <= e ; ++i)
+      
+      if (!passEnd)
       {
-        if (sa[i] + d + block - 1 < n)
+        for (i = s + 1 ; i <= e ; ++i)
         {
-          WORD w = T.PackRead(sa[i] + d, block) ;
-          if (w != foundw)
+          if (sa[i] + d + block - 1 < n)
+          {
+            WORD w = T.PackRead(sa[i] + d, block) ;
+            if (w != foundw)
+              break ;
+          }
+          else
+          {
+            //if (passEnd == false) // why I allow the first one to pass the end in the original implementation?
+            passEnd = true ;
             break ;
-        }
-        else
-        {
-          if (passEnd == false)
-            break ;
+          }
         }
       }
-      if (i > e)
+      if (!passEnd && i > e)
         d += block ;
       else
         break ;
@@ -432,9 +531,9 @@ private:
     MultikeyQSort(T, n, sa, m, pj, e, d, dcStrategy, alphabetCounts) ;
   }
 
-  // Sort the suffixes in the difference cover
+  // Sort the suffixes in the difference cover using Manber-Myers algorithm
   // @return: the suffix array of the difference cover
-  size_t *SortSuffixInDC(const FixedSizeElemArray &T, size_t n)
+  size_t *SortSuffixInDCWithMM(const FixedSizeElemArray &T, size_t n)
   {
     size_t i, k ;
     size_t *sa ;
@@ -451,10 +550,15 @@ private:
     count = (size_t *)malloc(sizeof(size_t) * _dcSize) ;
     
     // Sort by their first v characters
+    // It has to be at least v characters, and v is a multiple of 2. 
+    // This is because the following Manber-Myers algorithm (or Larsson-Sadakane) 
+    //  needs to start at k=v, so the +k is also in the difference cover.
+    //Utils::PrintLog("SA sort start") ;
     _dc.GetDiffCoverList(n, sa) ;
     size_t *alphabetCounts = (size_t *)malloc(sizeof(size_t) * (_alphabetSize + 1)) ;
     MultikeyQSort(T, n, sa, _dcSize, 0, _dcSize - 1, 0, /*dcStrategy=*/2, alphabetCounts) ;
     free(alphabetCounts) ; 
+    //Utils::PrintLog("SA sort MultikeyQSort finishes") ;
     
     maxRank = 0 ;
     count[0] = 0 ;
@@ -482,7 +586,7 @@ private:
       {
         i = _dcSize - 1 - ri ;
 
-        dci = _dc.CompactIndex( sa[i] ) ;
+        //dci = _dc.CompactIndex( sa[i] ) ;
         if (sa[i] >= n - k)
           nextBuffer[i] = sa[i] ;
         if (sa[i] < k)
@@ -524,15 +628,221 @@ private:
 
       for (i = 1 ; i <= maxRank ; ++i)
         count[i] += count[i - 1] ;
+      //Utils::PrintLog("SA sort MM iteration done: %llu %llu", k, _dcSize) ;
     }
 
     free(nextBuffer) ;
     free(count) ;
     
+    //Utils::PrintLog("SA sort MM sort finishes") ;
     _dcISA = rank ;
     return sa ;
   }
 
+  // Sort the suffixes in the difference cover using Larsson-Sadakane algorithm
+  // @return: the suffix array of the difference cover
+  size_t *SortSuffixInDCWithLS(const FixedSizeElemArray &T, size_t n)
+  {
+    size_t i, j, k ;
+    size_t *sa ;
+    size_t *rank ; // rank of a suffix consider the prefix of size k, allowing ties. Different from MM, LS stores the highest possible rank for a group. This allows efficient rank updates that can keep the other portion's rank unchanged in doubling
+    size_t *nextBuffer ; // buffer for next iteration (double expanded) information
+    size_t *L ; // length for single-ton runs (negative), and length for a h-group (k-group here)
+    size_t maxRank ; // distinct ranks
+    size_t sizeL ; // length of L, number of runs
+    int v = _dc.GetV() ;
+
+    sa = (size_t *)malloc(sizeof(size_t) * _dcSize) ;
+    rank = (size_t *)malloc(sizeof(size_t) * _dcSize) ;
+    nextBuffer = (size_t *)malloc(sizeof(size_t) * _dcSize) ;
+    L = (size_t *)malloc(sizeof(size_t) * _dcSize) ;
+
+    // Sort by their first v characters
+    //Utils::PrintLog("SA sort start") ;
+    _dc.GetDiffCoverList(n, sa) ;
+    size_t *alphabetCounts = (size_t *)malloc(sizeof(size_t) * (_alphabetSize + 1)) ;
+    MultikeyQSort(T, n, sa, _dcSize, 0, _dcSize - 1, 0, /*dcStrategy=*/2, alphabetCounts) ;
+    free(alphabetCounts) ; 
+    //Utils::PrintLog("SA sort MultikeyQSort finishes") ;
+
+    // Initialization
+    size_t count = 0 ;
+    sizeL = 0 ;
+    for (i = 0 ; i <= _dcSize ; ++i)
+    {
+      if (i == _dcSize || (i > 0 && T.SubrangeCompare( sa[i - 1], sa[i - 1] + v - 1, T, sa[i], sa[i] + v - 1)))
+      {
+        if (count == 1) // previous element is a singleton
+        {
+          if (sizeL == 0 || (int64_t)L[sizeL - 1] > 0)
+          {
+            L[sizeL] = (size_t)(-1ll) ;
+            ++sizeL ;
+          }
+          else
+            L[sizeL - 1] = (size_t)((int64_t)L[sizeL - 1] - 1ll);
+        }
+        else
+        {
+          L[ sizeL ] = count ;
+          ++sizeL ;
+        }
+        count = 0 ;
+
+        if (i == _dcSize)
+          break ;
+      }
+      ++count ;
+    }
+    
+    maxRank = 0 ;
+    size_t offset = 0 ;
+    for (i = 0 ; i < sizeL ; ++i)
+    {
+      int64_t liValue = (int64_t)L[i] ;
+      if (liValue < 0)
+      {
+        for (j = offset ; j < offset + (size_t)(-liValue) ; ++j)
+        {
+          size_t dcj = _dc.CompactIndex( sa[j] ) ; 
+          rank[dcj] = maxRank ;
+          ++maxRank ;
+        }
+        offset = j ;
+      }
+      else
+      {
+        maxRank += L[i] ;
+        for (j = offset ; j < offset + L[i] ; ++j)
+        {
+          size_t dcj = _dc.CompactIndex( sa[j] ) ; 
+          rank[dcj] = maxRank - 1 ;
+        }
+        offset = j ; 
+      }
+    }
+
+    /*if (maxRank == _dcSize)
+      {
+      free(nextBuffer) ;
+      free(L) ;
+      _dcISA = rank ;
+      return sa ;
+      }*/
+
+    // Sorting difference cover using Larsson-Sadakane algorithm 
+    size_t *tmpSwap ;
+    for (k = v ; k < n /*&& maxRank < _dcSize - 1*/ ; k <<= 1)
+    {
+      offset = 0 ;
+      for (i = 0 ; i < sizeL ; ++i)
+      {
+        int64_t liValue = (int64_t)L[i] ;
+        if (liValue < 0)
+        {
+          offset += (size_t)(-liValue) ;
+        }
+        else
+        {
+          MultikeyQSortForLSandDC(sa, rank, n, offset, offset + L[i] - 1,
+              k, nextBuffer) ;
+
+          offset += L[i] ;
+        }
+      }
+
+      // Copy the updated rank back from the buffer
+      offset = 0 ;
+      for (i = 0 ; i < sizeL ; ++i)
+      {
+        int64_t liValue = (int64_t)L[i] ;
+        if (liValue < 0)
+        {
+          offset += (size_t)(-liValue) ;
+        }
+        else
+        {
+          for (j = offset ; j < offset + L[i] ; ++j)
+          {
+            size_t dcj = _dc.CompactIndex(sa[j]) ;
+            rank[dcj] = nextBuffer[dcj] ;
+          }
+          offset += L[i] ;
+        }
+      }
+
+      // Update L to nextbuffer, and then swap the points
+      size_t newSizeL = 0 ;
+      offset = 0 ;
+      for (i = 0 ; i < sizeL ; ++i) 
+      {
+        int64_t liValue = (int64_t)L[i] ;
+        if (liValue < 0)
+        {
+          offset += (size_t)(-liValue) ;
+          if (newSizeL == 0 || (int64_t)nextBuffer[ newSizeL - 1] > 0)
+          {
+            nextBuffer[ newSizeL ] = (size_t)(liValue) ;
+            ++newSizeL ;
+          }
+          else // This happens when the last run in the previous 2k-group is singleton run
+          {
+            nextBuffer[ newSizeL - 1] = (size_t)((int64_t)nextBuffer[newSizeL-1] + liValue) ;
+          }
+        }
+        else
+        {
+          size_t count = 1 ;
+          for (j = offset + 1 ; j <= offset + liValue ; ++j)
+          {
+            if (j != offset + liValue 
+                && rank[ _dc.CompactIndex(sa[j]) ] == rank[ _dc.CompactIndex(sa[j - 1]) ])
+            {
+              ++count ;
+            }
+            else // entering a new 2k-group, or end of the current k-group 
+            {
+              if (count > 1)
+              {
+                nextBuffer[ newSizeL ] = count ;
+                ++newSizeL ;
+                count = 1 ;
+              }
+              else // singleton
+              {
+                if (newSizeL == 0 || (int64_t)nextBuffer[ newSizeL - 1] > 0)
+                {
+                  nextBuffer[ newSizeL ] = (size_t)(-1ll) ;
+                  ++newSizeL ;
+                }
+                else // This happens when the last run in the previous 2k-group is singleton run
+                {
+                  nextBuffer[ newSizeL - 1] = (size_t)((int64_t)nextBuffer[newSizeL-1] - 1ll) ;
+                }
+                //count = 1, not need to reset it again
+              }
+            }
+          }
+
+          offset += liValue ;
+        }
+      }
+
+      if (newSizeL == 1 && (int64_t)nextBuffer[0] == -(int64_t)_dcSize)
+        break ;
+
+      tmpSwap = nextBuffer ;
+      nextBuffer = L ;
+      L = tmpSwap ;
+      sizeL = newSizeL ;
+    } // for-loop of k
+
+    free(nextBuffer) ;
+    free(L) ;
+
+    _dcISA = rank ;
+    return sa ;
+  }
 public:
   SuffixArrayGenerator() 
   {
@@ -582,8 +892,11 @@ public:
     this->_alphabetSize = alphabetSize ;
     _dc.Init(dcv) ;
     _dcSize = _dc.GetSize(n) ;
-    size_t *dcSA = SortSuffixInDC(T, n) ; 
-    
+    size_t *dcSA = SortSuffixInDCWithLS(T, n) ; 
+    /*for (size_t i = 0 ; i < _dcSize ; ++i)
+      printf("dcSA[%lu]=%lu\n", i, dcSA[i]) ;
+    for (size_t i = 0 ; i < _dcSize ; ++i)
+      printf("dcISA[%lu]=%lu\n", i, _dcISA[i]) ;*/
     GenerateCuts(dcSA) ; 
     ComputeCutLCP(T, n, dcv) ;
     free(dcSA) ;
@@ -642,7 +955,7 @@ public:
     free(alphabetCounts) ;
   }
 
-  // Functions relating to use disk to hold chunks
+  // TODO: Functions relating to use disk to hold chunks
   // Output each chunk to prefix_{xxx}.chunk file
   void OutputChunksToFiles(char *prefix)
   {
@@ -661,7 +974,7 @@ public:
     free(fps) ;
   }
 
-  // Read in the i-th chunk file  
+  // TODO: Read in the i-th chunk file  
   void ReadChunkFile(char *prefix, int i, std::vector<size_t> &pos)
   {
     char filename[1024] ;
@@ -671,7 +984,7 @@ public:
     fclose(fp) ;
   }
 
-  // Remove all the temporary chunk files
+  // TODO: Remove all the temporary chunk files
   void CleanChunkFiles(char *prefix)
   {
     char filename[1024] ;
