@@ -44,7 +44,7 @@ Centrifuger is also available from [Bioconda](https://anaconda.org/bioconda/cent
         --build-mem STR: automatic infer bmax and dcv to match memory constraints, can use T,G,M,K to specify the memory size [not used]
         --subset-tax INT: only consider the subset of input genomes under taxonomy node <int> [0]
 
-An example of pre-built index containing human, bacteria, archea, and virus genomes from RefSeq plus SARS-CoV-2 variants from GenBank is available at [Zenodo](https://zenodo.org/records/10023239).
+An example of pre-built index containing human, bacteria, archea, and virus genomes from RefSeq plus SARS-CoV-2 variants from GenBank is available at [Zenodo](https://zenodo.org/records/10023239). The default --bmax and --dcv option may be inefficient for building indexes for larger genome databases, please use --build-mem option to specify the rough estimation of the available memory.
 
 #### Classification
 
@@ -76,9 +76,9 @@ The second column is the sequence ID of the genomic sequence, where the read is 
 The third column is the taxonomic ID of the genomic sequence in the second column (e.g., 2697049).
 The fourth column is the score for the classification, which is the weighted sum of hits (e.g., 4225)
 The fifth column is the score for the next best classification (e.g., 0).
-The sixth column is a pair of two numbers: (1) an approximate number of base pairs of the read that match the genomic sequence and (2) the length of a read or the combined length of mate pairs (e.g., 80 / 80).
-The seventh column is a pair of two numbers: (1) an approximate number of base pairs of the read that match the genomic sequence and (2) the length of a read or the combined length of mate pairs (e.g., 80 / 80). 
-The eighth column is the number of classifications for this read, indicating how many assignments were made (e.g.,1).
+The sixth column is the number of base pairs of the read that match the genomic sequence found by Centrifuger (e.g., 80) 
+The seventh column is the length of a read or the combined length of mate pairs (e.g., 80). 
+The eighth column is the number of classifications for this read, indicating how many assignments were made in the output (e.g.,1).
 ```
 
 ### Practical notes
