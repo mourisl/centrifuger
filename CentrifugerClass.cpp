@@ -13,6 +13,9 @@
 #include "Classifier.hpp"
 #include "ResultWriter.hpp"
 #include "ReadPairMerger.hpp"
+#include "ReadFormatter.hpp"
+#include "BarcodeCorrector.hpp"
+#include "BarcodeTranslator.hpp"
 
 //#define CENTRIFUGER_VERSION "Centrifuger v1.0.0"
 
@@ -26,10 +29,15 @@ char usage[] = "./centrifuger [OPTIONS]:\n"
   //"\t-o STRING: output prefix [centrifuger]\n"
   "\t-t INT: number of threads [1]\n"
   "\t-k INT: report upto <int> distinct, primary assignments for each read pair [1]\n"
-  "\t-v: print the version information and quit\n"
+  "\t--barcode STR: path to the barcode file\n"
+  "\t--UMI STR: path to the UMI file\n"
+  "\t--read-format STR: format for read, barcode and UMI files, e.g. r1:0:-1,r2:0:-1,bc:0:15,um:16:-1 for paired-end files with barcode and UMI\n"
   "\t--min-hitlen INT: minimum length of partial hits [auto]\n"
   "\t--hitk-factor INT: resolve at most <int>*k entries for each hit [40; use 0 for no restriction]\n"
   "\t--merge-readpair: merge overlapped paired-end reads and trim adapters [no merge]\n"
+  "\t--barcode-whitelist STR: path to the barcode whitelist file.\n"
+  "\t--barcode-translate STR: path to the barcode translation file.\n"
+  "\t-v: print the version information and quit\n"
   ;
 
 static const char *short_options = "x:1:2:u:o:t:k:v" ;
@@ -56,6 +64,7 @@ struct _threadArg
   int batchSize ;
 
   ReadPairMerger *readPairMerger ;
+  ReadFormatter *readFormatter ;
 
   Classifier *classifier ;
   struct _classifierResult *results ;
@@ -64,10 +73,15 @@ struct _threadArg
 } ;
 
 int GetReadBatch(ReadFiles &reads, struct _Read *readBatch, 
-    ReadFiles &mateReads, struct _Read *readBatch2, int maxBatchSize)
+    ReadFiles &mateReads, struct _Read *readBatch2, 
+    ReadFiles &barcodeFile, struct _Read *barcodeBatch, 
+    ReadFiles &umiFile, struct _Read *umiBatch, 
+    ReadFormatter &readFormatter, BarcodeCorrector &barcodeCorrector, 
+    BarcodeTranslator &barcodeTranslator, int maxBatchSize)
 {
-  int fileInd1, fileInd2 ;
-  
+  int i ;
+  int fileInd1, fileInd2, fileIndBc, fileIndUmi ;
+
   int batchSize = reads.GetBatch( readBatch, maxBatchSize, fileInd1, true, true ) ;
   if ( readBatch2 != NULL )
   {
@@ -79,6 +93,60 @@ int GetReadBatch(ReadFiles &reads, struct _Read *readBatch,
     }
   }
 
+  if (barcodeBatch != NULL)
+  {
+    int tmp = barcodeFile.GetBatch( barcodeBatch, maxBatchSize, fileIndBc, true, true ) ;
+    if ( tmp != batchSize )
+    {
+      Utils::PrintLog("ERROR: The barcode file and read file have different number of reads." ) ;
+      exit(EXIT_FAILURE) ;
+    }
+  }
+  
+  if (umiBatch != NULL)
+  {
+    int tmp = umiFile.GetBatch( umiBatch, maxBatchSize, fileIndUmi, true, true ) ;
+    if ( tmp != batchSize )
+    {
+      Utils::PrintLog("ERROR: The UMI file and read file have different number of reads." ) ;
+      exit(EXIT_FAILURE) ;
+    }
+  }
+
+  // Reformat everything
+  for (i = 0 ; i < batchSize ; ++i)
+  {
+    readFormatter.InplaceExtractSeqAndQual(readBatch[i].seq, readBatch[i].qual, FORMAT_READ1) ;
+    if (readBatch2 != NULL)
+      readFormatter.InplaceExtractSeqAndQual(readBatch2[i].seq, readBatch2[i].qual, FORMAT_READ2) ;
+    if (barcodeBatch != NULL)
+    {
+      readFormatter.InplaceExtractSeqAndQual(barcodeBatch[i].seq, barcodeBatch[i].qual, FORMAT_BARCODE) ;
+      
+      char *barcode = barcodeBatch[i].seq ;
+      char *qual = barcodeBatch[i].qual ;
+
+      int result = 0 ;
+      if (barcodeCorrector.GetWhitelistSize() > 0)
+        result = barcodeCorrector.Correct(barcode, qual) ;
+      if (result >= 0)
+      {
+        if (barcodeTranslator.IsSet())
+        {
+          std::string newbc = barcodeTranslator.Translate(barcode, strlen(barcode)) ;
+          free(barcodeBatch[i].seq) ;
+          barcodeBatch[i].seq = strdup(newbc.c_str()) ;
+        }
+      }
+      else // not in whitelist
+      {
+        barcode[0] = 'N' ;
+        barcode[1] = '\0' ;
+      }
+    }
+    if (umiBatch != NULL)
+      readFormatter.InplaceExtractSeqAndQual(umiBatch[i].seq, umiBatch[i].qual, FORMAT_BARCODE) ;
+  }
   return batchSize ;
 }
 
@@ -113,6 +181,16 @@ void *ClassifyReads_Thread(void *pArg)
     {
       r2 = arg.readBatch2[i].seq ;
       q2 = arg.readBatch2[i].qual ;
+    }
+
+    if (arg.readFormatter != NULL)
+    {
+      r1 = arg.readFormatter->Extract(r1, FORMAT_READ1, true, true, 4 * arg.tid) ;
+      q1 = arg.readFormatter->Extract(r1, FORMAT_READ1, true, true, 4 * arg.tid + 1) ;
+      if (r2 != NULL)
+        r2 = arg.readFormatter->Extract(r1, FORMAT_READ1, true, true, 4 * arg.tid + 2) ;
+      if (q2 != NULL)
+        q2 = arg.readFormatter->Extract(r1, FORMAT_READ1, true, true, 4 * arg.tid + 3) ;
     }
 
     int mergeResult = 0 ;
@@ -161,6 +239,16 @@ int main(int argc, char *argv[])
   ReadPairMerger readPairMerger ;
   bool mergeReadPair = false ;
   
+  // variables regarding barcode, UMI
+  ReadFiles barcodeFile ;
+  ReadFiles umiFile ;
+  ReadFormatter readFormatter ;
+  BarcodeCorrector barcodeCorrector ;
+  BarcodeTranslator barcodeTranslator ;
+  bool hasBarcode = false ;
+  bool hasBarcodeWhitelist = false ;
+  bool hasUmi = false ;
+
   while (1)
   {
     c = getopt_long( argc, argv, short_options, long_options, &option_index ) ;
@@ -219,6 +307,29 @@ int main(int argc, char *argv[])
     {
       mergeReadPair = true ;
     }
+    else if (c == ARGV_BARCODE)
+    {
+      hasBarcode = true ;
+      barcodeFile.AddReadFile(optarg, false) ;
+    }
+    else if (c == ARGV_UMI)
+    {
+      hasUmi = true ;
+      umiFile.AddReadFile(optarg, false) ;
+    }
+    else if (c == ARGV_READFORMAT)
+    {
+      readFormatter.Init(optarg) ;
+    }
+    else if (c == ARGV_BARCODE_WHITELIST)
+    {
+      barcodeCorrector.SetWhitelist(optarg) ;
+      hasBarcodeWhitelist = true ;
+    }
+    else if (c == ARGV_BARCODE_TRANSLATE)
+    {
+      barcodeTranslator.SetTranslateTable(optarg) ;
+    }
     else
     {
       Utils::PrintLog("Unknown parameter found.\n%s", usage ) ;
@@ -233,7 +344,17 @@ int main(int argc, char *argv[])
     return EXIT_FAILURE ;
   }
 
+  if ( hasBarcode && hasBarcodeWhitelist )
+  {
+    barcodeCorrector.CollectBackgroundDistribution(barcodeFile, readFormatter) ;
+  }
+  
+  if (threadCnt > 1 && readFormatter.GetTotalSegmentCount() > 0)
+    readFormatter.AllocateBuffers(4 * threadCnt) ;
+
   classifier.Init(idxPrefix, classifierParam) ;
+  resWriter.SetHasBarcode(hasBarcode) ;
+  resWriter.SetHasUmi(hasUmi) ;
   resWriter.OutputHeader() ;
 
   const int maxBatchSize = 1024 * threadCnt ;
@@ -256,30 +377,42 @@ int main(int argc, char *argv[])
   pthread_attr_t attr ;
   pthread_attr_init( &attr ) ;
   pthread_attr_setdetachstate( &attr, PTHREAD_CREATE_JOINABLE ) ;
-  
+ 
+  for (i = 0 ; i < classificationThreadCnt ; ++i)
+  {
+    args[i].threadCnt = classificationThreadCnt ;
+    args[i].tid = i ;
+    args[i].classifier = &classifier ;
+    args[i].readPairMerger = mergeReadPair ? &readPairMerger : NULL ;
+    args[i].readFormatter = readFormatter.GetTotalSegmentCount() > 0 ? &readFormatter : NULL ;
+  }
+
   //useLoadOutputThreads = false ;
   if (!useInputThread && !useOutputThread)
   {
-    struct _Read *readBatch = NULL, *readBatch2 = NULL ;
+    struct _Read *readBatch = NULL, *readBatch2 = NULL, *barcodeBatch = NULL, *umiBatch = NULL ;
     readBatch = ( struct _Read *)calloc( sizeof( struct _Read ), maxBatchSize ) ;
     if ( hasMate )
       readBatch2 = ( struct _Read *)calloc( sizeof( struct _Read ), maxBatchSize ) ;
+    if ( hasBarcode )
+      barcodeBatch = ( struct _Read *)calloc( sizeof( struct _Read ), maxBatchSize ) ;
+    if ( hasUmi )
+      umiBatch = ( struct _Read *)calloc( sizeof( struct _Read ), maxBatchSize ) ;
+    
     struct _classifierResult *classifierBatchResults = new struct _classifierResult[maxBatchSize] ;
     
     for ( i = 0 ; i < classificationThreadCnt ; ++i )
     {
-      args[i].threadCnt = classificationThreadCnt ;
-      args[i].tid = i ;
       args[i].readBatch = readBatch ;
       args[i].readBatch2 = readBatch2 ;
       args[i].results = classifierBatchResults ;
-      args[i].classifier = &classifier ;
-      args[i].readPairMerger = mergeReadPair ? &readPairMerger : NULL ;
     }
     
     while ( 1 )
     {
-      batchSize = GetReadBatch(reads, readBatch, mateReads, readBatch2, maxBatchSize) ;
+      batchSize = GetReadBatch(reads, readBatch, mateReads, readBatch2, 
+          barcodeFile, barcodeBatch, umiFile, umiBatch,
+          readFormatter, barcodeCorrector, barcodeTranslator, maxBatchSize) ;
 
       if ( batchSize == 0 )
         break ; 
@@ -294,8 +427,8 @@ int main(int argc, char *argv[])
         pthread_join( threads[i], NULL ) ;
 
       for (i = 0 ; i < batchSize ; ++i)
-        resWriter.Output(readBatch[i].id, 
-            NULL, classifierBatchResults[i]) ;
+        resWriter.Output(readBatch[i].id, readBatch[i].seq, readBatch[i].qual, 
+            readFormatter, barcodeCorrector, classifierBatchResults[i]) ;
     }
     
     reads.FreeBatch(readBatch, maxBatchSize) ;
@@ -334,13 +467,6 @@ int main(int argc, char *argv[])
     inputThreadArg.reads = &reads ;
     inputThreadArg.mateReads = &mateReads ;
     inputThreadArg.maxBatchSize = maxBatchSize ;
-    for ( i = 0 ; i < classificationThreadCnt ; ++i )
-    {
-      args[i].threadCnt = classificationThreadCnt ;
-      args[i].tid = i ;
-      args[i].classifier = &classifier ;
-      args[i].readPairMerger = mergeReadPair ? &readPairMerger : NULL ;
-    }
 
     while (1)
     {
@@ -374,8 +500,7 @@ int main(int argc, char *argv[])
 
       for (i = 0 ; i < batchSize[tag] ; ++i)
         resWriter.Output(readBatch[tag][i].id, 
-            NULL, classifierBatchResults[tag][i]) ;
-
+            NULL, NULL, classifierBatchResults[tag][i]) ;
 
       started = true ;
       tag = nextTag ;
@@ -421,13 +546,6 @@ int main(int argc, char *argv[])
     inputThreadArg.reads = &reads ;
     inputThreadArg.mateReads = &mateReads ;
     inputThreadArg.maxBatchSize = maxBatchSize ;
-    for ( i = 0 ; i < classificationThreadCnt ; ++i )
-    {
-      args[i].threadCnt = classificationThreadCnt ;
-      args[i].tid = i ;
-      args[i].classifier = &classifier ;
-      args[i].readPairMerger = mergeReadPair ? &readPairMerger : NULL ;
-    }
 
     while (1)
     {
@@ -470,7 +588,7 @@ int main(int argc, char *argv[])
       {
         for (i = 0 ; i < batchSize[prevTag] ; ++i)
           resWriter.Output(readBatch[prevTag][i].id, 
-              NULL, classifierBatchResults[prevTag][i]) ;
+              NULL, NULL, classifierBatchResults[prevTag][i]) ;
       }
       
       if (batchSize[tag] == 0)
