@@ -78,6 +78,7 @@ public:
           PrintExtraCol(barcode) ;
         if (_hasUmi)
           PrintExtraCol(umi) ;
+        printf("\n") ;
       }
     }
     else
@@ -88,28 +89,8 @@ public:
         PrintExtraCol(barcode) ;
       if (_hasUmi)
         PrintExtraCol(umi) ;
+      printf("\n") ;
     }
-  }
-
-  // Another type of output that requires extract barcode and umi information.
-  void Output(char *readid, char *seq, char *qual, ReadFormatter &readFormatter, BarcodeCorrector &barcodeCorrector, BarcodeTranslator &barcodeTranslator, const struct _classifierResult &r)
-  {
-    char *barcode = NULL ;
-    char *barcodeQual = NULL ;
-    char *umi = NULL ;
-      
-    if (_hasBarcode)
-    {
-      barcode = readFormatter.Extract(seq, FORMAT_BARCODE, true, true, 0) ;
-      barcodeQual = readFormatter.Extract(seq, FORMAT_BARCODE, false, true, 1) ;
-    }
-    if (_hasUmi)
-      umi = readFormatter.Extract(seq, FORMAT_BARCODE, true, true, 2) ;
-    if (barcodeCorrector.GetWhitelistSize() > 0)
-      barcodeCorrector.Correct(barcode, barcodeQual) ;
-    
-    Output(readid, barcodeTranslator.IsSet() ? barcodeTranslator.Translate(barcode, strlen(barcode)).c_str() : barcode,
-        umi, r) ;
   }
 
   void Finalize()
