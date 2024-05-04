@@ -123,6 +123,7 @@ int GetReadBatch(ReadFiles &reads, struct _Read *readBatch,
   // Reformat everything
   for (i = 0 ; i < batchSize ; ++i)
   {
+    // No need to worry buffer id for now, as the parsing input part is sequential.
     readFormatter.InplaceExtractSeqAndQual(readBatch[i].seq, readBatch[i].qual, FORMAT_READ1) ;
     if (readBatch2 != NULL)
       readFormatter.InplaceExtractSeqAndQual(readBatch2[i].seq, readBatch2[i].qual, FORMAT_READ2) ;
