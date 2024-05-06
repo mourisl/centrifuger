@@ -339,7 +339,7 @@ int main(int argc, char *argv[])
     }
   }
 
-  Utils::PrintLog("Centrifuger starts." ) ;
+  Utils::PrintLog("Centrifuger v" CENTRIFUGER_VERSION " starts." ) ;
   if (idxPrefix == NULL)
   {
     Utils::PrintLog("Need to use -x to specify index prefix.") ;
