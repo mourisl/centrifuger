@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+env:
+  DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
+
+jobs:
+  ubuntu:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        compiler: [g++, clang++]
+    steps:
+    - uses: actions/checkout@v4
+    - name: build-centrifuger
+      run:
+        make CXX=${{ matrix.compiler }}
+    - name: test-centrifuger
+      run:
+        ./centrifuger
+
+  macos:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        compiler: [clang++]
+    steps:
+    - uses: actions/checkout@v4
+    - name: build-centrifuger
+      run:
+        make CXX=${{ matrix.compiler }} 
+    -name: test-centrifuger
+      run:
+        ./centrifuger
