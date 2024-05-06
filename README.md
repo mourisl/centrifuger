@@ -44,7 +44,7 @@ Centrifuger is also available from [Bioconda](https://anaconda.org/bioconda/cent
         --build-mem STR: automatic infer bmax and dcv to match memory constraints, can use T,G,M,K to specify the memory size [not used]
         --subset-tax INT: only consider the subset of input genomes under taxonomy node <int> [0]
 
-An example of pre-built index containing human, bacteria, archea, and virus genomes from RefSeq plus SARS-CoV-2 variants from GenBank is available at [Zenodo](https://zenodo.org/records/10023239).
+An example of pre-built index containing human, bacteria, archea, and virus genomes from RefSeq plus SARS-CoV-2 variants from GenBank is available at [Zenodo](https://zenodo.org/records/10023239). The default --bmax and --dcv option may be inefficient for building indexes for larger genome databases, please use --build-mem option to specify the rough estimation of the available memory.
 
 #### Classification
 
@@ -76,13 +76,13 @@ The second column is the sequence ID of the genomic sequence, where the read is 
 The third column is the taxonomic ID of the genomic sequence in the second column (e.g., 2697049).
 The fourth column is the score for the classification, which is the weighted sum of hits (e.g., 4225)
 The fifth column is the score for the next best classification (e.g., 0).
-The sixth column is a pair of two numbers: (1) an approximate number of base pairs of the read that match the genomic sequence and (2) the length of a read or the combined length of mate pairs (e.g., 80 / 80).
-The seventh column is a pair of two numbers: (1) an approximate number of base pairs of the read that match the genomic sequence and (2) the length of a read or the combined length of mate pairs (e.g., 80 / 80). 
-The eighth column is the number of classifications for this read, indicating how many assignments were made (e.g.,1).
+The sixth column is the number of base pairs of the read that match the genomic sequence found by Centrifuger (e.g., 80) 
+The seventh column is the length of a read or the combined length of mate pairs (e.g., 80). 
+The eighth column is the number of classifications for this read, indicating how many assignments were made in the output (e.g.,1).
 ```
 
 ### Practical notes
-#### Create index for genomes from NCBI.
+* #### Create index for genomes from NCBI.
 
 You can use "centrifuger-download" to download reference sequences from NCBI. The following two commands download the NCBI taxonomy to taxonomy/ in the current directory, and all complete archaeal, bacterial and viral genomes to library/.
 
@@ -109,8 +109,24 @@ To build the index, first put the downloaded files in a list (this part is diffe
 	
 After building the index, all but the refseq_abv.[1234].cfr index files may be removed.
 
-#### Build custom database index 
+* #### Build custom database index 
 The index building procedure is similar to [Centrifuge's](http://www.ccb.jhu.edu/software/centrifuge/manual.shtml#database-download-and-index-building), but with names changing to centrifuger. For example, centrifuge-download is centrifuger-download. 
+
+* #### 10x Genomics data and barcode-based single-cell data
+
+If your input has barcode information, you can use "--barcode" to specify the barcode file and use "--read-format" to tell Centrifuger how to extract barcode information. The "--read-format" option can also specify the extraction for read1, read2 and UMI. The value for this argument is a comma-separated string, each field in the string is also a semi-comma-splitted string
+
+	[r1|r2|bc|um]:start:end:strand
+
+The start and end are inclusive and -1 means the end of the read. You may use multiple fields to specify non-consecutive segments, e.g. bc:0:15,bc:32:-1. The strand is presented by '+' and '-' symbol, if '-' the barcode will be reverse-complemented after extraction. The strand symbol can be omitted if it is '+' and is ignored on r1 and r2. For example, when the barcode is in the first 16bp of read1, one can use the option `-1 read1.fq.gz -2 read2.fq.gz --barcode read1.fq.gz --read-format bc:0:15,r1:16:-1`.
+
+Centrifuger supports using wildcard in the -1 -2/-u option, so a typical way to run 10x Genomics single-end data is by:
+
+	./centrifuger -x cfr_idx -u "path_to_10x_fastqs/*_R2_*.fastq.gz" --barcode "path_to_10x_fastqs/*_R1_*.fastq.gz" --UMI "path_10x_fastqs/*_R1_*.fastq.gz" --read-format bc:0:15,um:16:-1 --barcode-whitelist cellranger_folder/cellranger-cs/VERSION/lib/python/cellranger/barcodes/3M-february-2018.txt.gz [other options]
+
+The exact options depend on your 10x Genomics kit. The quotes around the paths with wildcard  re necessary.
+
+Moreover, Centrifuger can translate input cell barcodes to another set of barcodes. You can specify the translation file through the option --barcodeTranslate. The translation file is a two-column tsv/csv file with the translated barcode on the first column and the original barcode on the second column. This option also supports combinatorial barcoding, such as SHARE-seq. Centrifuger can translate each barcode segment provided in the second column to the ID in the first column and add "-" to concatenate the IDs in the output.
 
 ### Example
 
