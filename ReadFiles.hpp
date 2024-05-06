@@ -6,6 +6,8 @@
 #include <string.h>
 #include <zlib.h>
 
+#include <glob.h>
+
 #include <vector>
 #include <string>
 
@@ -126,13 +128,44 @@ class ReadFiles
 
     void AddReadFile( char *file, bool fileHasMate )
     {
-      std::string s(file) ;
-      fileNames.push_back(file) ;
+      //std::string s(file) ;
+      unsigned int i ;
+      bool needGlob = false ;
+      for (i = 0 ; file[i] ; ++i)
+        if (file[i] == '*')
+          needGlob = true ;
+      
+      int addFileCnt = 1 ;
+      if (!needGlob)
+      {
+        fileNames.push_back(file) ;
+        hasMate.push_back(fileHasMate) ;
+      }
+      else
+      {
+        glob_t globResult ;
+        memset(&globResult, 0, sizeof(globResult)) ;
+        
+        int globRet = glob(file, GLOB_TILDE, NULL, &globResult) ;
+        if (globRet != 0)
+        {
+          globfree(&globResult) ;
+          fprintf(stderr, "glob() failed with return value %d.\n", globRet) ;
+        }
+
+        for (i = 0 ; i < globResult.gl_pathc ; ++i)
+        {
+          fileNames.push_back(globResult.gl_pathv[i]) ;
+          hasMate.push_back(fileHasMate) ;
+        }
+
+        addFileCnt = globResult.gl_pathc ;
+        globfree(&globResult) ;
+      }
 
       if (fileCnt == 0)
         OpenFile(0) ;
-
-      ++fileCnt ;
+      fileCnt += addFileCnt ;
     }
 
     bool HasQuality()

@@ -611,7 +611,7 @@ public:
     GetClassificationFromHits(hits, result) ;
     result.queryLength = strlen(r1) ;
     if (r2)
-      result.queryLength += strlen(r1) ;
+      result.queryLength += strlen(r2) ;
   }
 
   const Taxonomy &GetTaxonomy()

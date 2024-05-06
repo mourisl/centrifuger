@@ -23,7 +23,7 @@ centrifuger-inspect: CentrifugerInspect.o
 	$(CXX) -o $@ $(LINKPATH) $(CXXFLAGS) $< $(LINKFLAGS)
 
 CentrifugerBuild.o: CentrifugerBuild.cpp Builder.hpp ReadFiles.hpp Taxonomy.hpp defs.h compactds/*.hpp 
-CentrifugerClass.o: CentrifugerClass.cpp Classifier.hpp ReadFiles.hpp Taxonomy.hpp defs.h ResultWriter.hpp ReadPairMerger.hpp compactds/*.hpp 
+CentrifugerClass.o: CentrifugerClass.cpp Classifier.hpp ReadFiles.hpp Taxonomy.hpp defs.h ResultWriter.hpp ReadPairMerger.hpp ReadFormatter.hpp BarcodeCorrector.hpp BarcodeTranslator.hpp compactds/*.hpp 
 CentrifugerInspect: CentrifugerInspect.cpp Taxonomy.hpp compactds/*.hpp 
 clean:
 	rm -f *.o centrifuger-build centrifuger centrifuger-inspect
