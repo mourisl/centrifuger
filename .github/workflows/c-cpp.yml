@@ -34,6 +34,6 @@ jobs:
     - name: build-centrifuger
       run:
         make CXX=${{ matrix.compiler }} 
-    -name: test-centrifuger
+    - name: test-centrifuger
       run:
         ./centrifuger
