@@ -3,7 +3,7 @@
 
 #include <stdio.h>
 #include "ReadFiles.hpp"
-#include "SimpleVector.hpp"
+#include "compactds/SimpleVector.hpp"
 #include "defs.h"
 #include "ReadFormatter.hpp"
 
