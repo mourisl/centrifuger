@@ -93,7 +93,7 @@ p+m+v: export ANY_LEVEL_GENOMES:=viral
 p+m+v: export COMPLETE_GENOMES:=archaea bacteria
 p+m+v: export MAMMALIAN_TAXIDS:=10090
 p+m+v: export INCLUDE_CONTAMINANTS:=1
-p+m+v: export IDX_NAME:=p+h+v
+p+m+v: export IDX_NAME:=p+m+v
 
 p+v: export ANY_LEVEL_GENOMES:=viral
 p+v: export COMPLETE_GENOMES:=archaea bacteria
