@@ -1,6 +1,7 @@
 #
 # Makefile
 # fbreitwieser, 2016-01-29 13:00
+# Modified by mourisl for Centrifuger.
 #
 
 SHELL := /bin/bash
@@ -80,13 +81,19 @@ all:
 
 IDX_NAME?=$(shell basename $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST)))))
 
-INDICES=p+h+v p+v v p refseq_microbial refseq_full nt
+INDICES=p+h+v p+m+v p+v v p refseq_microbial refseq_full nt
 
 p+h+v: export ANY_LEVEL_GENOMES:=viral
 p+h+v: export COMPLETE_GENOMES:=archaea bacteria
 p+h+v: export MAMMALIAN_TAXIDS:=9606
 p+h+v: export INCLUDE_CONTAMINANTS:=1
 p+h+v: export IDX_NAME:=p+h+v
+
+p+m+v: export ANY_LEVEL_GENOMES:=viral
+p+m+v: export COMPLETE_GENOMES:=archaea bacteria
+p+m+v: export MAMMALIAN_TAXIDS:=10090
+p+m+v: export INCLUDE_CONTAMINANTS:=1
+p+m+v: export IDX_NAME:=p+h+v
 
 p+v: export ANY_LEVEL_GENOMES:=viral
 p+v: export COMPLETE_GENOMES:=archaea bacteria
@@ -115,7 +122,7 @@ refseq_microbial: export ANY_LEVEL_GENOMES:=viral
 refseq_microbial: export MAMMALIAN_TAXIDS:=9606 10090
 refseq_microbial: export INCLUDE_CONTAMINANTS:=1
 refseq_microbial: export IDX_NAME:=refseq_microbial
-refseq_microbial: export CF_BUILD_OPTS+=--ftabchars 14
+#refseq_microbial: export CFR_BUILD_OPTS+=--ftabchars 14
 
 refseq_full: export COMPLETE_GENOMES:=archaea bacteria fungi invertebrate plant protozoa vertebrate_mammalian vertebrate_other viral
 refseq_full: export CHROMOSOME_LEVEL_GENOMES:=$(COMPLETE_GENOMES)
@@ -139,7 +146,7 @@ DONT_DUSTMASK=1
 TAXONOMY_DOWNLOAD_OPTS?=
 REFERENCE_SEQUENCES=$(call get_ref_file_names,.fna)
 TAXID_MAPS=$(call get_ref_file_names,$(TAXID_SUFFIX))
-CF_BUILD_OPTS?=
+CFR_BUILD_OPTS?=
 
 ifeq (nt,$(IDX_NAME))
 ifeq ($(strip $(DONT_DUSTMASK)),)
@@ -148,7 +155,7 @@ else
 REFERENCE_SEQUENCES+=nt-sorted.fna
 endif
 TAXID_MAPS+=nt.map
-CF_BUILD_OPTS+=--ftabchars=14
+#CFR_BUILD_OPTS+=--ftabchars=14
 endif
 
 
@@ -159,7 +166,7 @@ endif
 
 SIZE_TABLES=$(addprefix $(REFERENCE_SEQUENCES_DIR)/all-compressed-,$(addsuffix .size,$(COMPLETE_GENOMES_COMPRESSED)))
 ifneq ($(strip $(COMPLETE_GENOMES_COMPRESSED)),)
-CF_BUILD_OPTS+=--size-table <(cat $(SIZE_TABLES))
+#CFR_BUILD_OPTS+=--size-table <(cat $(SIZE_TABLES))
 endif
 
 CF_DOWNLOAD_OPTS?=
@@ -307,7 +314,7 @@ $(IDX_NAME).1.cfr: $(REFERENCE_SEQUENCES) $(SIZE_TABLES) $(TAXID_MAPS) taxonomy/
 	@echo Index building prerequisites: $^
 	[[ -d $(TMP_DIR) ]] && rm -rf $(TMP_DIR); mkdir -p $(TMP_DIR)
 	cat $(TAXID_MAPS) > $(REFERENCE_SEQUENCES_DIR)/cat_taxid.map 
-	time centrifuger-build -t $(THREADS) $(CF_BUILD_OPTS) \
+	time centrifuger-build -t $(THREADS) $(CFR_BUILD_OPTS) \
 		--conversion-table $(REFERENCE_SEQUENCES_DIR)/cat_taxid.map \
 		--taxonomy-tree taxonomy/nodes.dmp --name-table taxonomy/names.dmp \
 		-r $(call join_w_r,$(REFERENCE_SEQUENCES)) -o $(TMP_DIR)/$(IDX_NAME) 2>&1 | tee centrifuger-build-$(IDX_NAME).log
