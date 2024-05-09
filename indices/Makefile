@@ -285,7 +285,8 @@ endif
 $(REFERENCE_SEQUENCES_DIR)/contaminants.fna: | $(REFERENCE_SEQUENCES_DIR)
 	[[ -d $(TMP_DIR) ]] && rm -rf $(TMP_DIR); mkdir -p $(TMP_DIR)
 	centrifuger-download -o $(TMP_DIR) contaminants > $(TMP_DIR)/$(patsubst %.fna,%$(TAXID_SUFFIX),$(notdir $@))
-	find $(TMP_DIR)/contaminants -name "*.fna.gz" | xargs zcat > $@.tmp && mv $@.tmp $@
+	#find $(TMP_DIR)/contaminants -name "*.fna.gz" | xargs zcat > $@.tmp && mv $@.tmp $@
+	find $(TMP_DIR)/contaminants -name "*.fna" | xargs cat > $@.tmp && mv $@.tmp $@
 	mv $(TMP_DIR)/$(patsubst %.fna,%$(TAXID_SUFFIX),$(notdir $@)) $(patsubst %.fna,%$(TAXID_SUFFIX),$@)
 ifeq (1,$(KEEP_FILES))
 	[[ -d $(DL_DIR)/contaminants ]] || mkdir -p $(DL_DIR)/contaminants

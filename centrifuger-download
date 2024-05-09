@@ -13,8 +13,13 @@ cut_after_first_space_or_second_pipe() {
 }
 export -f cut_after_first_space_or_second_pipe
 
+cut_after_first_space() {
+    grep '^>' | sed 's/ .*//' 
+}
+export -f cut_after_first_space
+
 map_headers_to_taxid() {
-    grep '^>' | cut_after_first_space_or_second_pipe | sed -e "s/^>//" -e  "s/\$/    $1/"
+    grep '^>' | cut_after_first_space | sed -e "s/^>//" -e  "s/\$/    $1/"
 }
 export -f map_headers_to_taxid
 
