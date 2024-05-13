@@ -58,9 +58,12 @@ An example of pre-built index containing human, bacteria, archea, and virus geno
         -o STRING: output prefix [centrifuger]
         -t INT: number of threads [1]
         -k INT: report upto <int> distinct, primary assignments for each read pair [1]
+        --barcode STR: path to the barcode file
+        --UMI STR: path to the UMI file
+        --read-format STR: format for read, barcode and UMI files, e.g. r1:0:-1,r2:0:-1,bc:0:15,um:16:-1 for paired-end files with barcode and UMI
         --min-hitlen INT: minimum length of partial hits [auto]
         --hitk-factor INT: resolve at most <int>*k entries for each hit [40; use 0 for no restriction]
-        --merge-readpair: merge overlapped paired-end reads and trim adapters [no merge]
+        --merge-readpair: merge overlapped paired-end reads and trim adapters 
 
 ### Input/Output
 
