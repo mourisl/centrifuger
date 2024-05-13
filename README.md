@@ -127,7 +127,7 @@ Centrifuger supports using wildcard in the -1 -2/-u option, so a typical way to 
 
 	./centrifuger -x cfr_idx -u "path_to_10x_fastqs/*_R2_*.fastq.gz" --barcode "path_to_10x_fastqs/*_R1_*.fastq.gz" --UMI "path_10x_fastqs/*_R1_*.fastq.gz" --read-format bc:0:15,um:16:-1 --barcode-whitelist cellranger_folder/cellranger-cs/VERSION/lib/python/cellranger/barcodes/3M-february-2018.txt.gz [other options]
 
-The exact options depend on your 10x Genomics kit. The quotes around the paths with wildcard  re necessary.
+The exact options depend on your 10x Genomics kit. The quotes around the paths with wildcard  are necessary.
 
 Moreover, Centrifuger can translate input cell barcodes to another set of barcodes. You can specify the translation file through the option --barcodeTranslate. The translation file is a two-column tsv/csv file with the translated barcode on the first column and the original barcode on the second column. This option also supports combinatorial barcoding, such as SHARE-seq. Centrifuger can translate each barcode segment provided in the second column to the ID in the first column and add "-" to concatenate the IDs in the output.
 
