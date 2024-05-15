@@ -38,10 +38,10 @@ Centrifuger is also available from [Bioconda](https://anaconda.org/bioconda/cent
       Optional:
         -o STRING: output prefix [centrifuger]
         -t INT: number of threads [1]
-        --bmax INT: block size for blockwise suffix array sorting [16777216]
-        --offrate INT: SA/offset is sampled every (2^<int>) BWT chars [4]
-        --dcv INT: difference cover period [4096]
         --build-mem STR: automatic infer bmax and dcv to match memory constraints, can use T,G,M,K to specify the memory size [not used]
+        --bmax INT: block size for blockwise suffix array sorting [16777216]
+        --dcv INT: difference cover period [4096]
+        --offrate INT: SA/offset is sampled every (2^<int>) BWT chars [4]
         --subset-tax INT: only consider the subset of input genomes under taxonomy node <int> [0]
 
 An example of pre-built index containing human, bacteria, archea, and virus genomes from RefSeq plus SARS-CoV-2 variants from GenBank is available at [Zenodo](https://zenodo.org/records/10023239). The default --bmax and --dcv option may be inefficient for building indexes for larger genome databases, please use --build-mem option to specify the rough estimation of the available memory.
