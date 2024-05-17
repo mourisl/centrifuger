@@ -39,7 +39,7 @@ function download_n_process() {
     GZIPPED_FILE="$LIBDIR/$DOMAIN/$NAME.gz"
     UNZIPPED_FILE="$LIBDIR/$DOMAIN/$NAME"
     DUSTMASKED_FILE="$LIBDIR/$DOMAIN/${NAME%.fna.gz}_dustmasked.fna.gz"
-    [[ "$DO_DUST" == "1" ]] && RES_FILE=$DUSTMASKED_FILE || RES_FILE=$UNZIPPED_FILE
+    [[ "$DO_DUST" == "1" ]] && RES_FILE=$DUSTMASKED_FILE || RES_FILE=$GZIPPED_FILE
 
     if [[ ! -s "$RES_FILE" || -n `gzip -t "$RES_FILE" 2>&1 >/dev/null` ]]; then
         if [ $DL_MODE = "rsync" ]; then
