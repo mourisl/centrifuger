@@ -76,7 +76,7 @@ function download_n_process() {
     fi
 
     ## Output sequenceID to taxonomy ID map to STDOUT
-    zcat $RES_FILE | map_headers_to_taxid $TAXID
+    gzip -cd < $RES_FILE | map_headers_to_taxid $TAXID
     echo done
 }
 export -f download_n_process
