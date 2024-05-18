@@ -313,7 +313,7 @@ export LOCK_FILE=""
 
 if [ $N_PROC -gt 1 ]; then
   if ! command -v flock >/dev/null 2>&1; then
-    echo "WARNING: flock is not installed, will change the number of thread to 1."
+    echo "WARNING: flock is not installed, will change the number of thread to 1." 1>&2
     N_PROC=1
   else
     export LOCK_FILE="./lockfile.lock"
