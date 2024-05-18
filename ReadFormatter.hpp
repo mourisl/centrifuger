@@ -273,10 +273,14 @@ public:
         _areSegmentsSorted[category] ? -1 : bufferId) ;
     if (buffer != seq)
       strcpy(seq, buffer) ;
-    buffer = Extract(qual, category, false, true, 
-        _areSegmentsSorted[category] ? -1 : bufferId) ;
-    if (buffer != qual)
-      strcpy(qual, buffer) ;
+
+    if (qual != NULL)
+    {
+      buffer = Extract(qual, category, false, true, 
+          _areSegmentsSorted[category] ? -1 : bufferId) ;
+      if (buffer != qual)
+        strcpy(qual, buffer) ;
+    }
   }
 } ;
 
