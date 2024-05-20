@@ -19,7 +19,11 @@ cut_after_first_space() {
 export -f cut_after_first_space
 
 map_headers_to_taxid() {
-    grep '^>' | cut_after_first_space | sed -e "s/^>//" -e  "s/\$/    $1/"
+    if [[ $LOCK_FILE != "" ]]; then
+      grep '^>' | cut_after_first_space | sed -e "s/^>//" -e  "s/\$/    $1/" | flock -x $LOCK_FILE -c 'cat'
+    else # this handles the single-thread case
+      grep '^>' | cut_after_first_space | sed -e "s/^>//" -e  "s/\$/    $1/" 
+    fi
 }
 export -f map_headers_to_taxid
 
@@ -35,7 +39,7 @@ function download_n_process() {
     GZIPPED_FILE="$LIBDIR/$DOMAIN/$NAME.gz"
     UNZIPPED_FILE="$LIBDIR/$DOMAIN/$NAME"
     DUSTMASKED_FILE="$LIBDIR/$DOMAIN/${NAME%.fna.gz}_dustmasked.fna.gz"
-    [[ "$DO_DUST" == "1" ]] && RES_FILE=$DUSTMASKED_FILE || RES_FILE=$UNZIPPED_FILE
+    [[ "$DO_DUST" == "1" ]] && RES_FILE=$DUSTMASKED_FILE || RES_FILE=$GZIPPED_FILE
 
     if [[ ! -s "$RES_FILE" || -n `gzip -t "$RES_FILE" 2>&1 >/dev/null` ]]; then
         if [ $DL_MODE = "rsync" ]; then
@@ -72,7 +76,7 @@ function download_n_process() {
     fi
 
     ## Output sequenceID to taxonomy ID map to STDOUT
-    zcat $RES_FILE | map_headers_to_taxid $TAXID
+    gzip -cd < $RES_FILE | map_headers_to_taxid $TAXID
     echo done
 }
 export -f download_n_process
@@ -304,6 +308,18 @@ export LIBDIR="$BASE_DIR"
 export DO_DUST="$DO_DUST"
 export CHANGE_HEADER="$CHANGE_HEADER"
 
+#### Handle multithreading
+export LOCK_FILE=""
+
+if [ $N_PROC -gt 1 ]; then
+  if ! command -v flock >/dev/null 2>&1; then
+    echo "WARNING: flock is not installed, will change the number of thread to 1." 1>&2
+    N_PROC=1
+  else
+    export LOCK_FILE="./lockfile.lock"
+  fi
+fi
+
 ## Fields in the assembly_summary.txt file
 REFSEQ_CAT_FIELD=5
 TAXID_FIELD=6
@@ -400,3 +416,7 @@ for DOMAIN in $DOMAINS; do
         echo >&2
     fi
 done
+
+if [[ $LOCK_FILE != "" ]]; then
+  rm $LOCK_FILE 
+fi
