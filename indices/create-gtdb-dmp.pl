@@ -3,7 +3,10 @@
 use strict ;
 use warnings ;
 
+use Cwd qw(abs_path) ;
 use Getopt::Long ;
+use threads ;
+use threads::shared ;
 
 # Create the dump files that are necessary for centrifuger-build from GTDB files
 sub AccessionToSubdir
@@ -32,7 +35,7 @@ my $usage = "Usage: create-dmp-gtdb.pl [OPTIONS]\n".
   "\t-d STR: directory of GTDB decompressed sequence\n".
   "\t-m STR: GTDB metadata file\n".
   "\t-o STR: output prefix [gtdb_]\n".
-  "\t-p INT: number of processes to use [1]\n".
+  "\t-t INT: number of threads to use [1]\n".
   "\t--names STR: NCBI's names.dmp file. If not given, using non-NCBI taxid to represent intermediate nodes.\n"
   ;
 
@@ -44,14 +47,17 @@ my $outputPrefix = "gtdb" ;
 my $genomeDir = "" ;
 my $metaFile = "" ;
 my $novelTaxId = 10000000 ;
+my $numThreads = 1 ;
 
 GetOptions(
   "o=s" => \$outputPrefix,
   "d=s" => \$genomeDir,
   "m=s" => \$metaFile,
+  "t=i" => \$numThreads, 
   #"nodes=s" => \$ncbiNodeDmp,
   "names=s" => \$ncbiNameDmp
 ) ;
+my $fullGenomeDir = abs_path($genomeDir) ;
 
 my $i ;
 my @cols ;
@@ -83,7 +89,8 @@ PrintLog("Generate the dmp files for nodes and names, and the mapping from file 
 
 open FPoutNames, ">${outputPrefix}_names.dmp" ;
 open FPoutNodes, ">${outputPrefix}_nodes.dmp" ;
-open FPoutFileToTaxid, ">${outputPrefix}_fname_to_taxid.map" ;
+open FPoutFileToTaxid, ">${outputPrefix}_fname2taxid.map" ;
+open FPoutFileList, ">${outputPrefix}_file.list" ;
 open FPmeta, $metaFile ;
 
 print FPoutNodes "1\t|\t1\t|\tno rank\t|\n" ;
@@ -143,6 +150,7 @@ while (<FPmeta>)
     else
     {
       $ltid = $novelTaxId ;
+      $ncbiNamesToTaxId{$cols2[1]} = $ltid ;
       ++$novelTaxId ;
     }
 
@@ -154,7 +162,8 @@ while (<FPmeta>)
   }
 
   $accessionToTaxId{$accession} = $taxid ;
-  print FPoutFileToTaxid GetGenomeFilePath($genomeDir, $accession)."\t$taxid\n" ;
+  print FPoutFileToTaxid GetGenomeFilePath($fullGenomeDir, $accession)."\t$taxid\n" ;
+  print FPoutFileList GetGenomeFilePath($fullGenomeDir, $accession)."\n" ;
 }
 
 foreach my $tid (keys %nodesToPrint)
@@ -167,7 +176,66 @@ close FPmeta ;
 close FPoutNames ;
 close FPoutNodes ;
 close FPoutFileToTaxid ;
+close FPoutFileList ;
 
 # Iterate through the genome files to generate the seqid map file
+PrintLog("Generate the seq ID to tax ID mapping file.") ;
+my %seqIdMap : shared ;
+my $threadLock : shared ;
+my @threads ;
+
+for ( $i = 0 ; $i < $numThreads ; ++$i )
+{
+	push @threads, $i ;
+}
+
+sub GetSeqIdMapThread
+{
+  my $tid = threads->tid() - 1 ;
+  my %localSeqIdMap ;
+  foreach my $accession (keys %accessionToTaxId)
+  {
+    my $tmp = int(substr($accession, 4)) ;
+    if ($tmp % $numThreads == $tid)
+    {
+      my $file = GetGenomeFilePath($genomeDir, $accession) ;
+      open FPgzip, "gzip -cd $file |" ;
+      while (<FPgzip>)
+      {
+        if (/^>/)
+        {
+          chomp ;
+          my $seqId = substr((split /\s/, $_)[0], 1) ;
+          $localSeqIdMap{$seqId} = $accessionToTaxId{$accession} ;
+        }
+      }
+      close FPgzip ;
+    }
+  }
+
+  {
+    lock($threadLock) ;
+    foreach my $seqId (%localSeqIdMap)
+    {
+      $seqIdMap{$seqId} = $localSeqIdMap{$seqId} ;
+    }
+  }
+}
+
+foreach (@threads)
+{
+  $_ = threads->create(\&GetSeqIdMapThread) ;
+}
+foreach (@threads)
+{
+  $_->join() ;
+}
+
+open FPout, ">${outputPrefix}_seqid2taxid.map" ;
+foreach my $seqId (%seqIdMap)
+{
+  print "$seqId\t".$seqIdMap{$seqId}."\n" ;
+}
+close FPout ;
 
 PrintLog("Done.") ;
