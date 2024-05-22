@@ -89,7 +89,7 @@ PrintLog("Generate the dmp files for nodes and names, and the mapping from file 
 
 open FPoutNames, ">${outputPrefix}_names.dmp" ;
 open FPoutNodes, ">${outputPrefix}_nodes.dmp" ;
-open FPoutFileToTaxid, ">${outputPrefix}_fname2taxid.map" ;
+open FPoutFileToTaxid, ">${outputPrefix}_fname_to_taxid.map" ;
 open FPoutFileList, ">${outputPrefix}_file.list" ;
 open FPmeta, $metaFile ;
 
@@ -180,22 +180,23 @@ close FPoutFileList ;
 
 # Iterate through the genome files to generate the seqid map file
 PrintLog("Generate the seq ID to tax ID mapping file.") ;
-my %seqIdMap : shared ;
-my $threadLock : shared ;
+my %seqIdMap ;
+my @threadSeqIdMap : shared;
 my @threads ;
 
 for ( $i = 0 ; $i < $numThreads ; ++$i )
 {
 	push @threads, $i ;
+  my %tmp : shared ;
+  push @threadSeqIdMap, \%tmp ;
 }
 
 sub GetSeqIdMapThread
 {
   my $tid = threads->tid() - 1 ;
-  my %localSeqIdMap ;
   foreach my $accession (keys %accessionToTaxId)
   {
-    my $tmp = int(substr($accession, 4)) ;
+    my $tmp = int(substr($accession, 4) / 10) ; # seems many accession number are ending with 5, so there are definitely some biases.
     if ($tmp % $numThreads == $tid)
     {
       my $file = GetGenomeFilePath($genomeDir, $accession) ;
@@ -206,18 +207,10 @@ sub GetSeqIdMapThread
         {
           chomp ;
           my $seqId = substr((split /\s/, $_)[0], 1) ;
-          $localSeqIdMap{$seqId} = $accessionToTaxId{$accession} ;
+          ${$threadSeqIdMap[$tid]}{$seqId} = $accessionToTaxId{$accession} ;
         }
       }
       close FPgzip ;
-    }
-  }
-
-  {
-    lock($threadLock) ;
-    foreach my $seqId (%localSeqIdMap)
-    {
-      $seqIdMap{$seqId} = $localSeqIdMap{$seqId} ;
     }
   }
 }
@@ -231,10 +224,19 @@ foreach (@threads)
   $_->join() ;
 }
 
-open FPout, ">${outputPrefix}_seqid2taxid.map" ;
-foreach my $seqId (%seqIdMap)
+foreach (@threadSeqIdMap)
 {
-  print "$seqId\t".$seqIdMap{$seqId}."\n" ;
+  my %tmp = %{$_} ;
+  foreach my $seqId (keys %tmp)
+  {
+    $seqIdMap{$seqId} = $tmp{$seqId} ;
+  }
+}
+
+open FPout, ">${outputPrefix}_seqid_to_taxid.map" ;
+foreach my $seqId (keys %seqIdMap)
+{
+  print FPout "$seqId\t".$seqIdMap{$seqId}."\n" ;
 }
 close FPout ;
 
