@@ -36,10 +36,14 @@ my $usage = "Usage: create-dmp-gtdb.pl [OPTIONS]\n".
   "\t-m STR: GTDB metadata file\n".
   "\t-o STR: output prefix [gtdb_]\n".
   "\t-t INT: number of threads to use [1]\n".
-  "\t--names STR: NCBI's names.dmp file. If not given, using non-NCBI taxid to represent intermediate nodes.\n"
+  "\t--names STR: NCBI's names.dmp file. If not given, using non-NCBI taxid to represent intermediate nodes.\n".
+  "\t--skipSeqId2TaxId: skip the step of generating seqid_to_taxid.map file.\n"
   ;
 
 die "$usage\n" if (@ARGV == 0) ;
+
+# Generate names.dmp and nodes.dmp files using metadata file
+PrintLog("Generate the dmp files for nodes and names, and the mapping from file path to tax ID.") ;
 
 my $ncbiNodeDmp = "" ;
 my $ncbiNameDmp = "" ;
@@ -48,6 +52,7 @@ my $genomeDir = "" ;
 my $metaFile = "" ;
 my $novelTaxId = 10000000 ;
 my $numThreads = 1 ;
+my $skipSeqIdMap = 0 ;
 
 GetOptions(
   "o=s" => \$outputPrefix,
@@ -55,7 +60,8 @@ GetOptions(
   "m=s" => \$metaFile,
   "t=i" => \$numThreads, 
   #"nodes=s" => \$ncbiNodeDmp,
-  "names=s" => \$ncbiNameDmp
+  "names=s" => \$ncbiNameDmp,
+  "skipSeqId2TaxId" => \$skipSeqIdMap 
 ) ;
 my $fullGenomeDir = abs_path($genomeDir) ;
 
@@ -84,8 +90,6 @@ if ($ncbiNameDmp ne "")
   close FP ;
 }
 
-# Generate names.dmp and nodes.dmp files using metadata file
-PrintLog("Generate the dmp files for nodes and names, and the mapping from file path to tax ID.") ;
 
 open FPoutNames, ">${outputPrefix}_names.dmp" ;
 open FPoutNodes, ">${outputPrefix}_nodes.dmp" ;
@@ -168,7 +172,7 @@ while (<FPmeta>)
 
 foreach my $tid (keys %nodesToPrint)
 {
-  print FPoutNodes "$tid\t|\t".$nodesToPrint{$tid}."\t|\t".$taxRankCodeToFull{$taxIdRank{$tid}}."|\n" ;
+  print FPoutNodes "$tid\t|\t".$nodesToPrint{$tid}."\t|\t".$taxRankCodeToFull{$taxIdRank{$tid}}."\t|\n" ;
   print FPoutNames "$tid\t|\t".$namesToPrint{$tid}."\t|\tscientific name\t|\n" ;
 }
 
@@ -179,6 +183,11 @@ close FPoutFileToTaxid ;
 close FPoutFileList ;
 
 # Iterate through the genome files to generate the seqid map file
+if ($skipSeqIdMap)
+{
+  exit(0) ;
+}
+
 PrintLog("Generate the seq ID to tax ID mapping file.") ;
 my %seqIdMap ;
 my @threadSeqIdMap : shared;
@@ -200,8 +209,9 @@ sub GetSeqIdMapThread
     if ($tmp % $numThreads == $tid)
     {
       my $file = GetGenomeFilePath($genomeDir, $accession) ;
-      open FPgzip, "gzip -cd $file |" ;
-      while (<FPgzip>)
+      system("gzip -cd < $file | grep '^>' > ${outputPrefix}_tmp_thread_${tid}.tmp") ;
+      open FP, "${outputPrefix}_tmp_thread_${tid}.tmp" ;
+      while (<FP>)
       {
         if (/^>/)
         {
@@ -210,9 +220,10 @@ sub GetSeqIdMapThread
           ${$threadSeqIdMap[$tid]}{$seqId} = $accessionToTaxId{$accession} ;
         }
       }
-      close FPgzip ;
+      close FP ;
     }
   }
+  unlink "${outputPrefix}_tmp_thread_${tid}.tmp" ;
 }
 
 foreach (@threads)
