@@ -141,7 +141,8 @@ int main(int argc, char *argv[])
   }
 
   const char alphabetList[] = "ACGT" ;
-
+	
+	Utils::PrintLog("Start to read in the genome files.") ; 
   Builder builder ;
   builder.Build(refGenomeFile, taxonomyFile, nameTable, conversionTable, subsetTax, buildMemoryConstraint, fmBuilderParam, alphabetList) ;
   builder.Save(outputPrefix) ;
@@ -149,6 +150,8 @@ int main(int argc, char *argv[])
   free(taxonomyFile) ;
   free(nameTable) ;
   free(conversionTable) ;
+	
+	Utils::PrintLog("Done.") ; 
 
   return 0 ;
 }
