@@ -79,6 +79,7 @@ private:
   size_t _seqCnt ; // the sequences with taxonomy information
   size_t _extraSeqCnt ; // the number of sequences 
   uint8_t _taxRankNum[RANK_MAX] ;
+  size_t _rootCTaxId ;// the compact tax Id for the root
 
   void InitTaxRankNum()
   {
@@ -308,7 +309,15 @@ private:
     s = buffer ;
     free(buffer) ;
   }
-
+  
+  size_t FindRoot()
+  {
+    size_t i ;
+    for (i = 0 ; i < _nodeCnt ; ++i)
+      if (_taxonomyTree[i].parentTid == i)
+        return i ;
+    return _nodeCnt ;
+  }
 public:
   Taxonomy() 
   {
@@ -318,6 +327,7 @@ public:
     _nodeCnt = 0 ;
     _seqCnt = 0 ;
     _extraSeqCnt = 0 ;
+    _rootCTaxId = 0 ;
     InitTaxRankNum() ;
   }
 
@@ -347,6 +357,8 @@ public:
     ReadTaxonomyTree(std::string(nodesFile), presentTax) ;
     ReadTaxonomyName(std::string(namesFile), presentTax) ;
     ReadSeqNameFile(std::string(seqIdFile)) ;
+  
+    _rootCTaxId = FindRoot() ;
   }
 
   const char *GetTaxRankString(uint8_t rank)
@@ -563,8 +575,14 @@ public:
       return ;
     }
 
-    size_t root = 0 ;
-    int notInTreeCnt = 0 ;
+    // If there is a tax id not in the tree, we 
+    //   give it no rank directly.
+    for (i = 0 ; i < taxCnt ; ++i)
+      if (taxIds[i] >= _nodeCnt)
+      {
+        promotedTaxIds.PushBack(_nodeCnt) ;
+        return ;
+      }
     // For each tax level, collect the found tax id on this level 
     std::map<size_t, int> taxIdsInRankNum[RANK_MAX] ;
     for (i = 0 ; i < taxCnt ; ++i)
@@ -572,12 +590,6 @@ public:
       size_t t = taxIds[i]; 
       uint8_t prevRankNum = 0 ;
       uint8_t ri ;// rank index
-
-      if (t >= _nodeCnt)
-      {
-        ++notInTreeCnt ;
-        continue ;
-      }
 
       taxIdsInRankNum[prevRankNum][t] = 1 ; // the input is at the base level
       do
@@ -597,20 +609,6 @@ public:
         }
         t = _taxonomyTree[t].parentTid ; 
       } while (t != _taxonomyTree[t].parentTid) ;
-      if (t == _taxonomyTree[t].parentTid) // At least one tax id will meet this condition
-        root = t ;
-    }
-
-    if (notInTreeCnt == taxCnt)
-    {
-      // A very strange case that all the assigned sequence is out of the tree.
-      promotedTaxIds.PushBack(_nodeCnt) ;
-      return ;
-    }
-    else if (notInTreeCnt > 0)
-    {
-      promotedTaxIds.PushBack(root) ;
-      return ;
     }
 
     // Go through the levels until the tax ids <= k
@@ -623,7 +621,7 @@ public:
         iter != taxIdsInRankNum[ri].end() ; ++iter)
       promotedTaxIds.PushBack(iter->first) ;
     if (promotedTaxIds.Size() == 0)
-      promotedTaxIds.PushBack(root) ;
+      promotedTaxIds.PushBack(_rootCTaxId) ;
   }
 
   // @return: Number of children tax ids. childrenTax: compact tax ids below or equal to ctid.
@@ -721,6 +719,7 @@ public:
       LoadString(fp, seqStr) ;
       _seqStrNameMap.Add(seqStr) ;
     }
+    _rootCTaxId = FindRoot() ;
   }
 
   void PrintTaxonomyTree(FILE *fp)
