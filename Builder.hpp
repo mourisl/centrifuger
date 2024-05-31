@@ -119,16 +119,35 @@ public:
         continue ;
       fmBuilderParam.selectedISA[psum - fmBuilderParam.precomputeWidth - 1] ;
     }
-
-    Utils::PrintLog("Found %lu sequences with total length %lu bp", 
-        genomeCnt, genomes.GetSize()) ;
+    
+    size_t totalGenomeSize = genomes.GetSize() ;
+    Utils::PrintLog("Found %lu sequences with total length %lu bp.", 
+        genomeCnt, totalGenomeSize) ;
     
     if (memoryConstraint != 0)
       FMBuilder::InferParametersGivenMemory(genomes.GetSize(), alphabetSize, memoryConstraint,fmBuilderParam) ;
-    FMBuilder::Build(genomes, genomes.GetSize(), alphabetSize, BWT, firstISA, fmBuilderParam) ;
-    TransformSampledSAToSeqId(fmBuilderParam, genomeSeqIds, genomeLens, genomes.GetSize()) ;
-    _fmIndex.Init(BWT, genomes.GetSize(), 
+    /*{
+      size_t memoryCost = totalGenomeSize / 4 / WORDBYTES + DIV_CEIL(totalGenomeSize, fmBuilderParam.sampleRate) * Utils::Log2Ceil(genomeCnt) ; // We need to substract other portion out, like the space for the rank structure and the reduced sampled SA. ;
+      if (memoryConstraint > adjustMemoryCost) 
+      {
+        FMBuilder::InferParametersGivenMemory(totalGenomeSize, alphabetSize, 
+            memoryConstraint, fmBuilderParam) ; 
+      }
+      else
+      {
+        Utils::PrintLog("No enough memory, please increase the memory allocation.") ;
+        exit(0) ;
+      }
+    }*/
+
+    FMBuilder::Build(genomes, totalGenomeSize, alphabetSize, BWT, firstISA, fmBuilderParam) ;
+    genomes.Free() ;
+    Utils::PrintLog("Start to transform sampled SA to sequence ID.") ;
+    TransformSampledSAToSeqId(fmBuilderParam, genomeSeqIds, genomeLens, totalGenomeSize) ;
+    Utils::PrintLog("Start to compress BWT with RBBWT.") ;
+    _fmIndex.Init(BWT, totalGenomeSize, 
         firstISA, fmBuilderParam, alphabetList, alphabetSize) ;
+    Utils::PrintLog("centrifuger-build finishes.") ;
   }
 
   void OutputBuilderMeta(FILE *fp, const FMIndex<Sequence_RunBlock> &fm) 
