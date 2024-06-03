@@ -114,6 +114,7 @@ my %accessionToTaxId ;
 my %nodesToPrint ;
 my %taxIdRank ;
 my %namesToPrint ;
+my %newNamesToTaxId ; # the names that is not in NCBI name table. 
 
 while (<FPmeta>)
 {
@@ -151,10 +152,14 @@ while (<FPmeta>)
     {
       $ltid = $taxid ;
     }
+    elsif (defined $newNamesToTaxId{$lineageFields[$j]}) # Sometimes GTDB put the same name across multiple lineage trees, so we need to add the prefix like o__ to distinguish them
+    {
+      $ltid = $newNamesToTaxId{$lineageFields[$j]} ;
+    }
     else
     {
       $ltid = $novelTaxId ;
-      $ncbiNamesToTaxId{$cols2[1]} = $ltid ;
+      $ncbiNamesToTaxId{$lineageFields[$j]} = $ltid ;
       ++$novelTaxId ;
     }
 
