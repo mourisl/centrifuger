@@ -25,7 +25,7 @@ private:
   short _alphabetCodeLen[1<<(sizeof(ALPHABET) * 8)] ; // the length of encoded bits.
   size_t _n ;
 
-  HuffmanCode huffmanCode ; 
+  HuffmanCode _huffmanCode ; 
 public:
   Alphabet() 
   {
@@ -38,7 +38,10 @@ public:
   void Free()
   {
     if (_n != 0)
+    {
       free(_alphabetList) ;
+      _n = 0 ;
+    }
   }
   
   size_t GetSpace() { return _space + sizeof(*this); } 
@@ -76,12 +79,12 @@ public:
     for (i = 0 ; i < n ; ++i)
       _alphabetList[i] = s[i] ;
    
-    huffmanCode.InitFromFrequency(freq, n) ;
+    _huffmanCode.InitFromFrequency(freq, n) ;
 
     for (i = 0 ; i < n ; ++i)
     {
       int l ;
-      _alphabetCode[i] = huffmanCode.Encode(i, l) ;
+      _alphabetCode[i] = _huffmanCode.Encode(i, l) ;
       _alphabetCodeLen[i] = l ;
     }
     _method = ALPHABET_CODE_HUFFMAN ;
@@ -95,6 +98,25 @@ public:
       return 1<<(Utils::Log2Ceil(_n)) ;
     else if (ALPHABET_CODE_HUFFMAN)
       return _n ;
+    return 0 ;
+  }
+
+  size_t GetLongestCodeLength() const
+  {
+    if (ALPHABET_CODE_NOCODE)
+      return 0 ;
+    else
+    {
+      size_t i ;
+      size_t ret = 0 ;
+      for (i = 0 ; i < _n ; ++i)
+      {
+        size_t tmp = _alphabetCodeLen[(int)_alphabetList[i]] ;
+        if (tmp > ret)
+          ret = tmp ;
+      }
+      return ret ;
+    }
     return 0 ;
   }
 
@@ -116,7 +138,7 @@ public:
     if (_method == ALPHABET_CODE_PLAIN)
       i = c ;
     else
-      i = huffmanCode.Decode(c, l) ;
+      i = _huffmanCode.Decode(c, l) ;
     return _alphabetList[i] ;
   }
 
@@ -165,7 +187,7 @@ public:
     memcpy(_alphabetList, in._alphabetList, sizeof(ALPHABET) * _n ) ;
     memcpy(_alphabetCode, in._alphabetCode, sizeof(_alphabetCode)) ;
     memcpy(_alphabetCodeLen, in._alphabetCodeLen, sizeof(_alphabetCodeLen)) ;
-    huffmanCode = in.huffmanCode ;
+    _huffmanCode = in._huffmanCode ;
     return *this ;
   }
 
@@ -174,9 +196,12 @@ public:
     SAVE_VAR(fp, _space) ;
     SAVE_VAR(fp, _method) ;
     SAVE_VAR(fp, _n) ;
-    fwrite(_alphabetList, sizeof(ALPHABET), _n, fp) ;    
-    fwrite(_alphabetCode, sizeof(_alphabetCode[0]), 1<<(sizeof(ALPHABET) * 8), fp) ;    
-    fwrite(_alphabetCodeLen, sizeof(_alphabetCodeLen[0]), 1<<(sizeof(ALPHABET) * 8), fp) ;    
+    if (_n != 0)
+    {
+      fwrite(_alphabetList, sizeof(ALPHABET), _n, fp) ;    
+      fwrite(_alphabetCode, sizeof(_alphabetCode[0]), 1<<(sizeof(ALPHABET) * 8), fp) ;    
+      fwrite(_alphabetCodeLen, sizeof(_alphabetCodeLen[0]), 1<<(sizeof(ALPHABET) * 8), fp) ; 
+    }
   }
 
   void Load(FILE *fp)
@@ -186,10 +211,13 @@ public:
     LOAD_VAR(fp, _method) ;
     LOAD_VAR(fp, _n) ;
     
-    _alphabetList = (ALPHABET *)malloc(sizeof(ALPHABET) * _n) ;
-    fread(_alphabetList, sizeof(ALPHABET), _n, fp) ;    
-    fread(_alphabetCode, sizeof(_alphabetCode[0]), 1<<(sizeof(ALPHABET) * 8), fp) ;    
-    fread(_alphabetCodeLen, sizeof(_alphabetCodeLen[0]), 1<<(sizeof(ALPHABET) * 8), fp) ;    
+    if (_n != 0) // no list for empty sequence
+    {
+      _alphabetList = (ALPHABET *)malloc(sizeof(ALPHABET) * _n) ;
+      fread(_alphabetList, sizeof(ALPHABET), _n, fp) ;   
+      fread(_alphabetCode, sizeof(_alphabetCode[0]), 1<<(sizeof(ALPHABET) * 8), fp) ;    
+      fread(_alphabetCodeLen, sizeof(_alphabetCodeLen[0]), 1<<(sizeof(ALPHABET) * 8), fp) ;   
+    }
   }
 } ;
 }

@@ -56,7 +56,7 @@ private:
     size_t bestSpace = 0 ;
     size_t bestTag = 0 ;
     size_t m = (n < _blockSizeInferLength ? n : _blockSizeInferLength) ;
-    for (i = 4 ; i <= m ; i *= 2)
+    for (i = 2 ; i <= m ; i *= 2)
     {
       size_t space = EstimateSpace(S, m, i, alphabetBit) ;
       if (bestSpace == 0 || space < bestSpace)
@@ -130,6 +130,11 @@ public:
     _b = b ;
   }
 
+  void SetExtraParameter(void *p)
+  {
+    SetBlockSize((size_t)p) ;
+  }
+
   void SetBlockSizeInferLength(size_t l)
   {
     _blockSizeInferLength = l ;
@@ -153,9 +158,12 @@ public:
       _alphabets.InitFromList(alphabetMap, strlen(alphabetMap)) ;
       alphabetSize = _alphabets.GetSize() ;
     }
-
+    size_t alphabetBits = Utils::Log2Ceil(alphabetSize) ;
+    
     if (_b == 0)
       _b = ComputeBlockSize(S, sequenceLength, alphabetSize) ;
+    if (_b == 1)
+      _b = _n ;
     
     _blockCnt = DIV_CEIL(_n, _b) ;
     
@@ -186,10 +194,13 @@ public:
     // Split the sequence into two parts
     FixedSizeElemArray tmpS ;
     tmpS.Malloc(S.GetElemLength(), _n) ;
-    int k ; // use run lbock
+    int k ; // use run block
     for ( k = 0 ; k <= 1 ; ++k)
     {
       size_t size = 0 ; 
+      size_t elemPerWord = DIV_CEIL(WORDBITS, alphabetBits) ; // each word can hold this number of elements  
+      WORD w = 0 ; // w holding tempoary elements that will be write into tmpS in chunk
+      size_t wElem = 0 ; // How many element w is holding now
       for (i = 0 ; i < _n ; i += _b)
       {
         if (Utils::BitRead(B, i / _b) != k)
@@ -198,15 +209,40 @@ public:
         {
           for (j = 0 ; j < _b && i + j < _n ; ++j)
           {
-            tmpS.Write(size, S.Read(i + j)) ;
-            ++size ;
+            w |= (S.Read(i + j) << (wElem * alphabetBits)) ;
+            ++wElem ;
+            if (wElem >= elemPerWord)
+            {
+              tmpS.PackWrite(size, w, wElem) ;
+              size += wElem ;
+              
+              w = 0 ;
+              wElem = 0 ;
+            }
           }
         }
         else
         {
-          tmpS.Write(size, S.Read(i)) ;
-          ++size ;
+          w |= (S.Read(i) << (wElem * alphabetBits)) ;
+          ++wElem ;
+          if (wElem >= elemPerWord)
+          {
+            tmpS.PackWrite(size, w, wElem) ;
+            size += wElem ;
+
+            w = 0 ;
+            wElem = 0 ;
+          }
         }
+      }
+
+      if (wElem > 0)
+      {
+        tmpS.PackWrite(size, w, wElem) ;
+        size += wElem ;
+
+        w = 0 ;
+        wElem = 0 ;
       }
       
       tmpS.SetSize(size) ;
@@ -302,27 +338,42 @@ public:
   {
     S.Free() ;
     
-    size_t i, j ;
+    size_t i, j, k ;
     size_t rbIdx = 0 ;
-    size_t alphabetBit = Utils::Log2Ceil(_alphabets.GetSize()) ; 
+    size_t alphabetBit = Utils::Log2Ceil(_alphabets.GetSize()) ;
     S.Malloc(alphabetBit, _n) ;
     for (i = 0 ; i < _n ; i += _b)
     {
-      size_t k = i / _b ;
-      if (_useRunBlock.Access(k) == 1)
+      size_t elemPerWord = DIV_CEIL(WORDBITS, alphabetBit) ; // each word can hold this number of elements  
+      WORD w = 0 ;
+      if (_useRunBlock.Access(i / _b) == 1)
       {
-        size_t c = _runBlockSeq.Access(rbIdx) ;
-        for (j = i ; j < i + _b && j < _n ; ++j)
-          S.Write(j, c) ;
+        WORD c = _alphabets.Encode(_runBlockSeq.Access(rbIdx)) ;
+        for (j = i ; j < i + _b && j < _n ; )
+        {
+          w = 0 ;
+          for (k = j ; k < j + elemPerWord && k < i + _b && k < _n; ++k)
+          {
+            w |= (c << ((k - j) * alphabetBit)) ; 
+          }
+          S.PackWrite(j, w, k - j) ;
+          j = k ;
+        }
         ++rbIdx ;     
       }
       else
       {
         size_t l = i - _b * rbIdx ; 
-        for (j = i ; j < i + _b && j < _n ; ++j, ++l)
+        for (j = i ; j < i + _b && j < _n ;)
         {
-          size_t c = _waveletSeq.Access(l) ;
-          S.Write(j, c) ;
+          w = 0 ;
+          for (k = j ; k < j + elemPerWord && k < i + _b && k < _n ; ++k, ++l)
+          {
+            WORD c = _alphabets.Encode(_waveletSeq.Access(l)) ;
+            w |= (c << ((k - j) * alphabetBit)) ;
+          }
+          S.PackWrite(j, w, k - j) ;
+          j = k ;
         }
       }
     }

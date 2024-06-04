@@ -157,7 +157,7 @@ public:
     if (m == 0)
       m = CEIL(1.25 * n / PERFECT_MAP_KEY_TRIES) * PERFECT_MAP_KEY_TRIES; 
     this->m = m ;
-    SimpleVector<int> *L ; // the key list associated with each slot 
+    SimpleVector<int> *L ; // the key list associated with each slot. 32bit size should be sufficient 
     size_t *nL ; // number of element in each L
     size_t *uniqueSlotQueue ; // the queue for slot with unique keys     
     size_t *S ; // the stack used to store keys 

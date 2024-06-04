@@ -163,7 +163,6 @@ public:
 		Tree::Load(fp) ;
 		_B.Load(fp) ;
 	}
- 
 } ;
 
 } // end of name space

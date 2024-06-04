@@ -60,6 +60,12 @@ namespace compactds {
 #define SAVE_ARR(fp, x, n) (fwrite((x), sizeof(*(x)), (n), (fp)))
 #define LOAD_ARR(fp, x, n) (fread((x), sizeof(*(x)), (n), (fp)))
 
+#ifdef __GNUC__
+  #define CACHE_PREFETCH(x) __builtin_prefetch(x)
+#else
+  #define CACHE_PREFETCH(x)
+#endif
+
 class Utils
 {
 public:
@@ -259,16 +265,16 @@ public:
     {
       case 'T':
       case 't':
-        ret *= 1000000000000 ; break ;
+        ret *= 1000000000000ull ; break ;
       case 'G':
       case 'g':
-        ret *= 1000000000 ; break ;
+        ret *= 1000000000ull ; break ;
       case 'M':
       case 'm':
-        ret *= 1000000 ; break ;
+        ret *= 1000000ull ; break ;
       case 'K':
       case 'k':
-        ret *= 1000 ; break ;
+        ret *= 1000ull ; break ;
     }
 
     return ret ;

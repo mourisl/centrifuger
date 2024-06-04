@@ -4,7 +4,6 @@
 #include "Sequence.hpp"
 #include "Sequence_WaveletTree.hpp"
 #include "PartialSum.hpp"
-#include "SimpleVector.hpp"
 
 // This sequence type assumes the alphabet coder is plain.
 namespace compactds {
