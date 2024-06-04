@@ -20,6 +20,7 @@ char usage[] = "./centrifuger-build [OPTIONS]:\n"
   "\t--bmax INT: block size for blockwise suffix array sorting [16777216]\n"
   "\t--dcv INT: difference cover period [4096]\n"
   "\t--offrate INT: SA/offset is sampled every (2^<int>) BWT chars [4]\n"
+  "\t--rbbwt-b INT: block size for run-block compressed BWT. 0 for auto. 1 for no compression [0]\n"
   "\t--subset-tax INT: only consider the subset of input genomes under taxonomy node INT [0]\n"
   ""
   ;
@@ -30,6 +31,7 @@ static struct option long_options[] = {
 			{ "dcv", required_argument, 0, ARGV_DCV},
       { "build-mem", required_argument, 0, ARGV_BUILD_MEMORY},
       { "offrate", required_argument, 0, ARGV_OFFRATE},
+      { "rbbwt-b", required_argument, 0, ARGV_RBBWT_B}, 
       { "taxonomy-tree", required_argument, 0, ARGV_TAXONOMY_TREE},
       { "conversion-table", required_argument, 0, ARGV_CONVERSION_TABLE},
 			{ "name-table", required_argument, 0, ARGV_NAME_TABLE},
@@ -54,6 +56,8 @@ int main(int argc, char *argv[])
   size_t buildMemoryConstraint = 0 ;
   ReadFiles refGenomeFile ;
 
+  Builder builder ;
+  
   struct _FMBuilderParam fmBuilderParam ;
   fmBuilderParam.sampleRate = 16 ;
 
@@ -113,6 +117,10 @@ int main(int argc, char *argv[])
     {
       fmBuilderParam.sampleRate = (1<<atoi(optarg)) ;
     }
+    else if (c == ARGV_RBBWT_B)
+    {
+      builder.SetRBBWTBlockSize(atoi(optarg)) ;
+    }
     else if (c == ARGV_SUBSET_TAXONOMY)
     {
       sscanf(optarg, "%lu", &subsetTax) ;
@@ -143,7 +151,6 @@ int main(int argc, char *argv[])
   const char alphabetList[] = "ACGT" ;
 	
 	Utils::PrintLog("Start to read in the genome files.") ; 
-  Builder builder ;
   builder.Build(refGenomeFile, taxonomyFile, nameTable, conversionTable, subsetTax, buildMemoryConstraint, fmBuilderParam, alphabetList) ;
   builder.Save(outputPrefix) ;
 

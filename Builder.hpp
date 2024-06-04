@@ -54,6 +54,11 @@ public:
     _taxonomy.Free() ;
   }
 
+  void SetRBBWTBlockSize(size_t b)
+  {
+    _fmIndex.SetSequenceExtraParameter((void *)b) ;
+  }
+
   void Build(ReadFiles &refGenomeFile, char *taxonomyFile, char *nameTable, char *conversionTable, uint64_t subsetTax, size_t memoryConstraint, struct _FMBuilderParam &fmBuilderParam, const char *alphabetList)
   {
     size_t i ;
