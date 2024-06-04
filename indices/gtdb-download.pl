@@ -8,7 +8,6 @@ use Getopt::Long ;
 my $usage = "perl ./download-gtdb.pl [options]:\n".
   "options:\n".
   "\t-o STR: output prefix [gtdb]\n".
-  "\t-t: number of threads [1]\n".
   "\t--names STR: the NCBI names.dmp file\n".
   "\t-h: print this message and exit\n".
   "\n" ;
@@ -29,13 +28,11 @@ sub system_call
 
 my $outputPrefix = "gtdb" ;
 my $printHelpAndDie = 0 ;
-my $threadCnt = 1 ;
 my $ncbiNameDmp = "" ;
 
 GetOptions
 (
   "o=s" => \$outputPrefix,
-  "t=i" => \$threadCnt,
   "h" => \$printHelpAndDie,
   "names=s"=>\$ncbiNameDmp 
 ) ;
@@ -62,7 +59,7 @@ close FP ;
 system_call("curl $ftp/bac120_metadata.tsv.gz | gzip -cd > ${outputPrefix}_meta.tsv") ;
 system_call("curl $ftp/ar53_metadata.tsv.gz | gzip -cd | grep -v \"^accession\" >> ${outputPrefix}_meta.tsv") ;
 
-my $createDmpOptions = " -d gtdb_genomes_reps_r$gtdbVersion -m ${outputPrefix}_meta.tsv -o $outputPrefix -t $threadCnt" ;
-$createDmpOptions .= " --names $ncibNameDmp" if ($ncibNameDmp ne "") ;
+my $createDmpOptions = " -d gtdb_genomes_reps_r$gtdbVersion -m ${outputPrefix}_meta.tsv -o $outputPrefix" ;
+$createDmpOptions .= " --names $ncbiNameDmp" if ($ncbiNameDmp ne "") ;
 
 system_call("perl gtdb-create-dmp.pl $createDmpOptions") ;

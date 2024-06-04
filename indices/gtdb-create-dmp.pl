@@ -30,12 +30,19 @@ sub PrintLog
   print STDERR "[".localtime()."] ".$_[0]."\n" ;
 }
 
+sub system_call
+{
+	print STDERR "[".localtime()."] SYSTEM CALL: ".join(" ",@_)."\n";
+	system(@_) == 0
+		or die "system @_ failed: $?";
+	#print STDERR " finished\n";
+} 
 
 my $usage = "Usage: create-dmp-gtdb.pl [OPTIONS]\n".
   "\t-d STR: directory of GTDB decompressed sequence\n".
   "\t-m STR: GTDB metadata file\n".
   "\t-o STR: output prefix [gtdb_]\n".
-  "\t-t INT: number of threads to use [1]\n".
+  #"\t-t INT: number of threads to use [1]\n".
   "\t--names STR: NCBI's names.dmp file. If not given, using non-NCBI taxid to represent intermediate nodes.\n".
   "\t--skipSeqId2TaxId: skip the step of generating seqid_to_taxid.map file.\n"
   ;
@@ -58,7 +65,7 @@ GetOptions(
   "o=s" => \$outputPrefix,
   "d=s" => \$genomeDir,
   "m=s" => \$metaFile,
-  "t=i" => \$numThreads, 
+  #"t=i" => \$numThreads, 
   #"nodes=s" => \$ncbiNodeDmp,
   "names=s" => \$ncbiNameDmp,
   "skipSeqId2TaxId" => \$skipSeqIdMap 
@@ -109,7 +116,7 @@ for ($i = 0 ; $i < scalar(@cols) ; ++$i)
   $colNames{ $cols[$i] } = $i ;
 }
 
-my @fileNames ;
+my %fileNameToTaxId ;
 my %accessionToTaxId ;
 my %nodesToPrint ;
 my %taxIdRank ;
@@ -171,8 +178,10 @@ while (<FPmeta>)
   }
 
   $accessionToTaxId{$accession} = $taxid ;
-  print FPoutFileToTaxid GetGenomeFilePath($fullGenomeDir, $accession)."\t$taxid\n" ;
-  print FPoutFileList GetGenomeFilePath($fullGenomeDir, $accession)."\n" ;
+  my $fileName = GetGenomeFilePath($fullGenomeDir, $accession) ;
+  $fileNameToTaxId{$fileName} = $taxid ;
+  print FPoutFileToTaxid "$fileName\t$taxid\n" ;
+  print FPoutFileList "$fileName\n" ;
 }
 
 foreach my $tid (keys %nodesToPrint)
@@ -194,60 +203,25 @@ if ($skipSeqIdMap)
 }
 
 PrintLog("Generate the seq ID to tax ID mapping file.") ;
+#cat gtdb_file.list | xargs -I {} sh -c 'gzip -cd {} | grep "^>" | while read header; do echo "$header {}"; done' 
+system_call("cat ${outputPrefix}_file.list | xargs -I {} sh -c 'gzip -cd {} | grep \"^>\" | while read header; do echo \"\$header {}\"; done' > ${outputPrefix}_faheader_to_file.out") ;
+
 my %seqIdMap ;
-my @threadSeqIdMap : shared;
-my @threads ;
+open FP, "${outputPrefix}_faheader_to_file.out" ;
+while (<FP>)
+{
+  chomp ;
+  my @cols = split /\s+/, $_ ;
+  my $colNum = scalar(@cols) ;
+  
+  my $seqId = substr($cols[0], 1) ;
+  my $fileName = $cols[ $colNum - 1] ;
+  my $taxId = $fileNameToTaxId{$fileName} ;
 
-for ( $i = 0 ; $i < $numThreads ; ++$i )
-{
-	push @threads, $i ;
-  my %tmp : shared ;
-  push @threadSeqIdMap, \%tmp ;
+  $seqIdMap{$seqId} = $taxId ;
 }
-
-sub GetSeqIdMapThread
-{
-  my $tid = threads->tid() - 1 ;
-  foreach my $accession (keys %accessionToTaxId)
-  {
-    my $tmp = int(substr($accession, 4) / 10) ; # seems many accession number are ending with 5, so there are definitely some biases.
-    if ($tmp % $numThreads == $tid)
-    {
-      my $file = GetGenomeFilePath($genomeDir, $accession) ;
-      system("gzip -cd < $file | grep '^>' > ${outputPrefix}_tmp_thread_${tid}.tmp") ;
-      open FP, "${outputPrefix}_tmp_thread_${tid}.tmp" ;
-      while (<FP>)
-      {
-        if (/^>/)
-        {
-          chomp ;
-          my $seqId = substr((split /\s/, $_)[0], 1) ;
-          ${$threadSeqIdMap[$tid]}{$seqId} = $accessionToTaxId{$accession} ;
-        }
-      }
-      close FP ;
-    }
-  }
-  unlink "${outputPrefix}_tmp_thread_${tid}.tmp" ;
-}
-
-foreach (@threads)
-{
-  $_ = threads->create(\&GetSeqIdMapThread) ;
-}
-foreach (@threads)
-{
-  $_->join() ;
-}
-
-foreach (@threadSeqIdMap)
-{
-  my %tmp = %{$_} ;
-  foreach my $seqId (keys %tmp)
-  {
-    $seqIdMap{$seqId} = $tmp{$seqId} ;
-  }
-}
+close FP ;
+unlink("${outputPrefix}_faheader_to_file.out") ;
 
 open FPout, ">${outputPrefix}_seqid_to_taxid.map" ;
 foreach my $seqId (keys %seqIdMap)
