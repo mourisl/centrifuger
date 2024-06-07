@@ -39,7 +39,7 @@ sub system_call
 } 
 
 my $usage = "Usage: create-dmp-gtdb.pl [OPTIONS]\n".
-  "\t-d STR: directory of GTDB decompressed sequence\n".
+  "\t-d STR: directory of GTDB untarred representative sequence\n".
   "\t-m STR: GTDB metadata file\n".
   "\t-o STR: output prefix [gtdb_]\n".
   #"\t-t INT: number of threads to use [1]\n".
@@ -110,6 +110,8 @@ print FPoutNames "1\t|\troot\t|\tscientific name\t|\n" ;
 my $header = <FPmeta> ;
 my %colNames ; 
 
+# We use GTDB meta instead of GTDB taxonomy is the meta directly provides the 
+#   representative genomes. So we can direclty generate the file list.
 @cols = split /\t/, $header ; 
 for ($i = 0 ; $i < scalar(@cols) ; ++$i)
 {
@@ -136,10 +138,15 @@ while (<FPmeta>)
   #  next ;
   #}
 
-  my $taxid = $cols[ $colNames{"ncbi_taxid"} ] ; 
+  # Use ncbi_taxid may create issues as GTDB may reassign 
+  #   a strain to another species, so the ncib_taxid still point
+  #   towards the original species/strain, but the
+  #   lineage string is totally different.
+  #my $taxid = $cols[ $colNames{"ncbi_taxid"} ] ; 
+  my $taxid = 1 ;
   my $lineage = $cols[ $colNames{"gtdb_taxonomy"} ] ;
   
-  next if ($taxid eq "none") ;
+  #next if ($taxid eq "none") ;
 
   #d__Bacteria;p__Pseudomonadota;c__Gammaproteobacteria;o__Burkholderiales;f__Burkholderiaceae;g__Bordetella;s__Bordetella pseudohinzii
   my @lineageFields = split /;/, $lineage ;
@@ -151,13 +158,9 @@ while (<FPmeta>)
   {
     my @cols2 = split /__/, $lineageFields[$j] ;
 
-    if (defined $ncbiNamesToTaxId{$cols2[1]} && $j < scalar(@lineageFields) - 1)
+    if (defined $ncbiNamesToTaxId{$cols2[1]})
     {
       $ltid = $ncbiNamesToTaxId{$cols2[1]} ;
-    }
-    elsif ($j == scalar(@lineageFields) - 1)
-    {
-      $ltid = $taxid ;
     }
     elsif (defined $newNamesToTaxId{$lineageFields[$j]}) # Sometimes GTDB put the same name across multiple lineage trees, so we need to add the prefix like o__ to distinguish them
     {
@@ -169,6 +172,8 @@ while (<FPmeta>)
       $ncbiNamesToTaxId{$lineageFields[$j]} = $ltid ;
       ++$novelTaxId ;
     }
+
+    $taxid = $ltid if ($j == scalar(@lineageFields) - 1) ;
 
     $nodesToPrint{$ltid} = $parentTid ;
     $taxIdRank{$ltid} = $cols2[0] ;
