@@ -18,6 +18,8 @@
 #include "compactds/SimpleVector.hpp"
 #include "compactds/Utils.hpp"
 
+using namespace compactds ;
+
 enum 
 {
     RANK_UNKNOWN = 0,
@@ -259,7 +261,7 @@ private:
     }
   }
 
-  void ReadSeqNameFile(std::string fname)
+  void ReadSeqNameFile(std::string fname, bool conversionTableAtFileLevel)
   {
     std::ifstream seqmap_file(fname.c_str(), std::ios::in);
     std::map<std::string, uint64_t> rawSeqNameMap ;
@@ -273,6 +275,12 @@ private:
         uint64_t tid;
         std::string seqIdStr;
         cline >> seqIdStr >> tid ;
+        if (conversionTableAtFileLevel)
+        {
+          char buffer[1024] ;
+          Utils::GetFileBaseName(seqIdStr.c_str(), "fna|fa|fasta|faa", buffer) ;
+          seqIdStr = buffer ;
+        }
         _seqStrNameMap.Add(seqIdStr) ;
         rawSeqNameMap[seqIdStr] = tid ;
       }
@@ -291,7 +299,7 @@ private:
     }
     _seqCnt = _seqStrNameMap.GetSize() ;
   }
-  
+ 
   void SaveString(FILE *fp, std::string &s)
   {
     size_t len = s.length() ;
@@ -350,13 +358,13 @@ public:
     }
   }
   
-  void Init(const char *nodesFile, const char *namesFile, const char *seqIdFile)
+  void Init(const char *nodesFile, const char *namesFile, const char *seqIdFile, bool conversionTableAtFileLevel)
   {
     std::map<uint64_t, int> presentTax;
     ReadPresentTaxonomyLeafs(std::string(seqIdFile), presentTax) ;
     ReadTaxonomyTree(std::string(nodesFile), presentTax) ;
     ReadTaxonomyName(std::string(namesFile), presentTax) ;
-    ReadSeqNameFile(std::string(seqIdFile)) ;
+    ReadSeqNameFile(std::string(seqIdFile), conversionTableAtFileLevel) ;
   
     _rootCTaxId = FindRoot() ;
   }

@@ -37,9 +37,9 @@ class ReadFiles
     
     bool opened ;
 
-    void GetFileName( char *in, char *out ) 
+    void GetFileBaseName(const char *in, char *out ) 
     {
-      int i, j ;
+      int i, j, k ;
       int len = (int)strlen( in ) ;
       for ( i = len ; i >= 0 && in[i] != '.' && in[i] != '/' ; --i )
         ;
@@ -47,9 +47,9 @@ class ReadFiles
         ;
       if ( i >= 0 && in[i] == '.' )
       {
-        in[i] = '\0' ;
-        strcpy( out, in + j + 1 ) ;
-        in[i] = '.' ;
+        for (k = j + 1 ; k < i ; ++k)
+          out[k - (j + 1)] = in[k] ;
+        out[k - (j + 1)] = '\0' ;
       }
       else
       {
@@ -308,6 +308,16 @@ class ReadFiles
         if (readBatch[i].qual)
           free(readBatch[i].qual) ;
       }
+    }
+
+    int GetCurrentFileInd()
+    {
+      return currentFpInd ;
+    }
+
+    std::string GetFileName(int fileInd)
+    {
+      return fileNames[fileInd] ;
     }
 
     int GetFileCount()

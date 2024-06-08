@@ -59,12 +59,12 @@ public:
     _fmIndex.SetSequenceExtraParameter((void *)b) ;
   }
 
-  void Build(ReadFiles &refGenomeFile, char *taxonomyFile, char *nameTable, char *conversionTable, uint64_t subsetTax, size_t memoryConstraint, struct _FMBuilderParam &fmBuilderParam, const char *alphabetList)
+  void Build(ReadFiles &refGenomeFile, char *taxonomyFile, char *nameTable, char *conversionTable, bool conversionTableAtFileLevel, uint64_t subsetTax, size_t memoryConstraint, struct _FMBuilderParam &fmBuilderParam, const char *alphabetList)
   {
     size_t i ;
     const int alphabetSize = strlen(alphabetList) ;
   
-    _taxonomy.Init(taxonomyFile, nameTable, conversionTable)  ; 
+    _taxonomy.Init(taxonomyFile, nameTable, conversionTable, conversionTableAtFileLevel)  ; 
 
     FixedSizeElemArray genomes ;
     SequenceCompactor seqCompactor ;
@@ -77,7 +77,16 @@ public:
     std::vector<size_t> genomeLens ; 
     while (refGenomeFile.Next())
     {
-      size_t seqid = _taxonomy.SeqNameToId(refGenomeFile.id) ;
+      size_t seqid = 0 ;
+      char fileNameBuffer[1024] ;
+      if (conversionTableAtFileLevel)
+      {
+        Utils::GetFileBaseName(refGenomeFile.GetFileName( refGenomeFile.GetCurrentFileInd() ).c_str(), 
+            "fna|fa|fasta|faa", fileNameBuffer) ;
+        seqid = _taxonomy.SeqNameToId(fileNameBuffer) ;
+      }
+      else
+        seqid = _taxonomy.SeqNameToId(refGenomeFile.id) ;
       
       if (subsetTax != 0)
       {
@@ -88,8 +97,9 @@ public:
       
       if (seqid >= _taxonomy.GetSeqCount())
       {
-        fprintf(stderr, "WARNING: taxonomy id doesn't exist for %s!\n", refGenomeFile.id) ;
-        seqid = _taxonomy.AddExtraSeqName(refGenomeFile.id) ;
+        fprintf(stderr, "WARNING: taxonomy id doesn't exist for %s!\n", 
+            conversionTableAtFileLevel ? fileNameBuffer : refGenomeFile.id) ;
+        seqid = _taxonomy.AddExtraSeqName(conversionTableAtFileLevel ? fileNameBuffer : refGenomeFile.id) ;
       }
 
       size_t len = seqCompactor.Compact(refGenomeFile.seq, genomes) ;
@@ -100,10 +110,15 @@ public:
         genomes.SetSize(size - len) ;
         continue ;
       }
-
-      _seqLength[seqid] = len ;
-      genomeSeqIds.push_back(seqid) ;
-      genomeLens.push_back(len) ;
+      
+      if (_seqLength.find(seqid) == _seqLength.end()) // Assume there is no duplicated seqid
+      {
+        _seqLength[seqid] = len ;
+        genomeSeqIds.push_back(seqid) ;
+        genomeLens.push_back(len) ;
+      }
+      else
+        _seqLength[seqid] += len ;
     }
 
     FixedSizeElemArray BWT ;

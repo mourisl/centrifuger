@@ -12,8 +12,9 @@ char usage[] = "./centrifuger-build [OPTIONS]:\n"
   "\t-l FILE: list of reference sequence file stored in <file>, one file per row\n"
   "\t--taxonomy-tree FILE: taxonomy tree, i.e., nodes.dmp file\n"
   "\t--name-table FILE: name table, i.e., names.dmp file\n"
-  "\t--conversion-table FILE: seqID to taxID conversion file\n"
   "Optional:\n"
+  "\t--conversion-table FILE: seqID to taxID conversion file\n"
+  "\t\tWhen not set, expect -l option and the -l file should have two columns as \"file taxID\"\n"
   "\t-o STRING: output prefix [centrifuger]\n"
   "\t-t INT: number of threads [1]\n"
   "\t--build-mem STR: automatic infer bmax and dcv to match memory constraints, can use T,G,M,K to specify the memory size [not used]\n"
@@ -46,6 +47,7 @@ int main(int argc, char *argv[])
 		fprintf( stderr, "%s", usage ) ;
 		return 0 ;
   }
+  int i ;
 	int c, option_index ;
 	option_index = 0 ;
   char outputPrefix[1024] = "centrifuger" ;
@@ -55,6 +57,9 @@ int main(int argc, char *argv[])
   uint64_t subsetTax = 0 ; 
   size_t buildMemoryConstraint = 0 ;
   ReadFiles refGenomeFile ;
+  char *fileList = NULL ; // the file corresponds to "-l" option
+  int fileListColumnCnt = 0 ;
+  bool conversionTableAtFileLevel = false ;
 
   Builder builder ;
   
@@ -74,12 +79,29 @@ int main(int argc, char *argv[])
     }
     else if (c == 'l')
     {
-      char *fileName = (char *)malloc(sizeof(char) * 4096) ;
+      fileList = strdup(optarg) ; 
+
+      const int bufferSize = 4096 ;
+      char *lineBuffer = (char *)malloc(sizeof(char) * bufferSize) ;
+      char *fileName = (char *)malloc(sizeof(char) * bufferSize) ;
       FILE *fpList = fopen(optarg, "r") ;
-      while (fscanf(fpList, "%s", fileName) != EOF)
+      while (fgets(lineBuffer, bufferSize, fpList) != NULL)
+      {
+        sscanf(lineBuffer, "%s", fileName) ;
         refGenomeFile.AddReadFile(fileName, false) ;
+
+        if (fileListColumnCnt == 0) // Find how many columns in the file
+        {
+          fileListColumnCnt = 1 ;
+          for (i = 0 ; lineBuffer[i] && lineBuffer[i] != '\n' ; ++i)
+            if (lineBuffer[i] == ' ' || lineBuffer[i] == '\t')
+              ++fileListColumnCnt ;
+        }
+      }
       fclose(fpList) ;
+
       free(fileName) ;
+      free(lineBuffer) ;
     }
     else if (c == 'o')
     {
@@ -144,20 +166,32 @@ int main(int argc, char *argv[])
   }
   if (!conversionTable)
   {
-    fprintf(stderr, "Need to use --conversion-table to specify sequence id to taxonomy id mapping.\n") ;
-    return EXIT_FAILURE ;
+    // Check whether the "-l" is right
+    if (fileList == NULL || fileListColumnCnt < 2)
+    {
+      fprintf(stderr, "Should use two-column file to specify the file name to taxonomy id mapping through the \"-l\" option. Otherwise, need to use --conversion-table to specify sequence id to taxonomy id mapping.\n") ;
+      return EXIT_FAILURE ;
+    }
+    else
+    {
+      conversionTableAtFileLevel = true ;
+    }
   }
 
   const char alphabetList[] = "ACGT" ;
 	
 	Utils::PrintLog("Start to read in the genome files.") ; 
-  builder.Build(refGenomeFile, taxonomyFile, nameTable, conversionTable, subsetTax, buildMemoryConstraint, fmBuilderParam, alphabetList) ;
+  builder.Build(refGenomeFile, taxonomyFile, nameTable, 
+      conversionTableAtFileLevel ? fileList : conversionTable, conversionTableAtFileLevel,
+      subsetTax, buildMemoryConstraint, fmBuilderParam, alphabetList) ;
   builder.Save(outputPrefix) ;
 
   free(taxonomyFile) ;
   free(nameTable) ;
-  free(conversionTable) ;
-	
+  if (conversionTable)
+    free(conversionTable) ;
+  if (fileList)	
+    free(fileList) ;
 	Utils::PrintLog("Done.") ; 
 
   return 0 ;

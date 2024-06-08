@@ -1,7 +1,6 @@
 #ifndef _MOURISL_COMPACTDS_UTILS
 #define _MOURISL_COMPACTDS_UTILS
 
-#include <fstream>
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -278,6 +277,68 @@ public:
     }
 
     return ret ;
+  }
+
+  // Deprive the path and extension from the file name
+  // Further go one more extension if there is an extra extension 
+  //  matching the given extraExtension string
+  //  Can use "|" to add multiple potential extra extensions, like "fa|fna|faa"
+  // return: length of the base name
+  static int GetFileBaseName(const char *s, const char *extraExtension, char *result)
+  {
+    int i, j, k ;
+    int len = strlen(s) ;
+    int start, end ;
+
+    start = 0 ;
+    for (i = 0 ; i < len ; ++i)
+      if (s[i] == '/')
+        start = i + 1 ;
+    
+    for (j = len - 1 ; j >= start ; --j )
+    {
+      if (s[j] == '.')
+        break ;
+    }
+
+    if (j < start)
+      j = len - 1 ;
+    else
+      --j ;
+    end = j ;
+    if (extraExtension != NULL)
+    {
+      for (i = 0 ; i < extraExtension[i] ; )  
+      {
+        for (j = i + 1 ; extraExtension[j] && extraExtension[j] != '|' ; ++j )
+          ;
+        // [i..j) corresponds to one extension in the |-separated extensions
+        bool flag = false ;
+        for (k = j - 1 ; k >= i ; --k)
+          if (end - (j - 1 - k ) < start || extraExtension[k] != s[end - (j - 1 - k)])
+          {
+            flag = true ;
+            break ;
+          }
+        if (end - (j - 1 - k ) < start || s[end - (j - 1 - k)] != '.')
+          flag = true ;
+
+        if (!flag)
+        {
+          end = end - (j - 1 - k) - 1 ; // extra minus 1 to get rid of the ".".
+          break ;
+        }
+
+        if (extraExtension[j] == '\0')
+          break ;
+        i = j + 1 ;
+      }
+    }
+
+    for (k = start ; k <= end ; ++k)
+      result[k - start] = s[k] ;
+    result[k - start] = '\0' ;
+    return end - start + 1 ;
   }
 
   static void PrintLog( const char *fmt, ... )
