@@ -118,7 +118,10 @@ public:
         genomeLens.push_back(len) ;
       }
       else
+			{
         _seqLength[seqid] += len ;
+				genomeLens[ genomeLens.size() - 1 ] += len ;
+			}
     }
 
     FixedSizeElemArray BWT ;
