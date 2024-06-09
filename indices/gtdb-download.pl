@@ -5,7 +5,7 @@ use warnings ;
 
 use Getopt::Long ;
 
-my $usage = "perl ./download-gtdb.pl [options]:\n".
+my $usage = "perl ./gtdb-download.pl [options]:\n".
   "options:\n".
   "\t-o STR: output prefix [gtdb]\n".
   "\t--names STR: the NCBI names.dmp file\n".

@@ -38,13 +38,13 @@ sub system_call
 	#print STDERR " finished\n";
 } 
 
-my $usage = "Usage: create-dmp-gtdb.pl [OPTIONS]\n".
+my $usage = "Usage: gtdb-create-dmp.pl [OPTIONS]\n".
   "\t-d STR: directory of GTDB untarred representative sequence\n".
   "\t-m STR: GTDB metadata file\n".
   "\t-o STR: output prefix [gtdb_]\n".
   #"\t-t INT: number of threads to use [1]\n".
   "\t--names STR: NCBI's names.dmp file. If not given, using non-NCBI taxid to represent intermediate nodes.\n".
-  "\t--skipSeqId2TaxId: skip the step of generating seqid_to_taxid.map file.\n"
+  "\t--generateSeqId2TaxId: generate seqid_to_taxid.map conversion file.\n"
   ;
 
 die "$usage\n" if (@ARGV == 0) ;
@@ -59,7 +59,7 @@ my $genomeDir = "" ;
 my $metaFile = "" ;
 my $novelTaxId = 10000000 ;
 my $numThreads = 1 ;
-my $skipSeqIdMap = 0 ;
+my $generateSeqIdMap = 0 ;
 
 GetOptions(
   "o=s" => \$outputPrefix,
@@ -68,7 +68,7 @@ GetOptions(
   #"t=i" => \$numThreads, 
   #"nodes=s" => \$ncbiNodeDmp,
   "names=s" => \$ncbiNameDmp,
-  "skipSeqId2TaxId" => \$skipSeqIdMap 
+  "generateSeqId2TaxId" => \$generateSeqIdMap 
 ) ;
 my $fullGenomeDir = abs_path($genomeDir) ;
 
@@ -202,7 +202,7 @@ close FPoutFileToTaxid ;
 close FPoutFileList ;
 
 # Iterate through the genome files to generate the seqid map file
-if ($skipSeqIdMap)
+if ($generateSeqIdMap == 0)
 {
   exit(0) ;
 }
