@@ -9,6 +9,7 @@ my $usage = "perl ./gtdb-download.pl [options]:\n".
   "options:\n".
   "\t-o STR: output prefix [gtdb]\n".
   "\t--names STR: the NCBI names.dmp file\n".
+  "\t--generateSeqId2TaxId: generate seqid_to_taxid.map conversion file.\n".
   "\t-h: print this message and exit\n".
   "\n" ;
 
@@ -29,12 +30,14 @@ sub system_call
 my $outputPrefix = "gtdb" ;
 my $printHelpAndDie = 0 ;
 my $ncbiNameDmp = "" ;
+my $generateSeqIdMap = 0 ;
 
 GetOptions
 (
   "o=s" => \$outputPrefix,
   "h" => \$printHelpAndDie,
-  "names=s"=>\$ncbiNameDmp 
+	"generateSeqId2TaxId" => \$generateSeqIdMap,
+  "names=s"=>\$ncbiNameDmp
 ) ;
 
 if ($printHelpAndDie)
@@ -43,13 +46,13 @@ if ($printHelpAndDie)
 }
 
 my $ftp="https://data.ace.uq.edu.au/public/gtdb/data/releases/latest/" ;
-my $genomeTarFile="gtdb_genomes_reps.tar.gz" ;
+my $genomeTarFile="${outputPrefix}_genomes_reps.tar.gz" ;
 system_call("curl -o $genomeTarFile $ftp/genomic_files_reps/$genomeTarFile") ;
 system_call("tar -xzf $genomeTarFile") ;
 
 # Get the version
-system_call("curl -o gtdb_version.txt $ftp/VERSION.txt") ;
-open FP, "gtdb_version.txt" ;
+system_call("curl -o ${outputPrefix}_version.txt $ftp/VERSION.txt") ;
+open FP, "${outputPrefix}_version.txt" ;
 my $line = <FP> ;
 chomp $line ;
 my $gtdbVersion = substr($line, 1) ;
@@ -61,5 +64,6 @@ system_call("curl $ftp/ar53_metadata.tsv.gz | gzip -cd | grep -v \"^accession\" 
 
 my $createDmpOptions = " -d gtdb_genomes_reps_r$gtdbVersion -m ${outputPrefix}_meta.tsv -o $outputPrefix" ;
 $createDmpOptions .= " --names $ncbiNameDmp" if ($ncbiNameDmp ne "") ;
+$createDmpOptions .= " --generateSeqId2TaxId" if ($generateSeqIdMap) ;
 
 system_call("perl gtdb-create-dmp.pl $createDmpOptions") ;
