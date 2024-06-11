@@ -31,11 +31,12 @@ Centrifuger is also available from [Bioconda](https://anaconda.org/bioconda/cent
       Required:
         -r FILE: reference sequence file (can use multiple -r to specify more than one input file)
             or
-        -l FILE: list of reference sequence file stored in <file>, one sequence file per row
+        -l FILE: list of reference sequence file stored in <file>, one sequence file per row. Can include the taxonomy ID mapping information in the second column.
         --taxonomy-tree FILE: taxonomy tree, i.e., nodes.dmp file
         --name-table FILE: name table, i.e., names.dmp file
-        --conversion-table FILE: seqID to taxID conversion file
       Optional:
+        --conversion-table FILE: seqID to taxID conversion file
+          When not set, expect -l option and the -l file should have two columns as "file taxID"
         -o STRING: output prefix [centrifuger]
         -t INT: number of threads [1]
         --build-mem STR: automatic infer bmax and dcv to match memory constraints, can use T,G,M,K to specify the memory size [not used]
