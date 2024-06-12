@@ -301,7 +301,8 @@ public:
 
     size_t bi = i / _b ;
     int type = _useRunBlock.Access(bi) ;
-    size_t ranki = _useRunBlock.Rank(type, bi) ;
+    //size_t ranki = _useRunBlock.Rank(type, bi) ;
+    size_t ranki = _b < _n ?  _useRunBlock.Rank(type, bi) : 1 ;
     size_t otherRanki = (bi + 1) - ranki ;
      
     size_t ret = 0 ;
