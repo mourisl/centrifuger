@@ -908,6 +908,16 @@ public:
     return _cutCnt ;
   }
 
+  // Estimate how many chunks would be given b and dcv
+  // b: user-specific rough block size
+  static size_t EstimateChunkCount(size_t n, size_t b, int dcv)
+  {
+    size_t blockCnt = DIV_CEIL(n, b) ;
+    size_t eDcSize = DifferenceCover::EstimateCoverSize(dcv) * DIV_CEIL(n, dcv) ;
+    size_t stride = DIV_CEIL(eDcSize, blockCnt) ;
+    return DIV_CEIL(eDcSize, stride) ;
+  }
+
   // Generate the from-th chunk to to-th chunk for T[s..e], both are inclusive
   // Each chunk is left close, right open for the cut.
   // The procedure utilized _cutLCP to expediate the search.

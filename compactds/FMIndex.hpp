@@ -220,6 +220,11 @@ public:
     _alphabets = a ;  
   }
 
+  void SetSequenceExtraParameter(void *p)
+  {
+    _BWT.SetExtraParameter(p) ;
+  }
+
   void Free()
   {
     if (_n > 0)

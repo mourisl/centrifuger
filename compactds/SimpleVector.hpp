@@ -10,13 +10,13 @@
 #include <assert.h>
 
 //const int maxInc = -1 ;
-
-template <class T>
+// size_type determines the type for represent size, e.g int, size_t, or even short. This can give the ability to control some overhead.
+template <class T, class size_type = int>
 class SimpleVector
 {
 private:
-	int size ;
-	int capacity ;
+	size_type size ;
+	size_type capacity ;
 	int maxInc ; // The maximal value we can use to increase the capacity.
 	int inc ;
 	T *s ;
@@ -106,8 +106,12 @@ public:
 			inc = maxInc ;
 	}
 
+  size_t GetSpace()
+  {
+    return sizeof(T) * capacity ;
+  }
 
-	int PushBack( const T &in )	
+	size_type PushBack( const T &in )	
 	{
 		if ( size == capacity )
 		{
@@ -131,7 +135,7 @@ public:
 		return size ;
 	}
 
-	int PushBack( const SimpleVector<T> &in )
+	size_type PushBack( const SimpleVector<T> &in )
 	{
 		int newsize = size + in.size ;
 		if ( newsize > capacity )
@@ -181,27 +185,29 @@ public:
 	{
 		maxInc = in ;
 	}
+
 	int GetMaxInc()
 	{
 		return maxInc ;
 	}
-	int Size() const
+
+	size_type Size() const
 	{
 		return size ;
 	}
 
-	int Resize( int s ) 
+	size_type Resize( size_type s ) 
 	{
 		size = s ;
 		return size ;
 	}
 
-	int Capacity()
+	size_type Capacity()
 	{
 		return capacity ;
 	}
 
-	T &Get( int i )
+	T &Get( size_type i )
 	{
 		if ( i >= size )
 		{
@@ -211,7 +217,7 @@ public:
 		return s[i] ;
 	}
 
-	T &operator[]( int i ) const
+	T &operator[]( size_type i ) const
 	{
 		/*if ( i >= size )
 		{
@@ -227,7 +233,7 @@ public:
 	}
 	
 	// Return how many element left.
-	int Remove( int ind )
+	size_type Remove( size_type ind )
 	{
 		int i ;
 		if ( ind >= size )
@@ -245,7 +251,7 @@ public:
 	}
 
 	// Allocate less memory. 
-	int Shrink()
+	size_type Shrink()
 	{
 		if ( size < capacity / 4 )
 		{
@@ -268,7 +274,7 @@ public:
 		qsort( s, size, sizeof( T ), compare ) ;
 	}
 
-	int BinarySearch( const T &v )
+	size_type BinarySearch( const T &v )
 	{
 		int l, r, m ;
 		l = 0 ; 
@@ -307,14 +313,14 @@ public:
 		size = in.size ;
 		capacity = in.capacity ;
 		inc = in.inc ;
-		int i ;
+		size_type i ;
 		for ( i = 0 ; i < size ; ++i )
 			s[i] = in.s[i] ;
 	}
 
 	void Reverse()
 	{
-		int i, j ;
+		size_type i, j ;
 		T tmp ;
 		for ( i = 0, j = size - 1 ; i < j ; ++i, --j )
 		{
@@ -326,9 +332,9 @@ public:
 	
 	// Expand the array by given size.
 	// Does not care about the value in the new allocated space.
-	int ExpandBy( int expandSize )
+	size_type ExpandBy( size_type expandSize )
 	{
-		int newSize = size + expandSize ;
+	  size_type newSize = size + expandSize ;
 		if ( newSize <= capacity )
 		{
 			size = newSize ;
@@ -354,15 +360,15 @@ public:
 		return size ;
 	}
 
-	int ExpandTo( int newSize )
+  size_type ExpandTo( size_type newSize )
 	{
 		return ExpandBy( newSize - size ) ;
 	}
 
-	void ShiftRight( int shift )
+	void ShiftRight( size_type shift )
 	{
 		size = ExpandBy( shift ) ;
-		int i ;
+		size_type i ;
 
 		for ( i = size - 1 ; i >= shift ; --i )
 			s[i] = s[i - shift] ;
@@ -370,7 +376,7 @@ public:
 	}
 	
 	// Set the content to zero in the range
-	void SetZero( int start, int len )
+	void SetZero( size_type start, size_type len )
 	{
 		memset( s + start, 0, sizeof( T ) * len ) ;
 	}
@@ -379,6 +385,7 @@ public:
 	{
 		return s ;
 	}
+
 	T *EndAddress() 
 	{
 		return s + size ;

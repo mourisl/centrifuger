@@ -108,17 +108,37 @@ struct _FMBuilderSASortThreadArg
   size_t saSize ;
   
   size_t accuChunkSize ;
+} ;
 
-  WORD *semiLcpGreater ; // The LCP is between current suffix and its previous one
-  WORD *semiLcpEqual ;
-  size_t maxLcp ; // only consider LCP up to this point
+struct _FMBuilderPostprocessThreadArg
+{
+	int tid ;
+	int threadCnt ;
+
+	FixedSizeElemArray *T ;
+  FixedSizeElemArray *BWT ;
+	size_t n ;
+
+	size_t *saChunk ;
+	size_t saSize ;
+  size_t prevChunkLastSA ;
+  size_t *pFirstISA ;
+
+	size_t accuChunkSize ; // The start for this chunk
+
+  int skippedBWT ; // The number of BWT entries that skipped becuase they overlap with the WORD from the previous chun/k
+
+  WORD firstPrecomputeW ; // The first precompute w range might be the same as the last w in the previous chunk in parallel, so we store them here, and merge after the parallel execution 
+  size_t firstPrecomputeWLen ; 
+
+  struct _FMBuilderParam *builderParam ;
 } ;
 
 class FMBuilder
 {
 private:
   // Return the LCP up until the specified value bewteen T[i,...], T[j,...]
-  static size_t ComputeSemiLcp(FixedSizeElemArray &T, size_t n, size_t i, size_t j, size_t maxLCP)
+  static size_t ComputeSemiLcp(const FixedSizeElemArray &T, size_t n, size_t i, size_t j, size_t maxLCP)
   {
     size_t k ;
     if (i >= n || j >= n || i < 0 || j < 0)
@@ -146,7 +166,7 @@ private:
   }
   
   // Compare the semiLCP between T[sai...], and T[saj,...], write the result to semiLcp[biti]
-  static void SetSemiLcpBit(FixedSizeElemArray &T, size_t n, size_t sai, size_t saj, size_t biti, size_t maxLcp, WORD *semiLcpGreater, WORD *semiLcpEqual)
+  static void SetSemiLcpBit(const FixedSizeElemArray &T, size_t n, size_t sai, size_t saj, size_t biti, size_t maxLcp, WORD *semiLcpGreater, WORD *semiLcpEqual)
   {
     size_t l = 0 ;
     l = ComputeSemiLcp(T, n, sai, saj, maxLcp + 1) ;
@@ -162,17 +182,109 @@ private:
     pArg->saGenerator->SortSuffixByPos(*(pArg->T),pArg->n, 
         pArg->sa, pArg->saSize, pArg->sa ) ;
     //printf("TEST %d\n",  saSortThreadArgs[0][0].sa[0]) ;
-    
-    if (pArg->maxLcp > 0)
+    pthread_exit(NULL) ;
+  }
+
+	// This is the thread handling filling BWT and other components
+	// Some of the other componenets wil be filled after the parallel excution
+	static void *Postprocess_Thread(void *arg)
+  {
+    struct _FMBuilderPostprocessThreadArg *pArg = ( struct _FMBuilderPostprocessThreadArg *)arg ;
+    int tid = pArg->tid ;
+
+    size_t i ;
+    size_t size = pArg->saSize ;
+    size_t *saChunk = pArg->saChunk ;
+    struct _FMBuilderParam &param = *(pArg->builderParam) ;
+    const FixedSizeElemArray &T = *(pArg->T) ;
+    FixedSizeElemArray &BWT = *(pArg->BWT) ;
+    size_t n = pArg->n ;
+
+    // Fill FM string
+    //printf("%d %d %d %d\n", size, j, saSortThreadArgs[prevPosTag][j].pos->at(1),
+    //    saChunk[0]) ;
+    size_t bwtFilled = pArg->accuChunkSize ;
+    int skipLength = 0 ; // skip this amount of BWT as they may write to a word 
+    if (tid > 0 && BWT.GetElemOffsetInWord(bwtFilled) > 0)
     {
-      size_t i ;
-      // The first element's LCP is between the last element from previous
-      // chunk, need to process outside.
-      for (i = 1 ; i < pArg->saSize ; ++i)
-        SetSemiLcpBit(*(pArg->T), pArg->n, pArg->sa[i], pArg->sa[i - 1], pArg->accuChunkSize + i, 
-            pArg->maxLcp, pArg->semiLcpGreater, pArg->semiLcpEqual) ;
+      while (BWT.GetElemWordIndex(bwtFilled) == BWT.GetElemWordIndex(bwtFilled + skipLength))
+      {
+        ++skipLength ;
+      }
     }
+    pArg->skippedBWT = skipLength ;
     
+    bool setFirstPrecomputeW = false ;
+    for (i = 0 ; i < size ; ++i, ++bwtFilled)
+    {
+      if (i >= (size_t)skipLength)
+      {
+        if (saChunk[i] == 0)
+        {
+          *(pArg->pFirstISA) = bwtFilled ;
+          BWT.Write(bwtFilled, T.Read(n - 1)) ;
+        }
+        else
+          BWT.Write(bwtFilled, T.Read( saChunk[i] - 1 ) ) ;
+
+        if (param.sampledSA != NULL && bwtFilled % param.sampleRate == 0)
+          param.sampledSA[bwtFilled / param.sampleRate] = saChunk[i] ;
+      }
+
+      if (param.precomputedRange != NULL)
+      {
+        int width = param.precomputeWidth ;
+        WORD w = 0 ;
+        
+        if (saChunk[i] + width <= n)
+        {
+          w = T.PackRead(saChunk[i], width) ;
+          if (!setFirstPrecomputeW && tid > 0)
+          {
+            pArg->firstPrecomputeW = w ;
+            pArg->firstPrecomputeWLen = 1 ;
+            setFirstPrecomputeW = true ;
+          }
+          else
+          {
+            if (w == pArg->firstPrecomputeW && tid > 0)
+            {
+              ++pArg->firstPrecomputeWLen ;
+            }
+            else
+            {
+              if (param.precomputedRange[w].second == 0)
+                param.precomputedRange[w].first = bwtFilled ;
+              ++param.precomputedRange[w].second ;
+            }
+          }
+        } 
+        /*else // ignore the case near the end of the string
+          {
+          w = T.PackRead(saChunk[i], n - saChunk[i]) ;
+        //size_t used = n - saChunk[i] ;
+        //w = (T.PackRead(0, w - used)) << used | w
+        }*/
+      }
+
+      // Since we are not inserting to the map structure, this should not affect the results
+      if (param.selectedISA.size() != 0 )
+      {
+        if (param.selectedISA.find(saChunk[i]) != param.selectedISA.end()) 
+          param.selectedISA[saChunk[i]] = bwtFilled ;
+      }
+
+      if (param.maxLcp > 0 && i > 0)
+      {
+        //TODO: need to address the racing for the semiLcpBits
+        SetSemiLcpBit(T, n, saChunk[i], saChunk[i - 1], pArg->accuChunkSize + i, 
+            param.maxLcp, param.semiLcpGreater, param.semiLcpEqual) ;
+      }
+    }
+
+    if (param.maxLcp > 0 && pArg->accuChunkSize > 0) // ignore the very first SA in the whole array
+      SetSemiLcpBit(T, n, saChunk[0], pArg->prevChunkLastSA, pArg->accuChunkSize, 
+          param.maxLcp, param.semiLcpGreater, param.semiLcpEqual) ;                 
     pthread_exit(NULL) ;
   }
 
@@ -187,14 +299,25 @@ public:
     param.sampleSize = DIV_CEIL(n, param.sampleRate) ;
     param.sampledSA = (size_t *)malloc(sizeof(size_t) * DIV_CEIL(n, param.sampleRate)) ;
 
-    size_t size = 1ull<<(chrbit * param.precomputeWidth) ;
-    param.precomputeSize = size ;  
-    param.precomputedRange = (std::pair<size_t, size_t> *)malloc(
-        sizeof(std::pair<size_t, size_t>) * size) ;
-    for (i = 0 ; i < size ; ++i)
+    if (param.precomputeWidth > 0)
     {
-      param.precomputedRange[i].first = 0 ;
-      param.precomputedRange[i].second = 0 ;
+      size_t size = 1ull<<(chrbit * param.precomputeWidth) ;
+      param.precomputeSize = size ;  
+      param.precomputedRange = (std::pair<size_t, size_t> *)malloc(
+          sizeof(std::pair<size_t, size_t>) * size) ;
+      for (i = 0 ; i < size ; ++i)
+      {
+        param.precomputedRange[i].first = 0 ;
+        param.precomputedRange[i].second = 0 ;
+      }
+    }
+    else
+    {
+      // Since we did not explicitly store the end of the text,
+      //   we need an informative start position, otherwise the range
+      //   may include the text end. (I think).
+      Utils::PrintLog("precomputeWidth has to be greater than 0.\n") ;
+      exit(1) ;
     }
 
     if (param.maxLcp > 0)
@@ -217,8 +340,8 @@ public:
     size_t bestTime = POSITIVE_INF ;
     size_t bestBlockSize = 0 ;
     size_t bestDcv = 0 ;
-    
-    if (2 * n * alphabetBits / 8 > memory)
+		
+    if (2 * n * alphabetBits / 8 > memory) // The input text and the output BWT
       return ;
     
     memory -= 2 * n * alphabetBits / 8 ;
@@ -230,10 +353,11 @@ public:
         size_t blockSize = 1ull<<logBlockSize ;
         //if (blockSize >= n / param.threadCnt)
         //  break ;
-
-        size_t space = (param.threadCnt * blockSize 
-            + dcSize + DIV_CEIL(n, param.sampleRate)
-            + (1ull<<(alphabetBits * param.precomputeWidth))*2
+        size_t space = (2 * param.threadCnt * blockSize // SA position, SA result
+            + dcSize // SA value for difference cover 
+            + SuffixArrayGenerator::EstimateChunkCount(n, blockSize, dcv) * dcv // _cutLCP 
+            + DIV_CEIL(n, param.sampleRate) // sampledSA
+            + (1ull<<(alphabetBits * param.precomputeWidth))*2 // precompted width
             ) * WORDBYTES ;  
         
         if (space <= memory)
@@ -279,18 +403,19 @@ public:
   {
     size_t i, j, k ;
     SuffixArrayGenerator saGenerator ;
-    MallocAuxiliaryData(Utils::Log2Ceil(alphabetSize), n, param) ; 
-    BWT.Malloc(Utils::Log2Ceil(alphabetSize), n) ;
+    size_t alphabetBits = Utils::Log2Ceil(alphabetSize) ;
+    MallocAuxiliaryData(alphabetBits, n, param) ; 
+    BWT.Malloc(alphabetBits, n) ;
     if (param.printLog)
       Utils::PrintLog("Generate difference cover and chunks.") ;
     size_t cutCnt = saGenerator.Init(T, n, param.saBlockSize, param.saDcv, alphabetSize) ;
     if (param.printLog)
       Utils::PrintLog("Found %llu chunks.", cutCnt) ;
-    size_t bwtFilled = 0 ;
    
     pthread_t *threads = (pthread_t *)malloc(sizeof(*threads) * param.threadCnt) ;
     struct _FMBuilderChunkThreadArg *chunkThreadArgs ;
     struct _FMBuilderSASortThreadArg *saSortThreadArgs ; 
+    struct _FMBuilderPostprocessThreadArg *postprocessThreadArgs ;
     pthread_attr_t attr ;
 
     pthread_attr_init( &attr ) ;
@@ -324,10 +449,18 @@ public:
       saSortThreadArgs[i].saGenerator = &saGenerator ;
       saSortThreadArgs[i].T = &T ;
       saSortThreadArgs[i].n = n ;
+    }
 
-      saSortThreadArgs[i].maxLcp = param.maxLcp ;
-      saSortThreadArgs[i].semiLcpGreater = param.semiLcpGreater ;
-      saSortThreadArgs[i].semiLcpEqual = param.semiLcpEqual ;
+    postprocessThreadArgs = (struct _FMBuilderPostprocessThreadArg*)malloc(sizeof(*postprocessThreadArgs) * param.threadCnt) ;
+    for (i = 0 ; i < param.threadCnt ; ++i)
+    {
+      postprocessThreadArgs[i].tid = i ;
+      postprocessThreadArgs[i].threadCnt = param.threadCnt ;
+      postprocessThreadArgs[i].T = &T ;
+      postprocessThreadArgs[i].BWT = &BWT ;
+      postprocessThreadArgs[i].n = n ;
+      postprocessThreadArgs[i].pFirstISA = &firstISA ;
+      postprocessThreadArgs[i].builderParam = &param ;
     }
 
     size_t lastSA = 0 ; // record the last SA from previous batch or chunk
@@ -403,22 +536,52 @@ public:
       if (param.printLog)
         Utils::PrintLog("Wait for the chunk sort to finish.") ;
       for (j = 0 ; j < chunkCnt ; ++j)
+      {
         pthread_join(threads[j], NULL) ;
+        
+        if (param.dumpSaFp)
+          fwrite(saSortThreadArgs[j].sa, sizeof(saSortThreadArgs[j].sa[0]), 
+              saSortThreadArgs[j].saSize, param.dumpSaFp) ;
+      }
 
       // Process the information from the chunks. 
       if (param.printLog)
         Utils::PrintLog("Postprocess %d chunks.", chunkCnt) ;
-      for (j = 0 ; j < chunkCnt ; ++j) 
+      
+      for (j = 0 ; j < chunkCnt ; ++j)
       {
-        size_t l ;
-        size_t size = saSortThreadArgs[j].saSize ;
-        size_t *saChunk = saSortThreadArgs[j].sa ;
+        postprocessThreadArgs[j].saChunk = sa[j] ;
+        postprocessThreadArgs[j].saSize = saChunkSize[j] ;
+        postprocessThreadArgs[j].accuChunkSize = saSortThreadArgs[j].accuChunkSize ;
+        
+        // Variables that needed to simplify the overlap between previous chunk and current chunk.
+        postprocessThreadArgs[j].skippedBWT = 0 ;
+        postprocessThreadArgs[j].firstPrecomputeW = 0 ;
+        postprocessThreadArgs[j].firstPrecomputeWLen = 0 ;
+        
+        // the last element from previous chunk. 
+        postprocessThreadArgs[j].prevChunkLastSA = lastSA ;
+        lastSA = sa[j][ saChunkSize[j] - 1 ] ;
+      
+        pthread_create(&threads[j], &attr, Postprocess_Thread, (void *)(postprocessThreadArgs + j)) ;
+      }
 
-        // Fill FM string
-        //printf("%d %d %d %d\n", size, j, saSortThreadArgs[prevPosTag][j].pos->at(1),
-        //    saChunk[0]) ;
-        for (l = 0 ; l < size ; ++l)
+      for (j = 0 ; j < chunkCnt ; ++j)
+        pthread_join(threads[j], NULL) ;
+      
+      // Fill in the overlapped portion between SA chunks in BWT
+      // Start from the second chunk.
+      for (j = 1 ; j < chunkCnt ; ++j) 
+      {
+        int l ; 
+        //size_t size = postprocessThreadArgs[j].saSize ;
+        size_t *saChunk = postprocessThreadArgs[j].saChunk ;
+        size_t accuChunkSize = postprocessThreadArgs[j].accuChunkSize ;
+
+        for (l = 0 ; l < postprocessThreadArgs[j].skippedBWT ; ++l)
         {
+          // Fill in the BWT
+          size_t bwtFilled = accuChunkSize + l ;
           if (saChunk[l] == 0)
           {
             firstISA = bwtFilled ;
@@ -429,53 +592,30 @@ public:
 
           if (param.sampledSA != NULL && bwtFilled % param.sampleRate == 0)
             param.sampledSA[bwtFilled / param.sampleRate] = saChunk[l] ;
-
-          if (param.precomputedRange != NULL)
-          {
-            int width = param.precomputeWidth ;
-            WORD w = 0 ;// word
-            if (saChunk[l] + width <= n)
-            {
-              w = T.PackRead(saChunk[l], width) ;
-              if (param.precomputedRange[w].second == 0)
-                param.precomputedRange[w].first = bwtFilled ;
-              ++param.precomputedRange[w].second ;
-            } 
-            /*else // ignore the case near the end of the string
-            {
-              w = T.PackRead(saChunk[l], n - saChunk[l]) ;
-              //size_t used = n - saChunk[l] ;
-              //w = (T.PackRead(0, w - used)) << used | w
-            }*/
-
-          }
-
-          if (param.selectedISA.size() != 0 )
-          {
-            if (param.selectedISA.find(saChunk[l]) != param.selectedISA.end()) 
-              param.selectedISA[saChunk[l]] = bwtFilled ;
-          }
-
-          ++bwtFilled ;
         }
 
-        if (param.maxLcp > 0)
+        // Fill the precomputew
+        if (param.precomputedRange != NULL)   
         {
-          size_t offseti = bwtFilled - size ; // equiavlent to accuChunkSize
-          if (i > 0 || j > 0) // ignore the very first SA in the whole array
-            SetSemiLcpBit(T, n, saChunk[0], lastSA, offseti, param.maxLcp, 
-                param.semiLcpGreater, param.semiLcpEqual) ;                 
+          WORD w = postprocessThreadArgs[j].firstPrecomputeW ;
+          size_t wlen = postprocessThreadArgs[j].firstPrecomputeWLen ;
+          if (param.precomputedRange[w].second > 0)
+          {
+            param.precomputedRange[w].second += wlen ;
+          }
+          else // This w is the first one to show up.
+          {
+            // This also handles that the same precompute w spans more than one chunk.
+            param.precomputedRange[w].first = accuChunkSize ;
+            param.precomputedRange[w].second = wlen ;
+          }
         }
 
-        // the last element from previous chunk. 
-        lastSA = saChunk[size - 1] ;
-        
-        if (param.dumpSaFp)
-          fwrite(saChunk, sizeof(saChunk[0]), size, param.dumpSaFp) ;
+        // TODO: Fill the lcp structure
       }
     } // end of the main while loop for populating BWTs
     
-    // Fill in the selectedSA
+    // Fill in the selectedSA from selectedISA.
     for (std::map<size_t, size_t>::iterator iter = param.selectedISA.begin() ;
         iter != param.selectedISA.end(); ++iter)
     {
@@ -497,6 +637,7 @@ public:
     free(saChunkSize) ;
     free(saChunkCapacity) ;
     free(saSortThreadArgs) ;
+    free(postprocessThreadArgs) ;
   }
 } ;
 }

@@ -16,7 +16,7 @@ private:
   size_t _rcnt ;
   Bitvector_Plain *_nodeB ; // The left, right child indicator 
   Bitvector_Plain _G ; // Mark the start position for each run in the permuation representation.
-  int *_nodePath ; //Buffer to holde the node ids along a path from root to leaf
+  int *_nodePath ; //Buffer to hold the node ids along a path from root to leaf
   HuffmanCode _huffmanTree ;
 
   // Combine the CreateLeaves and CreateBitvectors of the book into the same function

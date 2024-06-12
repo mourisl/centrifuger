@@ -256,7 +256,7 @@ public:
   {
     if (i >= n)
       return Query(n - 1, B, n, inclusive) ;
-
+    
     const size_t wi = (i>>WORDBITS_WIDTH) ; // word id
     const size_t ri = (wi >> 3) * 2 ; // region/block id
     const size_t t = (wi & 7) - 1 ; // the offset in the subblock

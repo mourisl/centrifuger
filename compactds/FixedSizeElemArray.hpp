@@ -154,6 +154,18 @@ public:
     return _W ;
   }
   
+  // The i-th element starts from the ret-th (0-based) bit in a word
+  int GetElemOffsetInWord(size_t i) const
+  {
+    return (i * _l) % WORDBITS ;
+  }
+
+  // The i-th element is in the ret-th word (0-based)
+  size_t GetElemWordIndex(size_t i) const
+  {
+    return (i * _l) / WORDBITS ;
+  }
+  
   // Return num elements starting from i.
   // @return: bit packed _W[i].._W[i + num - 1]
   WORD PackRead(size_t i, size_t num) const
@@ -168,6 +180,12 @@ public:
     for (j = 0 ; j < num ; ++j)
       ret = (ret << _l) + Read(i + j) ;
     return ret ;
+  }
+
+  // Write WORD w contains num elements to the [i, i+num-1]
+  void PackWrite(size_t i, WORD x, size_t num)
+  {
+    Utils::BitsWrite(_W, i * _l, (i + num) * _l - 1, x) ;
   }
 
   // Find the length of the matching prefix between A[s..e] and B[s..e]

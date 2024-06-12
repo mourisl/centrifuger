@@ -54,12 +54,17 @@ public:
     _taxonomy.Free() ;
   }
 
-  void Build(ReadFiles &refGenomeFile, char *taxonomyFile, char *nameTable, char *conversionTable, uint64_t subsetTax, size_t memoryConstraint, struct _FMBuilderParam &fmBuilderParam, const char *alphabetList)
+  void SetRBBWTBlockSize(size_t b)
+  {
+    _fmIndex.SetSequenceExtraParameter((void *)b) ;
+  }
+
+  void Build(ReadFiles &refGenomeFile, char *taxonomyFile, char *nameTable, char *conversionTable, bool conversionTableAtFileLevel, uint64_t subsetTax, size_t memoryConstraint, struct _FMBuilderParam &fmBuilderParam, const char *alphabetList)
   {
     size_t i ;
     const int alphabetSize = strlen(alphabetList) ;
   
-    _taxonomy.Init(taxonomyFile, nameTable, conversionTable)  ; 
+    _taxonomy.Init(taxonomyFile, nameTable, conversionTable, conversionTableAtFileLevel)  ; 
 
     FixedSizeElemArray genomes ;
     SequenceCompactor seqCompactor ;
@@ -72,7 +77,16 @@ public:
     std::vector<size_t> genomeLens ; 
     while (refGenomeFile.Next())
     {
-      size_t seqid = _taxonomy.SeqNameToId(refGenomeFile.id) ;
+      size_t seqid = 0 ;
+      char fileNameBuffer[1024] ;
+      if (conversionTableAtFileLevel)
+      {
+        Utils::GetFileBaseName(refGenomeFile.GetFileName( refGenomeFile.GetCurrentFileInd() ).c_str(), 
+            "fna|fa|fasta|faa", fileNameBuffer) ;
+        seqid = _taxonomy.SeqNameToId(fileNameBuffer) ;
+      }
+      else
+        seqid = _taxonomy.SeqNameToId(refGenomeFile.id) ;
       
       if (subsetTax != 0)
       {
@@ -83,8 +97,9 @@ public:
       
       if (seqid >= _taxonomy.GetSeqCount())
       {
-        fprintf(stderr, "WARNING: taxonomy id doesn't exist for %s!\n", refGenomeFile.id) ;
-        seqid = _taxonomy.AddExtraSeqName(refGenomeFile.id) ;
+        fprintf(stderr, "WARNING: taxonomy id doesn't exist for %s!\n", 
+            conversionTableAtFileLevel ? fileNameBuffer : refGenomeFile.id) ;
+        seqid = _taxonomy.AddExtraSeqName(conversionTableAtFileLevel ? fileNameBuffer : refGenomeFile.id) ;
       }
 
       size_t len = seqCompactor.Compact(refGenomeFile.seq, genomes) ;
@@ -95,10 +110,18 @@ public:
         genomes.SetSize(size - len) ;
         continue ;
       }
-
-      _seqLength[seqid] = len ;
-      genomeSeqIds.push_back(seqid) ;
-      genomeLens.push_back(len) ;
+      
+      if (_seqLength.find(seqid) == _seqLength.end()) // Assume there is no duplicated seqid
+      {
+        _seqLength[seqid] = len ;
+        genomeSeqIds.push_back(seqid) ;
+        genomeLens.push_back(len) ;
+      }
+      else
+      {
+        _seqLength[seqid] += len ;
+        genomeLens[ genomeLens.size() - 1 ] += len ;
+      }
     }
 
     FixedSizeElemArray BWT ;
@@ -119,16 +142,35 @@ public:
         continue ;
       fmBuilderParam.selectedISA[psum - fmBuilderParam.precomputeWidth - 1] ;
     }
-
-    Utils::PrintLog("Found %lu sequences with total length %lu bp", 
-        genomeCnt, genomes.GetSize()) ;
+    
+    size_t totalGenomeSize = genomes.GetSize() ;
+    Utils::PrintLog("Found %lu sequences with total length %lu bp.", 
+        genomeCnt, totalGenomeSize) ;
     
     if (memoryConstraint != 0)
       FMBuilder::InferParametersGivenMemory(genomes.GetSize(), alphabetSize, memoryConstraint,fmBuilderParam) ;
-    FMBuilder::Build(genomes, genomes.GetSize(), alphabetSize, BWT, firstISA, fmBuilderParam) ;
-    TransformSampledSAToSeqId(fmBuilderParam, genomeSeqIds, genomeLens, genomes.GetSize()) ;
-    _fmIndex.Init(BWT, genomes.GetSize(), 
+    /*{
+      size_t memoryCost = totalGenomeSize / 4 / WORDBYTES + DIV_CEIL(totalGenomeSize, fmBuilderParam.sampleRate) * Utils::Log2Ceil(genomeCnt) ; // We need to substract other portion out, like the space for the rank structure and the reduced sampled SA. ;
+      if (memoryConstraint > adjustMemoryCost) 
+      {
+        FMBuilder::InferParametersGivenMemory(totalGenomeSize, alphabetSize, 
+            memoryConstraint, fmBuilderParam) ; 
+      }
+      else
+      {
+        Utils::PrintLog("No enough memory, please increase the memory allocation.") ;
+        exit(0) ;
+      }
+    }*/
+
+    FMBuilder::Build(genomes, totalGenomeSize, alphabetSize, BWT, firstISA, fmBuilderParam) ;
+    genomes.Free() ;
+    Utils::PrintLog("Start to transform sampled SA to sequence ID.") ;
+    TransformSampledSAToSeqId(fmBuilderParam, genomeSeqIds, genomeLens, totalGenomeSize) ;
+    Utils::PrintLog("Start to compress BWT with RBBWT.") ;
+    _fmIndex.Init(BWT, totalGenomeSize, 
         firstISA, fmBuilderParam, alphabetList, alphabetSize) ;
+    Utils::PrintLog("centrifuger-build finishes.") ;
   }
 
   void OutputBuilderMeta(FILE *fp, const FMIndex<Sequence_RunBlock> &fm) 

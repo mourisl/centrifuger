@@ -208,6 +208,16 @@ public:
     return _tree[p].symbol ;
   }
 
+  int GetLongestCodeLength() const
+  {
+    size_t i ;
+    int ret = 0 ;
+    for (i = 0 ; i < _n ; ++i)
+      if (_codeLens[i] > ret)
+        ret = _codeLens[i] ;
+    return ret ;
+  }
+
   void Save(FILE *fp)
   {
     fwrite(this, sizeof(this), 1, fp) ;

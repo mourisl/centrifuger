@@ -113,6 +113,17 @@ public:
     _space += _select.GetSpace() - sizeof(_select) ;
   }
 
+  void InitFromOnes(const uint64_t *S, const size_t onecnt, const size_t n)
+  {
+    Malloc(n) ;
+
+    size_t i ;
+    for (i = 0 ; i < onecnt ; ++i)
+      BitSet(S[i]) ;
+
+    Init() ;
+  }
+
   // Return the ith bits (0-based)
   int Access(size_t i) const
   {
@@ -158,6 +169,14 @@ public:
   const WORD *GetData() const
   {
     return _B ;
+  }
+
+  void Print(FILE *fp)
+  {
+    size_t i ;
+    for (i = 0 ; i < _n ; ++i)
+      fprintf(fp, "%d", Access(i)) ;
+    fprintf(fp, "\n") ;
   }
 
   void Save(FILE *fp)

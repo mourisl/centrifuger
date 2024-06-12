@@ -18,6 +18,8 @@
 #include "compactds/SimpleVector.hpp"
 #include "compactds/Utils.hpp"
 
+using namespace compactds ;
+
 enum 
 {
     RANK_UNKNOWN = 0,
@@ -79,6 +81,7 @@ private:
   size_t _seqCnt ; // the sequences with taxonomy information
   size_t _extraSeqCnt ; // the number of sequences 
   uint8_t _taxRankNum[RANK_MAX] ;
+  size_t _rootCTaxId ;// the compact tax Id for the root
 
   void InitTaxRankNum()
   {
@@ -258,7 +261,7 @@ private:
     }
   }
 
-  void ReadSeqNameFile(std::string fname)
+  void ReadSeqNameFile(std::string fname, bool conversionTableAtFileLevel)
   {
     std::ifstream seqmap_file(fname.c_str(), std::ios::in);
     std::map<std::string, uint64_t> rawSeqNameMap ;
@@ -272,6 +275,12 @@ private:
         uint64_t tid;
         std::string seqIdStr;
         cline >> seqIdStr >> tid ;
+        if (conversionTableAtFileLevel)
+        {
+          char buffer[1024] ;
+          Utils::GetFileBaseName(seqIdStr.c_str(), "fna|fa|fasta|faa", buffer) ;
+          seqIdStr = buffer ;
+        }
         _seqStrNameMap.Add(seqIdStr) ;
         rawSeqNameMap[seqIdStr] = tid ;
       }
@@ -290,7 +299,7 @@ private:
     }
     _seqCnt = _seqStrNameMap.GetSize() ;
   }
-  
+ 
   void SaveString(FILE *fp, std::string &s)
   {
     size_t len = s.length() ;
@@ -308,7 +317,15 @@ private:
     s = buffer ;
     free(buffer) ;
   }
-
+  
+  size_t FindRoot()
+  {
+    size_t i ;
+    for (i = 0 ; i < _nodeCnt ; ++i)
+      if (_taxonomyTree[i].parentTid == i)
+        return i ;
+    return _nodeCnt ;
+  }
 public:
   Taxonomy() 
   {
@@ -318,6 +335,7 @@ public:
     _nodeCnt = 0 ;
     _seqCnt = 0 ;
     _extraSeqCnt = 0 ;
+    _rootCTaxId = 0 ;
     InitTaxRankNum() ;
   }
 
@@ -340,13 +358,15 @@ public:
     }
   }
   
-  void Init(const char *nodesFile, const char *namesFile, const char *seqIdFile)
+  void Init(const char *nodesFile, const char *namesFile, const char *seqIdFile, bool conversionTableAtFileLevel)
   {
     std::map<uint64_t, int> presentTax;
     ReadPresentTaxonomyLeafs(std::string(seqIdFile), presentTax) ;
     ReadTaxonomyTree(std::string(nodesFile), presentTax) ;
     ReadTaxonomyName(std::string(namesFile), presentTax) ;
-    ReadSeqNameFile(std::string(seqIdFile)) ;
+    ReadSeqNameFile(std::string(seqIdFile), conversionTableAtFileLevel) ;
+  
+    _rootCTaxId = FindRoot() ;
   }
 
   const char *GetTaxRankString(uint8_t rank)
@@ -578,6 +598,7 @@ public:
       size_t t = taxIds[i]; 
       uint8_t prevRankNum = 0 ;
       uint8_t ri ;// rank index
+
       taxIdsInRankNum[prevRankNum][t] = 1 ; // the input is at the base level
       do
       {
@@ -608,7 +629,7 @@ public:
         iter != taxIdsInRankNum[ri].end() ; ++iter)
       promotedTaxIds.PushBack(iter->first) ;
     if (promotedTaxIds.Size() == 0)
-      promotedTaxIds.PushBack(_nodeCnt) ;
+      promotedTaxIds.PushBack(_rootCTaxId) ;
   }
 
   // @return: Number of children tax ids. childrenTax: compact tax ids below or equal to ctid.
@@ -706,6 +727,7 @@ public:
       LoadString(fp, seqStr) ;
       _seqStrNameMap.Add(seqStr) ;
     }
+    _rootCTaxId = FindRoot() ;
   }
 
   void PrintTaxonomyTree(FILE *fp)

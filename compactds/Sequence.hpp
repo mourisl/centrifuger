@@ -35,6 +35,12 @@ public:
     _alphabets.Load(fp) ;
   }
   
+  // Some flexible set function allow each sequence class to set its own special parametes
+  //    such as the block size for runblock.
+  virtual void SetExtraParameter(void *p) 
+  {
+  }
+ 
   virtual void Init(const FixedSizeElemArray &S, size_t sequenceLength, const ALPHABET *alphabetMap) = 0 ;
   virtual void Free() = 0 ;
   virtual size_t GetSpace() = 0 ; 

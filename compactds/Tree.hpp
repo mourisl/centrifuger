@@ -110,8 +110,8 @@ public:
   
   virtual size_t LCA(size_t u, size_t v) const
   {
-    SimpleVector<size_t> upath ; 
-    SimpleVector<size_t> vpath ;
+    SimpleVector<size_t, size_t> upath ; 
+    SimpleVector<size_t, size_t> vpath ;
 
     size_t p ;
     

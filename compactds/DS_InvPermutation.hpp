@@ -131,6 +131,24 @@ public:
     }
     return j ;
   }
+
+  void Save(FILE *fp)
+  {
+    SAVE_VAR(fp, _t) ;
+    SAVE_VAR(fp, _space) ;
+    SAVE_VAR(fp, _sampledCnt) ;
+    _B.Save(fp) ;
+    _S.Save(fp) ;
+  }
+
+  void Load(FILE *fp)
+  {
+    LOAD_VAR(fp, _t) ;
+    LOAD_VAR(fp, _space) ;
+    LOAD_VAR(fp, _sampledCnt) ;
+    _B.Load(fp) ;
+    _S.Load(fp) ;
+  }
 } ;
 }
 

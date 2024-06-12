@@ -58,6 +58,19 @@ public:
     _nodes.push_back(node) ;
   }
 
+  void Init(size_t n)
+  {
+    _nodes.clear() ;
+
+    size_t i ;
+    _n = n ;
+    for (i = 0 ; i < _n ; ++i)
+    {
+      struct _plainTreeNode node(0, 0, 0, 0) ;
+      _nodes.push_back(node) ;
+    }
+  }
+
   size_t GetSpace(bool inclusive = true)
   {
     return _nodes.capacity() * sizeof(struct _plainTreeNode) + (inclusive ? sizeof(*this) : 0) ;
@@ -81,6 +94,19 @@ public:
     ++_n ;
 
     return id ;
+  }
+
+  void AddEdge(size_t c, size_t parent)
+  {
+    _nodes[c].parent = parent ;
+    
+    size_t lastSibling = LastChild(parent) ;
+    if (lastSibling == 0)
+      _nodes[parent].child = c ;
+    else
+      _nodes[lastSibling].sibling = c ;
+    
+    _nodes[parent].lastChild = c ;
   }
 
   size_t Root() const 
@@ -118,6 +144,18 @@ public:
       c = NextSibling(c) ;
     return i ;
   }
+
+  std::vector<size_t> GetChildren(size_t v) const
+  {
+    std::vector<size_t> ret ;
+    size_t c = _nodes[v].child ;
+    while (c != 0)
+    {
+      ret.push_back(c) ;
+      c = _nodes[c].sibling ;
+    }
+    return ret ;
+  }
   
   // return: v is the ret-th (1-based) child of the parent.
   size_t ChildRank(size_t v) const
@@ -136,14 +174,14 @@ public:
     return _nodes[v].sibling ;
   }
 
-	size_t PrevSibling(size_t v) const
-	{
-		size_t i ;
-		size_t c = FirstChild( Parent(v) ) ;
-		for (i = 0 ; v != NextSibling(c) ; ++i)
-			c = NextSibling(c) ;
-		return c ;
-	}
+  size_t PrevSibling(size_t v) const
+  {
+    size_t i ;
+    size_t c = FirstChild( Parent(v) ) ;
+    for (i = 0 ; v != NextSibling(c) ; ++i)
+      c = NextSibling(c) ;
+    return c ;
+  }
 
   size_t Parent(size_t v) const
   {
@@ -155,42 +193,6 @@ public:
     if (_nodes[v].child == 0)
       return true ;
     return false ;
-  }
-
-  size_t LCA(size_t u, size_t v) const
-  {
-    SimpleVector<size_t> upath ; 
-    SimpleVector<size_t> vpath ;
-
-    size_t p ;
-    
-    upath.PushBack(u) ;
-    p = Parent(u) ;
-    while (p != 0)
-    {
-      upath.PushBack(p) ;
-      p = Parent(p) ;
-    }
-    upath.PushBack(0) ;
-    
-    vpath.PushBack(v) ;
-    p = Parent(v) ;
-    while (p != 0)
-    {
-      vpath.PushBack(p) ;
-      p = Parent(p) ;
-    }
-    vpath.PushBack(0) ;
-    
-    upath.Reverse() ;
-    vpath.Reverse() ;
-
-    size_t size = MIN(upath.Size(), vpath.Size()) ;
-    size_t i ;
-    for (i = 0 ; i < size; ++i)
-      if (upath[i] != vpath[i])
-        break ;
-    return upath[i - 1] ;
   }
 
   size_t NodeMap(size_t v) const 

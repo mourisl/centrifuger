@@ -6,7 +6,6 @@
 #include "Bitvector.hpp"
 #include "Bitvector_Sparse.hpp"
 #include "PartialSum.hpp"
-#include "SimpleVector.hpp"
 
 // The run-length bitvector built upon the sparse bit vector 
 // Based on section: 
