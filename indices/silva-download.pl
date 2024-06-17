@@ -62,11 +62,12 @@ my $prefix = "" ;
 # download and create the taxonomy tree and name file
 $prefix = "tax_slv_".lc($subunit)."_$silvaVer" ;
 system_call("wget $weblink/taxonomy/${prefix}.txt.gz") ;
+
 # Archaea;Aenigmarchaeota;  11084 phylum    123
 open FP, "zcat ${prefix}.txt.gz |" ;
-open FPnodes, ">nodes.dmp" ;
-open FPnames, ">names.dmp" ;
-print FPnodes "1\t|\t1\t|\tno rank\t|\n" ;
+my %nameMap ; 
+open FPnames, ">$outputDir/names.dmp" ;
+# Get the names
 print FPnames "1\t|\troot\t|\tscientific name\t|\n" ;
 while (<FP>)
 {
@@ -75,19 +76,37 @@ while (<FP>)
   my @nameCols = split /;/, $cols[0] ;
   my $name = $nameCols[scalar(@nameCols) - 1] ;
   my $tax = $cols[1] ;
-  my $parent = $cols[4] ;
-  $parent = 1 if (!defined $parent) ;
-  print FPnodes "$tax\t|\t$parent\t|\t".$cols[2]."\t|\n" ;
+  $nameMap{$name} = $tax ;
+
   print FPnames "$tax\t|\t$name\t|\tscientific name\t|\n" ;
 }
-close FPnodes ;
 close FPnames ;
 close FP ;
+
+open FP, "zcat ${prefix}.txt.gz |" ;
+open FPnodes, ">$outputDir/nodes.dmp" ;
+print FPnodes "1\t|\t1\t|\tno rank\t|\n" ;
+while (<FP>)
+{
+  chomp ;
+  my @cols = split /\t/, $_ ;
+  my @nameCols = split /;/, $cols[0] ;
+  my $tax = $cols[1] ;
+  my $parentName ;
+  $parentName = $nameCols[scalar(@nameCols) - 2] if (scalar(@nameCols) > 1) ;
+  my $parent ;
+  $parent = $nameMap{$parentName} if (defined $parentName && defined $nameMap{$parentName}) ;
+  $parent = 1 if (!defined $parent) ;
+  print FPnodes "$tax\t|\t$parent\t|\t".$cols[2]."\t|\n" ;
+}
+close FPnodes ;
+close FP ;
+
 unlink "${prefix}.txt.gz"  ;
 
 # download the seqid_to_taxid map file
 system_call("wget $weblink/taxonomy/${prefix}.acc_taxid.gz") ;
-system_call("zcat ${prefix}.acc_taxid.gz > silva_seqid_to_taxid.map") ;
+system_call("zcat ${prefix}.acc_taxid.gz > $outputDir/silva_seqid_to_taxid.map") ;
 unlink "${prefix}.acc_taxid.gz" ;
 
 # download the genome file
@@ -99,7 +118,7 @@ if ($useNR99 == 1)
 
 system_call("wget ${weblink}/${prefix}tax_silva.fasta.gz") ;
 open FP, "zcat ${prefix}tax_silva.fasta.gz |" ;
-open FPout, "| gzip -c > silva_seq.fa.gz" ;
+open FPout, "| gzip -c > $outputDir/silva_seq.fa.gz" ;
 my %seqToTax ;
 while (<FP>)
 {
