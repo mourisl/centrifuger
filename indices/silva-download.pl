@@ -3,7 +3,7 @@
 use strict ;
 use warnings ;
 
-my $help = "usage: download-silva.pl [OPTIONS]:\n".
+my $help = "usage: silva-download.pl [OPTIONS]:\n".
   "\t-v STRING: SILVA_version [138.1]\n".
   "\t-o STRING: output_folder [./]\n".
   "\t--subunit STRING: use SSU or LSU [SSU]\n".
