@@ -116,6 +116,8 @@ After building the index, all but the refseq_abv.[1234].cfr index files may be r
 * #### Build custom database index 
 The index building procedure is similar to [Centrifuge's](http://www.ccb.jhu.edu/software/centrifuge/manual.shtml#database-download-and-index-building), but with names changing to centrifuger. For example, centrifuge-download is centrifuger-download. 
 
+The folder "indices" contains information for creating index from other sources, like SILVA and GTDB.
+
 * #### 10x Genomics data and barcode-based single-cell data
 
 If your input has barcode information, you can use "--barcode" to specify the barcode file and use "--read-format" to tell Centrifuger how to extract barcode information. The "--read-format" option can also specify the extraction for read1, read2 and UMI. The value for this argument is a comma-separated string, each field in the string is also a semi-comma-splitted string

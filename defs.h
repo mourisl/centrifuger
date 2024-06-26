@@ -5,7 +5,7 @@
 
 //#define DEBUG
 
-#define CENTRIFUGER_VERSION "1.0.4-r152"
+#define CENTRIFUGER_VERSION "1.0.4-r153"
 
 extern char nucToNum[26] ; 
 extern char numToNuc[26] ;

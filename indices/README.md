@@ -16,3 +16,4 @@ The repetitiveness of GTDB representative genomes is very low, so the run-block 
 ```
 ../centrifuger-build -l gtdb_fname_to_taxid.map --taxonomy-tree gtdb_nodes.dmp --name-table gtdb_names.dmp -t 16 -o cfr_gtdb --build-mem 500G --offrate 5 --rbbwt-b 1
 ```
+A pre-built index for GTDB r220 representative genomes is available at: https://www.dropbox.com/scl/fo/wtsermtdd62n1ttryuhwv/ADWTYiJA6Dh5gdbHmwC2nfo?rlkey=fgdpthjukcj1uhsjrcv35j927&dl=0 .
