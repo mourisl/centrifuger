@@ -116,7 +116,7 @@ int main(int argc, char *argv[])
     taxonomy.ConvertSeqLengthToTaxLength(seqLength, taxidLength) ;
     for (i = 0 ; i < n ; ++i)
     {
-      if (taxidLength[i] == 0 || i == taxonomy.GetRoot() )
+      if (taxidLength[i] == 0)//|| i == taxonomy.GetRoot() )
         continue ;
       fprintf(stdout, "%lu\t%lu\n", taxonomy.GetOrigTaxId(i), taxidLength[i]) ;
     }

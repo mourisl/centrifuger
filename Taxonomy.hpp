@@ -771,6 +771,10 @@ public:
     size_t i, j ;
     std::vector<std::string> seqNames ;
     GetSeqNames(seqNames) ;
+    
+    size_t *taxidCount = (size_t *)calloc(_nodeCnt, sizeof(size_t)) ;// The number of genomes under a tax id. The tax Ids with sequence will be initalized to 1.
+    size_t *taxidNewLength = (size_t *)calloc(_nodeCnt, sizeof(size_t)) ; // the new length of a taxonomy ID
+    bool *hasSequence = (bool *)calloc(_nodeCnt, sizeof(bool)) ; // whether the tax id has some sequence/genome
 
     std::sort(seqNames.begin(), seqNames.end()) ;
 
@@ -797,12 +801,46 @@ public:
       {
         if (len > taxidLength[taxid])
           taxidLength[taxid] = len ;
+        taxidCount[taxid] = 1 ;
+        hasSequence[taxid] = true ;
       }
       //else // ignore the case the sequence is not in the tree.
       //  taxidLength[taxid] += len ;
-
+  
       i = j ;
     }
+
+    // Infer the average genome size for intermediate tax IDs
+    // If this becomes inefficient in future, consider using a tree DP
+    for (i = 0 ; i < _nodeCnt ; ++i)
+    {
+      if (!hasSequence[i])  
+        continue ;
+      if (i == _taxonomyTree[i].parentTid)
+        continue ;
+
+      size_t p = _taxonomyTree[i].parentTid ;
+      while (1)
+      {
+        ++taxidCount[p] ;
+        taxidNewLength[p] += taxidLength[i] ;
+        if (p == _taxonomyTree[p].parentTid) 
+          break ;
+        p = _taxonomyTree[p].parentTid ;
+      }
+    }
+
+    for (i = 0 ; i < _nodeCnt ; ++i)
+    {
+      size_t sum = taxidNewLength[i] ;
+      if (hasSequence[i])
+        sum += taxidLength[i] ;
+      taxidLength[i] = sum / taxidCount[i] ;
+    }
+
+    free(taxidCount) ;
+    free(taxidNewLength) ;
+    free(hasSequence) ;
   }
 
   void Save(FILE *fp)
