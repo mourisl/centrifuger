@@ -16,6 +16,7 @@ char usage[] = "./centrifuger-inspect [OPTIONS]:\n"
   "\t--conversion-table: print the seqID to taxonomy ID translation information\n"
   "\t--taxonomy-tree: print the taxonomy tree\n"
   "\t--name-table: print the scientific name for each strain in the database\n"
+  "\t--size-table: print the lengths of the sequences belonging to the same taxonomic ID"
   "\t--index-size: print the index information\n"
   ""
   ;
@@ -27,6 +28,7 @@ static struct option long_options[] = {
   {"conversion-table", no_argument, 0, ARGV_CONVERSION_TABLE},
   {"taxonomy-tree", no_argument, 0, ARGV_TAXONOMY_TREE},
   {"name-table", no_argument, 0, ARGV_NAME_TABLE},
+  {"size-table", no_argument, 0, ARGV_INSPECT_SIZE_TABLE},
   {"index-size", no_argument, 0, ARGV_INSPECT_INDEXSIZE},
   { (char *)0, 0, 0, 0} 
 } ;
@@ -105,6 +107,20 @@ int main(int argc, char *argv[])
   else if (inspectItem == ARGV_NAME_TABLE)
   {
     taxonomy.PrintNameTable(stdout) ;
+  }
+  else if (inspectItem == ARGV_INSPECT_SIZE_TABLE)
+  {
+    size_t i ;
+    size_t n = taxonomy.GetNodeCount() ;
+    size_t *taxidLength = (size_t *)malloc(sizeof(size_t) * n) ;
+    taxonomy.ConvertSeqLengthToTaxLength(seqLength, taxidLength) ;
+    for (i = 0 ; i < n ; ++i)
+    {
+      if (taxidLength[i] == 0 || i == taxonomy.GetRoot() )
+        continue ;
+      fprintf(stdout, "%lu\t%lu\n", taxonomy.GetOrigTaxId(i), taxidLength[i]) ;
+    }
+    free(taxidLength) ;
   }
   else if (inspectItem == ARGV_INSPECT_INDEXSIZE)
   {

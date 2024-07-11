@@ -17,7 +17,7 @@ public:
   MapID() {}
   ~MapID() {}
 
-  // @return: mapped id
+  // @return: mapped id. Return the 
   size_t Add(const T &elem)
   {
     if (_toNumId.find(elem) == _toNumId.end()) 
@@ -45,6 +45,11 @@ public:
   T Inverse(uint64_t nid)
   {
     return _toOrigElem[nid] ;
+  }
+
+  void GetElemList(std::vector<T> &l)
+  {
+    l = _toOrigElem ;
   }
 
   size_t GetSize()

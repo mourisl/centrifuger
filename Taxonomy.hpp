@@ -10,6 +10,7 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <algorithm>
 
 #include <stdio.h> 
 #include <string.h>
@@ -17,6 +18,7 @@
 #include "MapID.hpp"
 #include "compactds/SimpleVector.hpp"
 #include "compactds/Utils.hpp"
+#include "compactds/Tree_Plain.hpp"
 
 using namespace compactds ;
 
@@ -185,7 +187,8 @@ private:
     // Flatten the taxonomy tree to the array
     _nodeCnt = _taxIdMap.GetSize() ;
     _taxonomyTree = new struct TaxonomyNode[_nodeCnt] ;
-    memset(_taxonomyTree, 0, sizeof(TaxonomyNode) * _nodeCnt) ;
+    // The set 0 should be handled by the constructor now.
+    //memset(_taxonomyTree, 0, sizeof(TaxonomyNode) * _nodeCnt) ;
     for (std::map<uint64_t, struct TaxonomyNode>::iterator it = cleanTree.begin() ;
         it != cleanTree.end() ; ++it)
     {
@@ -196,10 +199,17 @@ private:
     // We need to split the update parent node here because the order is random.
     for (uint64_t i = 0 ; i < _nodeCnt ; ++i)
     {
-      _taxonomyTree[i].parentTid = _taxIdMap.Map(_taxonomyTree[i].parentTid) ;
-      _taxonomyTree[ _taxonomyTree[i].parentTid ].leaf = false ;
+      if (_taxIdMap.IsIn(_taxonomyTree[i].parentTid))
+      {
+        _taxonomyTree[i].parentTid = _taxIdMap.Map(_taxonomyTree[i].parentTid) ;
+        _taxonomyTree[ _taxonomyTree[i].parentTid ].leaf = false ;
+      }
+      else
+      {
+        Utils::PrintLog("WARNING: parent tax ID of %lu does not exist. Set its parent to itself.", GetOrigTaxId(i)) ;
+        _taxonomyTree[i].parentTid = i ;
+      }
     }
-
   }
 
   void ReadTaxonomyName(std::string fname, std::map<uint64_t, int> &presentTax)
@@ -298,6 +308,40 @@ private:
      _seqIdToTaxId[ _seqStrNameMap.Map(iter->first) ] = _taxIdMap.Map(iter->second) ; 
     }
     _seqCnt = _seqStrNameMap.GetSize() ;
+  }
+
+  // Whether b is next to a in accession id
+  bool IsNextSeqName(const char *a, const char *b)
+  {
+    int i, j ;
+    uint64_t id[2] ;
+    for (i = 0 ; i < 2 ; ++i)
+    {
+      const char *s = a ;
+      if (i == 1)  
+        s = b ;
+      id[i] = 0 ;
+      for (j = 0 ; s[j] ; ++j)
+        if (s[j] >= '0' && s[j] <= '9')
+          break ;
+      
+      //if (j > 2) // It's not something like GCFXXXX numbering
+      //  return false ;
+
+      for (; s[j] ; ++j)
+      {
+        if (s[j] >= '0' && s[j] <= '9')
+        {
+          id[i] = id[i] * 10 + s[j] - '0' ;
+        }
+        else
+          break ;
+      }
+    }
+    if (id[1] == id[0] + 1)
+      return true ;
+    else
+      return false ;
   }
  
   void SaveString(FILE *fp, std::string &s)
@@ -502,9 +546,14 @@ public:
   uint64_t GetOrigTaxId(size_t taxid)
   {
     if (taxid >= _nodeCnt)
-      return 0 ;
+      return _taxIdMap.Inverse(_rootCTaxId) ;
     else
       return _taxIdMap.Inverse(taxid) ;
+  }
+
+  uint64_t GetRoot()
+  {
+    return _rootCTaxId ;
   }
 
   size_t CompactTaxId(uint64_t taxid)
@@ -513,6 +562,11 @@ public:
       return _taxIdMap.Map(taxid) ;
     else
       return _nodeCnt ;
+  }
+  
+  uint64_t GetParentTid(uint64_t ctid)
+  {
+    return _taxonomyTree[ctid].parentTid ;
   }
 
   uint8_t GetTaxIdRank(size_t ctid)
@@ -568,6 +622,12 @@ public:
       return _seqIdToTaxId[seqId] ;
     else
       return _nodeCnt ;
+  }
+
+  // Get the seq names
+  void GetSeqNames(std::vector<std::string> &seqNames)
+  {
+    _seqStrNameMap.GetElemList(seqNames) ;
   }
 
   // Promote the tax id to higher level until number of taxids <= k, or reach LCA 
@@ -678,7 +738,73 @@ public:
   
     return childrenTax.size() ;
   }
+
+  // Convert the taxonomy tree structure to a general tree that supports children operations.
+  //   also the converted tree make sure every non-root node has a parent
+  size_t ConvertToGeneralTree(Tree_Plain &tree)
+  {
+    size_t i ;
+    tree.SetRoot(_rootCTaxId) ;
+    tree.Init(_nodeCnt) ;
+    for (i = 0 ; i < _nodeCnt ; ++i) 
+    {
+      if (i != GetParentTid(i))
+        tree.AddEdge(i, GetParentTid(i)) ;
+    }
+
+    // Connect the disjoint trees to the root 
+    std::vector<size_t> rootChildrenList = tree.GetChildren( tree.Root() ) ;
+    std::map<size_t, int> rootChildrenMap ;
+    size_t rootChildrenListSize = rootChildrenList.size() ;
+    for (i = 0 ; i < rootChildrenListSize ; ++i)
+      rootChildrenMap[ rootChildrenList[i] ] = 1 ;
+    for (i = 0 ; i < _nodeCnt ; ++i)
+      if (tree.Parent(i) == tree.Root() && rootChildrenMap.find(i) == rootChildrenMap.end())
+        tree.AddEdge(i, tree.Root()) ;
   
+    return _nodeCnt ;
+  }
+
+  // Assume taxIdLength is allocated of size _nodeCnt
+  void ConvertSeqLengthToTaxLength(std::map<size_t, size_t> seqLength, size_t *taxidLength)
+  {
+    size_t i, j ;
+    std::vector<std::string> seqNames ;
+    GetSeqNames(seqNames) ;
+
+    std::sort(seqNames.begin(), seqNames.end()) ;
+
+    for (i = 0 ; i < _nodeCnt ; ++i)
+      taxidLength[i] = 0 ;
+
+    size_t seqNameCnt = seqNames.size() ;
+    for (i = 0 ; i < seqNameCnt ; )
+    {
+      size_t seqId = SeqNameToId(seqNames[i]) ;
+      size_t len = seqLength[seqId] ;
+      uint64_t taxid = SeqIdToTaxId(seqId) ;
+      for (j = i + 1 ; j < seqNameCnt ; ++j)
+      {
+        size_t nextSeqId = SeqNameToId(seqNames[j]) ;
+        if (SeqIdToTaxId(nextSeqId) != taxid
+            || !IsNextSeqName(seqNames[j - 1].c_str(),
+              seqNames[j].c_str()))  
+          break ;
+        len += seqLength[nextSeqId] ;
+      }
+
+      if (taxid < _nodeCnt)
+      {
+        if (len > taxidLength[taxid])
+          taxidLength[taxid] = len ;
+      }
+      //else // ignore the case the sequence is not in the tree.
+      //  taxidLength[taxid] += len ;
+
+      i = j ;
+    }
+  }
+
   void Save(FILE *fp)
   {
     SAVE_VAR(fp, _nodeCnt) ;
