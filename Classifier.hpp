@@ -527,6 +527,9 @@ private:
 
       SimpleVector<size_t> taxIds ;
       _taxonomy.ReduceTaxIds(bestSeqTaxIds, taxIds, _param.maxResult) ;
+      // Centrifuge will promote to canonical tax levels here. 
+      //   Maybe we will do the same in some future version.
+      //_taxonomy.PromoteToCanonicalTaxRank(taxIds, /*dedup=*/true) ;
 
       size = taxIds.Size() ;
       for (i = 0 ; i < size ; ++i)

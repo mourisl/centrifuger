@@ -10,10 +10,6 @@
 #include <math.h>
 #include <string.h>
 
-#ifdef __SSE4_2__
-#include <xmmintrin.h>
-#endif
-
 namespace compactds {
 #define WORD_64 // comment this out if word size is 32
 
@@ -80,7 +76,7 @@ public:
   // Count the number of 1's in x.
   static int Popcount(WORD x)
   {
-#ifdef __SSE4_2__
+#ifdef __GNUC__
       return __builtin_popcountll(x);
 #else
 #ifdef WORD_64

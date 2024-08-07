@@ -370,6 +370,16 @@ private:
         return i ;
     return _nodeCnt ;
   }
+
+  bool IsCanonicalRankNum(uint8_t r) // The taxonomy ranks defined in the TaxonomyPathTable in centrifuge, except for subspecies
+  {
+    if (r == RANK_STRAIN //|| r == RANK_SUB_SPECIES
+        || r == RANK_SPECIES || r == RANK_GENUS || r == RANK_FAMILY || r == RANK_ORDER
+        || r == RANK_CLASS || r == RANK_PHYLUM || r == RANK_KINGDOM || r == RANK_SUPER_KINGDOM
+        || r == RANK_DOMAIN)
+      return true ;
+    return false ;
+  }
 public:
   Taxonomy() 
   {
@@ -690,6 +700,43 @@ public:
       promotedTaxIds.PushBack(iter->first) ;
     if (promotedTaxIds.Size() == 0)
       promotedTaxIds.PushBack(_rootCTaxId) ;
+  }
+
+  // Promote the taxIds to the ranks defined in the "IsCanonicalRankNum" function
+  // dedup: true: remove the duplicated item in the taxIds
+  void PromoteToCanonicalTaxRank(SimpleVector<size_t> &taxIds, bool dedup)
+  {
+    size_t i ;
+    size_t taxCnt = taxIds.Size() ;
+    for (i = 0 ; i < taxCnt ; ++i)
+    {
+      size_t p = taxIds[i] ;
+      uint8_t rank = _taxonomyTree[p].rank ;
+      while ( !IsCanonicalRankNum(rank) )
+      {
+        if (p == _taxonomyTree[p].parentTid)
+          break ;
+        p = _taxonomyTree[p].parentTid ;
+        rank = _taxonomyTree[p].rank ;
+      }
+      taxIds[i] = p ;
+    }
+
+    if (dedup)
+    {
+      std::map<size_t, int> used ;
+      size_t k = 0 ;
+      for (i = 0 ; i < taxCnt ; ++i)
+      {
+        if (used.find(taxIds[i]) == used.end())
+        {
+          taxIds[k] = taxIds[i] ;
+          ++k ;
+          used[taxIds[i]] = 1 ;
+        } 
+      }
+      taxIds.Resize(k) ;
+    }
   }
 
   // @return: Number of children tax ids. childrenTax: compact tax ids below or equal to ctid.
