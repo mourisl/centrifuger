@@ -93,6 +93,16 @@ class ReadFiles
       //gzrewind( gzFp[ fileCnt ]) ;
       //kseq_rewind( inSeq[ fileCnt] ) ;
     }
+
+    void RemoveReadIdSuffix(char *id)
+    {
+      int len = strlen( id ) ;
+      if ( ( id[len - 1] == '1' || id[len - 1] == '2' )
+          && id[len - 2] == '/' )
+      {
+        id[len - 2] = '\0' ;
+      }
+    }
   public:
     char *id ;
     char *seq ;
@@ -213,13 +223,7 @@ class ReadFiles
         free( qual ) ;
 
       id = strdup( inSeq->name.s ) ;
-      int len = strlen( id ) ;
-      if ( ( id[len - 1] == '1' || id[len - 1] == '2' )
-          && id[len - 2] == '/' )
-      {
-        id[len - 2] = '\0' ;
-      }
-
+      RemoveReadIdSuffix(id) ;
       seq = strdup( inSeq->seq.s ) ;
       if ( inSeq->qual.l )
         qual = strdup( inSeq->qual.s ) ;
@@ -244,7 +248,7 @@ class ReadFiles
       if ( currentFpInd >= fileCnt )
         return 0 ;
 
-      if ( *id != NULL )	
+      if ( *id != NULL )
         free( *id ) ;
       if ( *seq != NULL )
         free( *seq ) ;
@@ -252,6 +256,7 @@ class ReadFiles
         free( *qual ) ;
 
       *id = strdup( inSeq->name.s ) ;
+      RemoveReadIdSuffix(*id) ;
       *seq = strdup( inSeq->seq.s ) ;
       /*if ( removeReturn )
         {
