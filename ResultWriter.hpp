@@ -6,6 +6,7 @@
 #include "ReadFormatter.hpp"
 #include "BarcodeCorrector.hpp"
 #include "BarcodeTranslator.hpp"
+#include "ReadFiles.hpp"
 
 class ResultWriter
 {
@@ -13,6 +14,10 @@ private:
   FILE *_fpClassification ;
   bool _hasBarcode ;
   bool _hasUmi ;
+  bool _outputUnclassified ;
+  bool _outputClassified ;
+  gzFile _gzFpUnclassified[4] ; 
+  gzFile _gzFpClassified[4] ;
 
   void PrintExtraCol(const char *s) 
   {
@@ -26,19 +31,89 @@ public:
   ResultWriter() 
   {
     _fpClassification = stdout ;
+    _outputUnclassified = false ;
+    _outputClassified = false ;
     _hasBarcode = false ;
     _hasUmi = false ;
+
+    int i ;
+    for (i = 0 ; i < 4 ; ++i)
+    {
+      _gzFpUnclassified[i] = NULL ;
+      _gzFpClassified[i] = NULL ;
+    }
   }
 
   ~ResultWriter() 
   {
     if (_fpClassification != stdout)
       fclose(_fpClassification) ;
+    int i ;
+    for (i = 0 ; i < 4 ; ++i)
+    {
+      if (_gzFpUnclassified[i])
+        gzclose(_gzFpUnclassified[i]) ;
+      if (_gzFpClassified[i])
+        gzclose(_gzFpClassified[i]) ;
+    }
   }
   
   void SetClassificationOutput(const char *filename)
   {
     _fpClassification = fopen(filename, "w") ;
+  }
+
+  // category: 0: unclassified reads, 1: classified reads
+  void SetOutputReads(const char *prefix, bool hasMate, bool hasBarcode, bool hasUmi,
+      ReadFiles &reads, int category)
+  {
+    int len = strlen(prefix) ;      
+    char extension[10] = "" ;
+    char *name = (char *)malloc(sizeof(char) * (len + 1 + 10)) ;
+    
+    gzFile *gzFps = _gzFpUnclassified ;
+    if (category == 0)
+      _outputUnclassified = true ;
+    else 
+    {
+      gzFps = _gzFpClassified ;
+      _outputClassified = true ;
+    }
+    
+    // Add "fa" or "fq" to the name
+    reads.Next() ;
+    extension[0] = '.' ;
+    extension[1] = 'f' ;
+    extension[2] = reads.qual == NULL ? 'a' : 'q' ;
+    reads.Rewind() ;
+
+    // Add "gz" to the name
+    extension[3] = '.' ;
+    extension[4] = 'g' ;
+    extension[5] = 'z' ;
+    extension[6] = '\0' ;
+
+    sprintf(name, "%s_1%s", prefix, extension) ;
+    gzFps[0] = gzopen(name, "w1") ;
+    if (hasMate)
+    {
+      sprintf(name, "%s_2%s", prefix, extension) ;
+      gzFps[1] = gzopen(name, "w1") ;
+    }
+
+    extension[2] = 'a' ; // always 'fa' for barcode and umi
+    if (hasBarcode)
+    {
+      sprintf(name, "%s_bc%s", prefix, extension) ;
+      gzFps[2] = gzopen(name, "w1") ;
+    }
+    if (hasUmi)
+    {
+      sprintf(name, "%s_um%s", prefix, extension) ;
+      gzFps[3] = gzopen(name, "w1") ;
+    }
+
+    free(name) ;
   }
 
   void SetHasBarcode(bool s)
@@ -62,7 +137,9 @@ public:
     fprintf(_fpClassification, "\n") ;
   }
 
-  void Output(const char *readid, const char *barcode, const char *umi, const struct _classifierResult &r)
+  void Output(const char *readid, 
+      const char *seq1, const char *qual1, const char *seq2, const char *qual2,
+      const char *barcode, const char *umi, const struct _classifierResult &r)
   {
     int i ;
     int matchCnt = r.taxIds.size() ;
@@ -90,6 +167,40 @@ public:
       if (_hasUmi)
         PrintExtraCol(umi) ;
       printf("\n") ;
+    }
+
+    for (i = 0 ; i <= 1 ; ++i)
+    {
+      gzFile *gzFps = NULL ;
+      if ( i == 0 && matchCnt == 0 && _outputUnclassified)
+        gzFps = _gzFpUnclassified ;
+      else if (i == 1 && matchCnt > 0 && _outputClassified)
+        gzFps = _gzFpClassified ;
+      else
+        continue ;
+      
+      if (qual1 == NULL)
+        gzprintf(gzFps[0], ">%s\n%s\n", readid, seq1) ;
+      else
+        gzprintf(gzFps[0], "@%s\n%s\n+\n%s\n", readid, seq1, qual1) ;
+      
+      if (seq2 != NULL) 
+      {
+        if (qual2 == NULL)
+          gzprintf(gzFps[1], ">%s\n%s\n", readid, seq2) ;
+        else
+          gzprintf(gzFps[1], "@%s\n%s\n+\n%s\n", readid, seq2, qual2) ;
+      }
+
+      if (_hasBarcode)
+      {
+        gzprintf(gzFps[2], ">%s\n%s\n", readid, barcode) ;
+      }
+
+      if (_hasUmi)
+      {
+        gzprintf(gzFps[3], ">%s\n%s\n", readid, umi) ;
+      }
     }
   }
 
