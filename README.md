@@ -49,16 +49,17 @@ An example of pre-built index containing human, bacteria, archea, and virus geno
 
 #### Classification
 
-    Usage: ./centrifuger [OPTIONS]
+    Usage: ./centrifuger [OPTIONS] > classification.tsv
       Required:
         -x FILE: index prefix
         -1 FILE -2 FILE: paired-end read
           or
         -u FILE: single-end read
       Optional:
-        -o STRING: output prefix [centrifuger]
         -t INT: number of threads [1]
         -k INT: report upto <int> distinct, primary assignments for each read pair [1]
+        --un STR: output unclassified reads to files with the prefix of <str>, e.g. <str>_1/2.fq.gz
+        --cl STR: output classified reads to files with the prefix of <str>
         --barcode STR: path to the barcode file
         --UMI STR: path to the UMI file
         --read-format STR: format for read, barcode and UMI files, e.g. r1:0:-1,r2:0:-1,bc:0:15,um:16:-1 for paired-end files with barcode and UMI

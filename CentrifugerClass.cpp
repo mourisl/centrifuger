@@ -17,7 +17,7 @@
 #include "BarcodeCorrector.hpp"
 #include "BarcodeTranslator.hpp"
 
-char usage[] = "./centrifuger [OPTIONS]:\n"
+char usage[] = "./centrifuger [OPTIONS] > output.tsv:\n"
   "Required:\n"
   "\t-x FILE: index prefix\n"
   "\t-1 FILE -2 FILE: paired-end read\n"
@@ -27,6 +27,8 @@ char usage[] = "./centrifuger [OPTIONS]:\n"
   //"\t-o STRING: output prefix [centrifuger]\n"
   "\t-t INT: number of threads [1]\n"
   "\t-k INT: report upto <int> distinct, primary assignments for each read pair [1]\n"
+  "\t--un STR: output unclassified reads to files with the prefix of <str>\n"
+  "\t--cl STR: output classified reads to files with the prefix of <str>\n"
   "\t--barcode STR: path to the barcode file\n"
   "\t--UMI STR: path to the UMI file\n"
   "\t--read-format STR: format for read, barcode and UMI files, e.g. r1:0:-1,r2:0:-1,bc:0:15,um:16:-1 for paired-end files with barcode and UMI\n"
@@ -40,6 +42,8 @@ char usage[] = "./centrifuger [OPTIONS]:\n"
 
 static const char *short_options = "x:1:2:u:o:t:k:v" ;
 static struct option long_options[] = {
+  { "un", required_argument, 0, ARGV_OUTPUT_UNCLASSIFIED},
+  { "cl", required_argument, 0, ARGV_OUTPUT_CLASSIFIED},
   { "min-hitlen", required_argument, 0, ARGV_MIN_HITLEN},
   { "hitk-factor", required_argument, 0, ARGV_MAX_RESULT_PER_HIT_FACTOR},
   { "merge-readpair", no_argument, 0, ARGV_MERGE_READ_PAIR },
@@ -240,6 +244,9 @@ int main(int argc, char *argv[])
   ResultWriter resWriter ;
   ReadPairMerger readPairMerger ;
   bool mergeReadPair = false ;
+
+  char unclassifiedOutputPrefix[1024] = "";
+  char classifiedOutputPrefix[1024] = "";
   
   // variables regarding barcode, UMI
   ReadFiles barcodeFile ;
@@ -332,6 +339,14 @@ int main(int argc, char *argv[])
     {
       barcodeTranslator.SetTranslateTable(optarg) ;
     }
+    else if (c == ARGV_OUTPUT_UNCLASSIFIED)
+    {
+      strcpy(unclassifiedOutputPrefix, optarg) ;
+    }
+    else if (c == ARGV_OUTPUT_CLASSIFIED)
+    {
+      strcpy(classifiedOutputPrefix, optarg) ;
+    }
     else
     {
       Utils::PrintLog("Unknown parameter found.\n%s", usage ) ;
@@ -355,8 +370,17 @@ int main(int argc, char *argv[])
     readFormatter.AllocateBuffers(4 * threadCnt) ;
 
   classifier.Init(idxPrefix, classifierParam) ;
+  
   resWriter.SetHasBarcode(hasBarcode) ;
   resWriter.SetHasUmi(hasUmi) ;
+  if (unclassifiedOutputPrefix[0] != '\0')
+  {
+    resWriter.SetOutputReads(unclassifiedOutputPrefix, hasMate, hasBarcode, hasUmi, reads, 0) ;
+  }
+  if (classifiedOutputPrefix[0] != '\0')
+  {
+    resWriter.SetOutputReads(classifiedOutputPrefix, hasMate, hasBarcode, hasUmi, reads, 1) ;
+  }
   resWriter.OutputHeader() ;
 
   const int maxBatchSize = 1024 * threadCnt ;
@@ -427,7 +451,9 @@ int main(int argc, char *argv[])
         pthread_join( threads[i], NULL ) ;
 
       for (i = 0 ; i < batchSize ; ++i)
-        resWriter.Output(readBatch[i].id, hasBarcode ? barcodeBatch[i].seq : NULL,
+        resWriter.Output(readBatch[i].id, readBatch[i].seq, readBatch[i].qual,
+            hasMate ? readBatch2[i].seq : NULL, hasMate ? readBatch2[i].qual : NULL, 
+            hasBarcode ? barcodeBatch[i].seq : NULL,
             hasUmi ? umiBatch[i].seq : NULL, classifierBatchResults[i]) ;
     }
     
@@ -534,7 +560,9 @@ int main(int argc, char *argv[])
         pthread_join(threads[i], NULL) ;
 
       for (i = 0 ; i < batchSize[tag] ; ++i)
-        resWriter.Output(readBatch[tag][i].id, hasBarcode ? barcodeBatch[tag][i].seq : NULL,
+        resWriter.Output(readBatch[tag][i].id, readBatch[tag][i].seq, readBatch[tag][i].qual, 
+            hasMate ? readBatch2[tag][i].seq : NULL, hasMate ? readBatch2[tag][i].qual : NULL,
+            hasBarcode ? barcodeBatch[tag][i].seq : NULL,
             hasUmi ? umiBatch[tag][i].seq : NULL, classifierBatchResults[tag][i]) ;
 
       started = true ;
@@ -654,7 +682,10 @@ int main(int argc, char *argv[])
       if (started)
       {
         for (i = 0 ; i < batchSize[prevTag] ; ++i)
-          resWriter.Output(readBatch[prevTag][i].id, hasBarcode ? barcodeBatch[prevTag][i].seq : NULL,
+          resWriter.Output(readBatch[prevTag][i].id, 
+              readBatch[prevTag][i].seq, readBatch[prevTag][i].qual,
+              hasMate ? readBatch2[prevTag][i].seq : NULL, hasMate ? readBatch2[prevTag][i].qual : NULL,
+              hasBarcode ? barcodeBatch[prevTag][i].seq : NULL,
               hasUmi ? umiBatch[prevTag][i].seq : NULL, classifierBatchResults[prevTag][i]) ;
       }
       
