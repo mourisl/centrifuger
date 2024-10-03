@@ -93,12 +93,18 @@ public:
     extension[5] = 'z' ;
     extension[6] = '\0' ;
 
-    sprintf(name, "%s_1%s", prefix, extension) ;
-    gzFps[0] = gzopen(name, "w1") ;
     if (hasMate)
     {
+      sprintf(name, "%s_1%s", prefix, extension) ;
+      gzFps[0] = gzopen(name, "w1") ;
+     
       sprintf(name, "%s_2%s", prefix, extension) ;
       gzFps[1] = gzopen(name, "w1") ;
+    }
+    else
+    {
+      sprintf(name, "%s%s", prefix, extension) ;
+      gzFps[0] = gzopen(name, "w1") ;
     }
 
     extension[2] = 'a' ; // always 'fa' for barcode and umi
