@@ -67,6 +67,13 @@ An example of pre-built index containing human, bacteria, archea, and virus geno
         --hitk-factor INT: resolve at most <int>*k entries for each hit [40; use 0 for no restriction]
         --merge-readpair: merge overlapped paired-end reads and trim adapters 
 
+#### Quantification
+
+    Usage: ./centrifuger-quant [OPTIONS] > report.tsv
+      Required:
+        -x FILE: index prefix
+        -c FILE: classification file
+
 ### Input/Output
 
 The primary input to Centrifuger is the index of the genome database (-x), and gzipped or uncompressed read fastq files (-1/-2 for paired; -u for single-end).
@@ -84,6 +91,21 @@ The fifth column is the score for the next best classification (e.g., 0).
 The sixth column is the number of base pairs of the read that match the genomic sequence found by Centrifuger (e.g., 80) 
 The seventh column is the length of a read or the combined length of mate pairs (e.g., 80). 
 The eighth column is the number of classifications for this read, indicating how many assignments were made in the output (e.g.,1).
+```
+
+The "centrifuger-quant" estimate the abundance for each taxonomy ID, and the quantification output has 7 columns.
+
+```
+name	taxID	taxRank	genomeSize	numReads	numUniqueReads	abundance
+Legionella_pneumophila_str._Paris	297246	strain	3503503	50	48	0.492019
+
+The first column is the name of a genome, or the name corresponding to a taxonomic ID (the second column) at a rank higher than the strain (e.g., Legionella_pneumophila_str._Pari).
+The second column is the taxonomic ID (e.g., 297246).
+The third column is the taxonomic rank (e.g., strain).
+The fourth column is the length of the genome sequence (e.g., 3503503).
+The fifth column is the number of reads classified to this genomic sequence including multi-classified reads (e.g., 50).
+The sixth column is the number of reads uniquely classified to this genomic sequence (e.g., 48).
+The seventh column is the proportion of this genome normalized by its genomic length (e.g., 0.492019).
 ```
 
 ### Practical notes

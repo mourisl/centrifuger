@@ -5,8 +5,8 @@
 // This class handles the taxonomy-related information, including taxonomy tree and taxonomy id mappings 
 
 #include <map>
-#include<utility>
-#include<string>
+#include <utility>
+#include <string>
 #include <fstream>
 #include <iostream>
 #include <sstream>
