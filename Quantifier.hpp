@@ -19,7 +19,7 @@ struct _readAssignment
   std::vector<uint64_t> targets ;
   double weight ;
   double uniqWeight ; // The number of assignment that it is unique
-  bool operator <(const struct _readAssignment &b)
+  bool operator <(const struct _readAssignment &b) const
   {
     if (targets.size() != b.targets.size())
       return targets.size() < b.targets.size() ;
@@ -34,7 +34,7 @@ struct _readAssignment
     return false ;
   }
   
-  bool operator ==(const struct _readAssignment &b)
+  bool operator ==(const struct _readAssignment &b) const
   {
     if (targets.size() != b.targets.size())
       return false ;
