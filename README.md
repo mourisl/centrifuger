@@ -74,6 +74,8 @@ An example of pre-built index containing human, bacteria, archea, and virus geno
         -x FILE: index prefix
         -c FILE: classification file
 
+The quantification results will be affected by the "-k" option from the classification program "centrifuger". Increasing "-k" will provide ambiguous but more specific classification result, potentially can improve the quantification result.  
+
 ### Input/Output
 
 The primary input to Centrifuger is the index of the genome database (-x), and gzipped or uncompressed read fastq files (-1/-2 for paired; -u for single-end).
