@@ -63,6 +63,11 @@ public:
     }
     return _buffers[i] ;
   }
+
+  size_t GetBufferSize(int i)
+  {
+    return _bufferSize[i] ;
+  }
 } ;
 
 #endif
