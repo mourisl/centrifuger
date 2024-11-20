@@ -169,11 +169,17 @@ while (<FPmeta>)
     else
     {
       $ltid = $novelTaxId ;
-      $ncbiNamesToTaxId{$lineageFields[$j]} = $ltid ;
+      #$ncbiNamesToTaxId{$lineageFields[$j]} = $ltid ;
+      $newNamesToTaxId{$lineageFields[$j]} = $ltid ; 
       ++$novelTaxId ;
     }
 
     $taxid = $ltid if ($j == scalar(@lineageFields) - 1) ;
+
+    if (defined $nodesToPrint{$ltid} && $nodesToPrint{$ltid} != $parentTid)
+    {
+      die "A conflict of lineage information is found when processing $lineage\n" ;
+    }
 
     $nodesToPrint{$ltid} = $parentTid ;
     $taxIdRank{$ltid} = $cols2[0] ;
