@@ -38,7 +38,7 @@ function download_n_process() {
     NAME=`basename $FILEPATH .gz`
     GZIPPED_FILE="$LIBDIR/$DOMAIN/$NAME.gz"
     UNZIPPED_FILE="$LIBDIR/$DOMAIN/$NAME"
-    DUSTMASKED_FILE="$LIBDIR/$DOMAIN/${NAME%.fna.gz}_dustmasked.fna.gz"
+    DUSTMASKED_FILE="$LIBDIR/$DOMAIN/${NAME%.fna}_dustmasked.fna.gz"
     [[ "$DO_DUST" == "1" ]] && RES_FILE=$DUSTMASKED_FILE || RES_FILE=$GZIPPED_FILE
 
     if [[ ! -s "$RES_FILE" || -n `gzip -t "$RES_FILE" 2>&1 >/dev/null` ]]; then
@@ -50,7 +50,7 @@ function download_n_process() {
             $DL_CMD "$LIBDIR/$DOMAIN/$NAME.gz" "$FILEPATH" || \
             $DL_CMD "$LIBDIR/$DOMAIN/$NAME.gz" "$FILEPATH" || \
             $DL_CMD "$LIBDIR/$DOMAIN/$NAME.gz" "$FILEPATH" || \
-	    { printf "\nError downloading $FILEPATH!\n" >&2 && exit 1; }
+            { printf "\nError downloading $FILEPATH!\n" >&2 && exit 1; }
         fi
     
         [[ -s "$GZIPPED_FILE" ]] || return;
@@ -158,6 +158,7 @@ BASE_DIR="."
 N_PROC=1
 CHANGE_HEADER=0
 DOWNLOAD_RNA=0
+DOWNLOAD_PROTEIN=0
 DO_DUST=0
 FILTER_UNPLACED=0
 VERBOSE=0
@@ -173,7 +174,7 @@ ARGUMENT
 
 COMMON OPTIONS
  -o <directory>         Folder to which the files are downloaded. Default: '$BASE_DIR'.
- -P <# of threads>      Number of processes when downloading (uses xargs). Default: '$N_PROC'
+ -P <# of threads>      Number of processes when downloading (uses xargs and flock). Default: '$N_PROC'
 
 WHEN USING database refseq OR genbank:
  -d <domain>            What domain to download. One or more of ${ALL_GENOMES// /, } (comma separated).
@@ -181,6 +182,7 @@ WHEN USING database refseq OR genbank:
  -c <refseq category>   Only download genomes in the specified refseq category. Default: any.
  -t <taxids>            Only download the specified taxonomy IDs, comma separated. Default: any.
  -g <program>           Download using program. Options: rsync, curl, wget. Default $DL_PROG (auto-detected).
+ -p                     Download protein sequences  
  -r                     Download RNA sequences, too.
  -u                     Filter unplaced sequences.
  -m                     Mask low-complexity regions using dustmasker. Default: off.
@@ -189,7 +191,7 @@ WHEN USING database refseq OR genbank:
 "
 
 # arguments: $OPTFIND (current index), $OPTARG (argument for option), $OPTERR (bash-specific)
-while getopts "o:P:d:a:c:t:g:urlmv" OPT "$@"; do
+while getopts "o:P:d:a:c:t:g:uprlmv" OPT "$@"; do
     case $OPT in
         o) BASE_DIR="$OPTARG" ;;
         P) N_PROC="$OPTARG" ;;
@@ -198,6 +200,7 @@ while getopts "o:P:d:a:c:t:g:urlmv" OPT "$@"; do
         c) REFSEQ_CATEGORY="$OPTARG" ;;
         g) DL_PROG="$OPTARG" ;;
         t) TAXID="$OPTARG" ;;
+        p) DOWNLOAD_PROTEIN=1 ;;
         r) DOWNLOAD_RNA=1 ;;
         u) FILTER_UNPLACED=1 ;;
         m) DO_DUST=1 ;;
@@ -349,6 +352,10 @@ if [[ "$CHANGE_HEADER" == "1" ]]; then
     echo "Modifying header to include taxonomy ID" >&2
 fi
 
+FILE_EXTENSION="genomic.fna.gz"
+if [[ "$DOWNLOAD_PROTEIN" == "1" ]]; then
+  FILE_EXTENSION="protein.faa.gz"
+fi
 
 for DOMAIN in $DOMAINS; do
     if [[ -s .listing ]]; then
@@ -394,20 +401,18 @@ for DOMAIN in $DOMAINS; do
       ## Wrong columns in viral assembly summary files - the path is sometimes in field 20, sometimes 21
       #cut -f "$TAXID_FIELD,$FTP_PATH_FIELD,$FTP_PATH_FIELD2" "$ASSEMBLY_SUMMARY_FILE" | \
       # sed 's/^\(.*\)\t\(ftp:.*\)\t.*/\1\t\2/;s/^\(.*\)\t.*\t\(ftp:.*\)/\1\t\2/' | \
-      #sed 's#\([^/]*\)$#\1/\1_genomic.fna.gz#' |\
+      #sed 's#\([^/]*\)$#\1/\1_${FILE_EXTENSION}#' |\
       #   tr '\n' '\0' | xargs -0 -n1 -P $N_PROC bash -c 'download_n_process_nofail "$@"' _ | count $N_EXPECTED
       cut -f "$TAXID_FIELD,$FTP_PATH_FIELD,$FTP_PATH_FIELD2" "$ASSEMBLY_SUMMARY_FILE" | \
         awk -F "\t" '{if ($2~/ftp/) print $1"\t"$2; if ($3~/ftp/) print $1"\t"$3}' | \
-        sed 's#\([^/]*\)$#\1/\1_genomic.fna.gz#' |\
+        sed 's#\([^/]*\)$#\1/\1_'"${FILE_EXTENSION}"'#' |\
         tr '\n' '\0' | xargs -0 -n1 -P $N_PROC bash -c 'download_n_process_nofail "$@"' _ | count $N_EXPECTED
 
     else
-      cut -f "$TAXID_FIELD,$FTP_PATH_FIELD" "$ASSEMBLY_SUMMARY_FILE" | sed 's#\([^/]*\)$#\1/\1_genomic.fna.gz#' |\
+      cut -f "$TAXID_FIELD,$FTP_PATH_FIELD" "$ASSEMBLY_SUMMARY_FILE" | sed 's#\([^/]*\)$#\1/\1_'"${FILE_EXTENSION}"'#' |\
          tr '\n' '\0' | xargs -0 -n1 -P $N_PROC bash -c 'download_n_process_nofail "$@"' _ | count $N_EXPECTED
     fi
     echo >&2
-
-
 
     if [[ "$DOWNLOAD_RNA" == "1" && ! `echo $DOMAIN | egrep 'bacteria|viral|archaea'` ]]; then
         echo "Downloadinging rna sequence files" >&2
