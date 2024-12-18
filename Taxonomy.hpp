@@ -271,10 +271,13 @@ private:
     }
   }
 
+  // Assume we already have the taxonomy tree loaded
   void ReadSeqNameFile(std::string fname, bool conversionTableAtFileLevel)
   {
     std::ifstream seqmap_file(fname.c_str(), std::ios::in);
     std::map<std::string, uint64_t> rawSeqNameMap ;
+    SimpleVector<size_t> pathA ;
+    SimpleVector<size_t> pathB ;
     if(seqmap_file.is_open()) {
       char line[1024];
       while(!seqmap_file.eof()) {
@@ -291,8 +294,34 @@ private:
           Utils::GetFileBaseName(seqIdStr.c_str(), "fna|fa|fasta|faa", buffer) ;
           seqIdStr = buffer ;
         }
-        _seqStrNameMap.Add(seqIdStr) ;
-        rawSeqNameMap[seqIdStr] = tid ;
+        if (!_seqStrNameMap.IsIn(seqIdStr))
+        {
+          _seqStrNameMap.Add(seqIdStr) ;
+          rawSeqNameMap[seqIdStr] = tid ;
+        }
+        else // a sequence ID maps is found in multiple taxonomy IDs.
+        {
+          size_t a = rawSeqNameMap[seqIdStr] ;
+          size_t b = tid ;
+
+          // Convert a, b to compact tax ID to work with the taxonomy tree
+          a = CompactTaxId(a) ;
+          b = CompactTaxId(b) ; 
+          int sizeA = GetTaxLineagePath(a, pathA) ;
+          int sizeB = GetTaxLineagePath(b, pathB) ; 
+          
+          int i, j ;
+          for (i = sizeA - 1, j = sizeB - 1 ; i >= 0 && j >= 0 ; --i, --j)
+          {
+            if (pathA[i] != pathB[j])
+              break ;
+          }
+
+          if (i == sizeA - 1 || pathA[i + 1] != pathB[i + 1])
+            rawSeqNameMap[seqIdStr] = GetOrigTaxId(_rootCTaxId) ;
+          else
+            rawSeqNameMap[seqIdStr] = GetOrigTaxId(pathA[i + 1]) ; 
+        }
       }
       seqmap_file.close();
     } else {
@@ -305,7 +334,7 @@ private:
     for (std::map<std::string, uint64_t>::iterator iter = rawSeqNameMap.begin() ;
         iter != rawSeqNameMap.end() ; ++iter)
     {
-     _seqIdToTaxId[ _seqStrNameMap.Map(iter->first) ] = _taxIdMap.Map(iter->second) ; 
+      _seqIdToTaxId[ _seqStrNameMap.Map(iter->first) ] = _taxIdMap.Map(iter->second) ; 
     }
     _seqCnt = _seqStrNameMap.GetSize() ;
   }
@@ -700,6 +729,26 @@ public:
       promotedTaxIds.PushBack(iter->first) ;
     if (promotedTaxIds.Size() == 0)
       promotedTaxIds.PushBack(_rootCTaxId) ;
+  }
+
+  // Get the taxonomy lineage for two tax IDs
+  // @return: length to the root
+  int GetTaxLineagePath(size_t ctid, SimpleVector<size_t> &path)
+  {
+    path.Clear() ;
+    if (ctid >= _nodeCnt)
+    {
+      path.PushBack(_rootCTaxId) ;
+      return 1 ;
+    }
+
+    do
+    {
+      path.PushBack(ctid) ;
+      ctid = _taxonomyTree[ctid].parentTid ;
+    } while (ctid != _taxonomyTree[ctid].parentTid) ;
+  
+    return (int)path.Size() ;
   }
 
   // Promote the taxIds to the ranks defined in the "IsCanonicalRankNum" function
