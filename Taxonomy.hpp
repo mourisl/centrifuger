@@ -318,7 +318,7 @@ private:
           }
 
           if (i == sizeA - 1 || pathA[i + 1] != pathB[i + 1])
-            rawSeqNameMap[seqIdStr] = _rootCTaxId ;
+            rawSeqNameMap[seqIdStr] = GetOrigTaxId(_rootCTaxId) ;
           else
             rawSeqNameMap[seqIdStr] = GetOrigTaxId(pathA[i + 1]) ; 
         }
