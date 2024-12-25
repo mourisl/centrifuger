@@ -28,7 +28,7 @@ static struct option long_options[] = {
   {"conversion-table", no_argument, 0, ARGV_CONVERSION_TABLE},
   {"taxonomy-tree", no_argument, 0, ARGV_TAXONOMY_TREE},
   {"name-table", no_argument, 0, ARGV_NAME_TABLE},
-  {"size-table", no_argument, 0, ARGV_INSPECT_SIZE_TABLE},
+  {"size-table", no_argument, 0, ARGV_SIZE_TABLE},
   {"index-size", no_argument, 0, ARGV_INSPECT_INDEXSIZE},
   { (char *)0, 0, 0, 0} 
 } ;
@@ -108,7 +108,7 @@ int main(int argc, char *argv[])
   {
     taxonomy.PrintNameTable(stdout) ;
   }
-  else if (inspectItem == ARGV_INSPECT_SIZE_TABLE)
+  else if (inspectItem == ARGV_SIZE_TABLE)
   {
     size_t i ;
     size_t n = taxonomy.GetNodeCount() ;

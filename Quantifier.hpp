@@ -19,6 +19,30 @@ struct _readAssignment
   std::vector<uint64_t> targets ;
   double weight ;
   double uniqWeight ; // The number of assignment that it is unique
+
+  _readAssignment() : targets() {}
+
+  _readAssignment(const struct _readAssignment &a): targets(a.targets) 
+  {
+    weight = a.weight ;
+    uniqWeight = a.uniqWeight ;
+  }
+
+  _readAssignment(double weight, double uniqWeight, const std::vector<uint64_t> &targets)
+  {
+    this->weight = weight ;
+    this->uniqWeight = uniqWeight ;
+    this->targets = targets ;
+  }
+
+  struct _readAssignment& operator=(const struct _readAssignment &a)
+  {
+    targets = a.targets ;
+    weight = a.weight ;
+    uniqWeight = a.uniqWeight ;
+    return *this ;
+  }
+
   bool operator <(const struct _readAssignment &b) const
   {
     if (targets.size() != b.targets.size())
@@ -71,7 +95,7 @@ private:
     size_t i ;
     if (tree.IsLeaf(tag))
     {
-      return taxidLen[tag] ; // it is set through the all-tree
+      return taxidLen[tag] ; // it should be set outside
     }
 
     std::vector<size_t> children = tree.GetChildren(tag) ;
@@ -173,7 +197,6 @@ private:
     return diffSum ;
   }
 
-
   void EstimateAbundanceWithEM(const std::vector< struct _readAssignment > &assignments, const Tree_Plain &tree, size_t *taxidLen, double *abund)
   {
     size_t i, j ;
@@ -257,10 +280,42 @@ public:
       _seqLength[tmp[0]] = tmp[1] ;
     fclose(fp) ;
   
-    _abund = (double *)calloc(_taxonomy.GetNodeCount(), sizeof(_abund[0])) ;
-    _readCount = (double *)calloc(_taxonomy.GetNodeCount(), sizeof(_readCount)) ;
-    _uniqReadCount = (double *)calloc(_taxonomy.GetNodeCount(), sizeof(_uniqReadCount)) ;
-    _taxidLength = (size_t *)calloc(_taxonomy.GetNodeCount(), sizeof(size_t)) ;
+    _abund = (double *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(_abund[0])) ;
+    _readCount = (double *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(_readCount)) ;
+    _uniqReadCount = (double *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(_uniqReadCount)) ;
+    _taxidLength = (size_t *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(size_t)) ;
+    
+    // Initialize genome length. It stores the average genome size if there are multiple genomes, such as internal nodes
+    _taxonomy.ConvertSeqLengthToTaxLength(_seqLength, _taxidLength) ; 
+  }
+
+  void Init(char *taxonomyTree, char *nameTable, char *sizeTable)
+  {
+    _taxonomy.Init(taxonomyTree, nameTable) ;
+    
+    _abund = (double *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(_abund[0])) ;
+    _readCount = (double *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(_readCount)) ;
+    _uniqReadCount = (double *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(_uniqReadCount)) ;
+    _taxidLength = (size_t *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(size_t)) ;
+
+    if (sizeTable)
+    {
+      FILE *fp = fopen(sizeTable, "r") ;
+      size_t taxid ;
+      size_t length ;
+      while (fscanf(fp, "%lu %lu", &taxid, &length) != EOF)
+      {
+        _taxidLength[ _taxonomy.CompactTaxId(taxid) ] = length ;
+      }
+      _taxonomy.InferAllTaxLength(_taxidLength, false) ;
+      fclose(fp) ;
+    }
+    else
+    {
+      size_t i ;
+      for (i = 0 ; i < _taxonomy.GetNodeCount() ; ++i)
+        _taxidLength[i] = 1000000 ;
+    }
   }
   
   // Coalsce the assignment that mapped to the same set of target
@@ -288,7 +343,7 @@ public:
     return k ;
   }
   
-  void LoadReadAssignments(char *file, int format)
+  void LoadReadAssignments(char *file, uint64_t minScore, uint64_t minHitLength, int format)
   {
     _assignments.clear() ;
     
@@ -311,8 +366,11 @@ public:
       }
 
       char *buffer = _buffers.Get(1, 0) ;
-      uint64_t taxid, score, secondScore ;
-      sscanf(line, "%s\t%[^\t]\t%lu\t%lu\t%lu", readId, buffer, &taxid, &score, &secondScore) ;
+      uint64_t taxid, score, secondScore, hitLength ;
+      sscanf(line, "%s\t%[^\t]\t%lu\t%lu\t%lu\t%lu", readId, buffer, &taxid, &score, &secondScore, &hitLength) ;
+      if (hitLength < minHitLength || score < minScore)
+        continue ;
+
       if (strcmp(readId, prevReadId))
       {
         if (prevReadId[0] != '\0')
@@ -414,9 +472,6 @@ public:
     for (i = 1 ; i < subtreeSize ; ++i)
       subtree.AddEdge(i, coveredTaxIds.Map(_taxonomy.GetParentTid( coveredTaxIds.Inverse(i)))) ;
         
-    // Initialize genome length. It stores the average genome size if there are multiple genomes, such as internal nodes
-    _taxonomy.ConvertSeqLengthToTaxLength(_seqLength, _taxidLength) ; 
-   
     // Copy the tax Id length to subtree 
     size_t *subtreeTaxIdLen = (size_t *)calloc(subtreeSize, sizeof(*subtreeTaxIdLen)) ;
     size_t allNodeCnt = allTree.GetSize() ;
