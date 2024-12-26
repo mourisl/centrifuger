@@ -404,8 +404,8 @@ public:
       assign.targets.push_back(_taxonomy.CompactTaxId(taxid)) ;
       ++lineCnt ;
     
-      // Reduce the size about every 1,000,000 assignments 
-      if (lineCnt % 1000000 == 0)
+      // Reduce the size about every 10,000,000 assignments 
+      if (lineCnt % 10000000 == 0)
         CoalesceAssignments() ;
     }
     if (assign.targets.size() > 0)

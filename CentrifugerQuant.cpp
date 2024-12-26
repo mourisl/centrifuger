@@ -106,6 +106,7 @@ int main(int argc, char *argv[])
   else
     quantifier.Init(taxonomyFile, nameTable, sizeTable) ;
   quantifier.LoadReadAssignments(classificationFile, classificationMinScore, classificationMinLength, 0) ;
+  Utils::PrintLog("Finish loading the read classification result.") ;
 
   quantifier.Quantification() ;
 
