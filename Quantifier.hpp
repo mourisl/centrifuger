@@ -86,7 +86,7 @@ private:
 
   std::vector<struct _readAssignment> _assignments ;
   double *_abund ;
-  double *_readCount ; // number of reads assigned to this tax ID and its subtree
+  double *_readCount ; // number of reads assigned to this tax ID and its subtree, taking the probability distribution into account.
   double *_uniqReadCount ; // number of reads uniquely assigned to this tax ID. Unique is at the strain/sequence level in its subtree.
 
   // NOT USED now. Original implementation of taxonomy ID genome length is taking the max, now is taking average.
@@ -137,14 +137,17 @@ private:
     {
       childrenSum += abund[children[i]] ;
       // Since the abund represents the fraction of cells, there is no need to normalize of the genome length
-      weightedChildrenSum += abund[children[i]] ; //* taxidLen[children[i]] ;
+      weightedChildrenSum += abund[children[i]] / (taxidLen ? taxidLen[children[i]] : 1);
     }
     double excess = abund[tag] - childrenSum ;
     if (excess < 0)
       excess = 0 ;
+    if (weightedChildrenSum == 0)
+      return ;
+
     for (i = 0 ; i < csize ; ++i)
     {
-      abund[children[i]] += excess * (abund[children[i]]) / weightedChildrenSum ;
+      abund[children[i]] += excess * (abund[children[i]] / (taxidLen ? taxidLen[children[i]] : 1)) / weightedChildrenSum ;
       RedistributeAbundToChildren(children[i], abund, tree, taxidLen) ;
     }
   }
@@ -181,7 +184,9 @@ private:
     double diffSum = 0 ;
     sum = 0 ;
     for (i = 0 ; i < treeSize ; ++i)
+    {
       sum += readCount[i] / (double)taxidLen[i] ;
+    }
     for (i = 0 ; i < treeSize ; ++i)
     {
       double tmp = readCount[i] / (double)taxidLen[i] / sum ;
@@ -189,7 +194,7 @@ private:
     }
     
     GenerateTreeAbundance(0, abund1, tree) ;
-    RedistributeAbundToChildren(0, abund1, tree, taxidLen);
+    RedistributeAbundToChildren(0, abund1, tree, NULL);
     for (i = 0 ; i < treeSize ; ++i)
     {
       diffSum += ABS(abund0[i] - abund1[i]) ;
@@ -197,25 +202,37 @@ private:
     return diffSum ;
   }
 
-  void EstimateAbundanceWithEM(const std::vector< struct _readAssignment > &assignments, const Tree_Plain &tree, size_t *taxidLen, double *abund)
+  void EstimateAbundanceWithEM(const std::vector< struct _readAssignment > &assignments, const Tree_Plain &tree, size_t *taxidLen, double *readCount, double *abund)
   {
     size_t i, j ;
 
     // Initalize the abundance
     size_t assignCnt = assignments.size() ;
+    double totalWeight = 0 ;
     for (i = 0 ; i < assignCnt ; ++i)
     {
       size_t targetCnt = assignments[i].targets.size() ;
       for (j = 0 ; j < targetCnt ; ++j)
-        abund[assignments[i].targets[j]] = 1.0 / (double)targetCnt ;
+        readCount[assignments[i].targets[j]] += assignments[i].weight / (double)targetCnt ;
+      totalWeight += assignments[i].weight ;
     }
-    GenerateTreeAbundance(tree.Root(), abund, tree) ;
-    RedistributeAbundToChildren(tree.Root(), abund, tree, taxidLen);
+    
+    double tmp = 0 ;
+    for (i = 0 ; i < tree.GetSize() ; ++i)
+      tmp += readCount[i] ;
+    
+    GenerateTreeAbundance(tree.Root(), readCount, tree) ;
+    RedistributeAbundToChildren(tree.Root(), readCount, tree, taxidLen);
+    
+    size_t treeSize = tree.GetSize() ;
+    double factor = readCount[tree.Root()] ;
+    for (i = 0 ; i < treeSize ; ++i)
+    {
+      abund[i] = readCount[i] / factor ; 
+    }
     
     // EM algorithm
-    size_t treeSize = tree.GetSize() ;
     double *nextAbund = (double *)malloc(sizeof(nextAbund[0]) * treeSize) ;
-    double *readCount = (double *)malloc(sizeof(readCount[0]) * treeSize) ;
     double delta = 0 ;
 
     const int maxIterCnt = 1000 ;
@@ -228,8 +245,10 @@ private:
       if (delta < 1e-6 && delta < 0.1 / (double)treeSize)
         break ;
     }
+    
+    GenerateTreeAbundance(0, readCount, tree) ;
+    RedistributeAbundToChildren(tree.Root(), readCount, tree, taxidLen);
     free(nextAbund) ;
-    free(readCount) ;
   }
 
 public:
@@ -368,12 +387,12 @@ public:
       char *buffer = _buffers.Get(1, 0) ;
       uint64_t taxid, score, secondScore, hitLength ;
       sscanf(line, "%s\t%[^\t]\t%lu\t%lu\t%lu\t%lu", readId, buffer, &taxid, &score, &secondScore, &hitLength) ;
-      if (hitLength < minHitLength || score < minScore)
+      if (hitLength < minHitLength || score < minScore || taxid == 0)
         continue ;
 
       if (strcmp(readId, prevReadId))
       {
-        if (prevReadId[0] != '\0')
+        if (prevReadId[0] != '\0' && assign.targets.size() > 0)
           _assignments.push_back(assign) ;
 
         assign.targets.clear() ;
@@ -389,7 +408,8 @@ public:
       if (lineCnt % 1000000 == 0)
         CoalesceAssignments() ;
     }
-    _assignments.push_back(assign) ;
+    if (assign.targets.size() > 0)
+      _assignments.push_back(assign) ;
     gzclose(gzfp) ;
     CoalesceAssignments() ;
   }
@@ -429,27 +449,20 @@ public:
     for (i = 0 ; i < assignCnt ; ++i)  
     {
       size_t targetCnt = _assignments[i].targets.size() ;
-      size_t nohitCnt = 0 ;
       subtreeAssignments.push_back( _assignments[i] ) ;
       
       for (j = 0 ; j < targetCnt ; ++j)
       {
-        if (subtreeAssignments[i].targets[j] == 0)
-        {
-          ++nohitCnt ;
-          continue ;
-        }
-        
         uint64_t ctid = subtreeAssignments[i].targets[j] ; 
         // If a read hit a node not in the tree, we set it to the root
         if (ctid == _taxonomy.GetNodeCount())
         {
-          subtreeAssignments[i].targets[j] = 0 ; // Subtree's root is 0.
-          _readCount[ allTree.Root() ] += _assignments[i].weight / targetCnt ;
+          subtreeAssignments[i].targets[j] = 0 ; // Subtree's root is 0. We allow duplicated 0 here, so the probability reflect the underlying read assignment
+          //_readCount[ allTree.Root() ] += _assignments[i].weight / targetCnt;
           _uniqReadCount[ allTree.Root() ] += _assignments[i].uniqWeight ; // targetCnt must be 1, otherwise uniqWeight will be 0.
           continue ;
         }
-        _readCount[ _assignments[i].targets[j] ] += _assignments[i].weight / targetCnt ;
+        //_readCount[ _assignments[i].targets[j] ] += _assignments[i].weight / targetCnt;
         _uniqReadCount[ _assignments[i].targets[j] ] += _assignments[i].uniqWeight ; // targetCnt must be 1, otherwise uniqWeight will be 0.
 
 
@@ -461,10 +474,10 @@ public:
         }
         subtreeAssignments[i].targets[j] = coveredTaxIds.Map(ctid) ;
       }
-      subtreeAssignments[i].targets.resize(targetCnt - nohitCnt) ;
+      subtreeAssignments[i].targets.resize(targetCnt) ;
     }
-    GenerateTreeAbundance(allTree.Root(), _readCount, allTree) ;
-    GenerateTreeAbundance(allTree.Root(), _uniqReadCount, allTree) ;
+    //GenerateTreeAbundance(allTree.Root(), _readCount, allTree) ;
+    //GenerateTreeAbundance(allTree.Root(), _uniqReadCount, allTree) ;
     
     // Create the subtree's structure
     subtree.Init(subtreeSize) ;
@@ -485,14 +498,18 @@ public:
     
     // Initialize abundance
     double *subtreeAbund = (double *)calloc(subtreeSize, sizeof(*subtreeAbund)) ; 
+    double *subtreeReadCount = (double *)calloc(subtreeSize, sizeof(*subtreeReadCount)) ; 
     
     // Start the calculation using EM.
-    EstimateAbundanceWithEM(subtreeAssignments, subtree, subtreeTaxIdLen, subtreeAbund) ;
+    EstimateAbundanceWithEM(subtreeAssignments, subtree, subtreeTaxIdLen, subtreeReadCount, subtreeAbund) ;
 
     for (i = 0 ; i < subtreeSize; ++i)
+    {
+      _readCount[ coveredTaxIds.Inverse(i) ] = subtreeReadCount[i] ;
       _abund[ coveredTaxIds.Inverse(i) ] = subtreeAbund[i] ;
-    
+    }
     free(subtreeAbund) ;
+    free(subtreeReadCount) ;
     free(subtreeTaxIdLen) ;
   }
 
@@ -500,23 +517,36 @@ public:
   //        1 - kraken
   void Output(FILE *fp, int format)
   {
-    size_t i ;
+    size_t i, j ;
 
     // Get the read assignment information
-    fprintf(fp, "name\ttaxID\ttaxRank\tgenomeSize\tnumReads\tnumUniqueReads\tabundance\n") ;
+    fprintf(fp, "name\ttaxID\ttaxRank\tgenomeSize\tnumReads\tnumUniqueReads\testNumReads\tabundance\n") ;
     size_t nodeCnt = _taxonomy.GetNodeCount() ;
+    size_t assignCnt = _assignments.size() ;
+
+    double *rawReadCount = (double *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(rawReadCount)) ; // number of reads assigned to this tax ID and its subtree directly based on classification output file
+    for (i = 0 ; i < assignCnt ; ++i)
+    {
+      size_t targetCnt = _assignments[i].targets.size() ;
+      for (j = 0 ; j < targetCnt ; ++j)
+        rawReadCount[ _assignments[i].targets[j] ] += _assignments[i].weight ;
+    }
+
     for (i = 0 ; i < nodeCnt ; ++i)
     {
       if (_readCount[i] < 1e-6)
         continue ;
 
-      printf("%s\t%lu\t%s\t%lu\t%d\t%d\t%lf\n",
+      printf("%s\t%lu\t%s\t%lu\t%d\t%d\t%d\t%lf\n",
           _taxonomy.GetTaxIdName(i).c_str(), 
           _taxonomy.GetOrigTaxId(i),
           _taxonomy.GetTaxRankString( _taxonomy.GetTaxIdRank(i)),
           _taxidLength[i], 
-          (int)(_readCount[i] + 1e-3), (int)(_uniqReadCount[i] + 1e-3), _abund[i]) ;
+          (int)(rawReadCount[i] + 1e-3), (int)(_uniqReadCount[i] + 1e-3), 
+          (int)(_readCount[i] + 0.5), _abund[i]) ;
     }
+
+    free(rawReadCount) ;
   }
 } ;
 
