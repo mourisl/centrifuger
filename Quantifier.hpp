@@ -17,29 +17,25 @@ using namespace compactds ;
 struct _readAssignment
 {
   std::vector<uint64_t> targets ;
-  double weight ;
-  double uniqWeight ; // The number of assignment that it is unique
+  double weight ; // weighted number of assignment, considering the score
+  double count ; // number of assignment
+  double uniqCount ; // The number of assignment that it is unique
 
   _readAssignment() : targets() {}
 
   _readAssignment(const struct _readAssignment &a): targets(a.targets) 
   {
     weight = a.weight ;
-    uniqWeight = a.uniqWeight ;
-  }
-
-  _readAssignment(double weight, double uniqWeight, const std::vector<uint64_t> &targets)
-  {
-    this->weight = weight ;
-    this->uniqWeight = uniqWeight ;
-    this->targets = targets ;
+    count = a.count ;
+    uniqCount = a.uniqCount ;
   }
 
   struct _readAssignment& operator=(const struct _readAssignment &a)
   {
     targets = a.targets ;
     weight = a.weight ;
-    uniqWeight = a.uniqWeight ;
+    count = a.count ;
+    uniqCount = a.uniqCount ;
     return *this ;
   }
 
@@ -186,6 +182,7 @@ private:
     for (i = 0 ; i < treeSize ; ++i)
     {
       sum += readCount[i] / (double)taxidLen[i] ;
+      //printf("%d: %lf %lu %lf %lf\n", i, readCount[i], taxidLen[i], readCount[i] / (double)taxidLen[i], sum) ;
     }
     for (i = 0 ; i < treeSize ; ++i)
     {
@@ -249,6 +246,14 @@ private:
     GenerateTreeAbundance(0, readCount, tree) ;
     RedistributeAbundToChildren(tree.Root(), readCount, tree, taxidLen);
     free(nextAbund) ;
+  }
+
+  double CalculateAssignmentWeight(size_t score, size_t hitLength, size_t readLength)
+  {
+    int diff = readLength - hitLength ;
+    if (diff > 10)
+      diff = 11 ;
+    return 1.0 / (double)(1 << (2 * diff)) ; // Every difference decrease the probability by 1/4
   }
 
 public:
@@ -350,7 +355,8 @@ public:
       if (_assignments[i] == _assignments[k - 1])
       {
         _assignments[k - 1].weight += _assignments[i].weight ;
-        _assignments[k - 1].uniqWeight += _assignments[i].uniqWeight ;
+        _assignments[k - 1].count += _assignments[i].count ;
+        _assignments[k - 1].uniqCount += _assignments[i].uniqCount ;
       }
       else
       {
@@ -385,8 +391,8 @@ public:
       }
 
       char *buffer = _buffers.Get(1, 0) ;
-      uint64_t taxid, score, secondScore, hitLength ;
-      sscanf(line, "%s\t%[^\t]\t%lu\t%lu\t%lu\t%lu", readId, buffer, &taxid, &score, &secondScore, &hitLength) ;
+      uint64_t taxid, score, secondScore, hitLength, readLength ;
+      sscanf(line, "%s\t%[^\t]\t%lu\t%lu\t%lu\t%lu\t%lu", readId, buffer, &taxid, &score, &secondScore, &hitLength, &readLength) ;
       if (hitLength < minHitLength || score < minScore || taxid == 0)
         continue ;
 
@@ -396,8 +402,9 @@ public:
           _assignments.push_back(assign) ;
 
         assign.targets.clear() ;
-        assign.weight = 1 ;
-        assign.uniqWeight = score > secondScore ? 1 : 0 ;
+        assign.weight = CalculateAssignmentWeight(score, hitLength, readLength) ;
+        assign.count = 1 ;
+        assign.uniqCount = score > secondScore ? 1 : 0 ;
 
         strcpy(prevReadId, readId) ;
       }
@@ -421,8 +428,10 @@ public:
     int size = result.taxIds.size() ;
     for (i = 0 ; i < size ; ++i)
       assign.targets.push_back( _taxonomy.CompactTaxId(result.taxIds[i])) ; 
-    assign.weight = 1 ;
-    assign.uniqWeight = result.score > result.secondaryScore ? 1 : 0 ;
+    assign.weight = CalculateAssignmentWeight(result.score, result.hitLength, 
+        result.queryLength) ;
+    assign.count = 1 ;
+    assign.uniqCount = result.score > result.secondaryScore ? 1 : 0 ;
 
     _assignments.push_back(assign) ;
   }
@@ -453,18 +462,17 @@ public:
       
       for (j = 0 ; j < targetCnt ; ++j)
       {
-        uint64_t ctid = subtreeAssignments[i].targets[j] ; 
+        uint64_t ctid = subtreeAssignments[i].targets[j] ;
         // If a read hit a node not in the tree, we set it to the root
         if (ctid == _taxonomy.GetNodeCount())
         {
           subtreeAssignments[i].targets[j] = 0 ; // Subtree's root is 0. We allow duplicated 0 here, so the probability reflect the underlying read assignment
           //_readCount[ allTree.Root() ] += _assignments[i].weight / targetCnt;
-          _uniqReadCount[ allTree.Root() ] += _assignments[i].uniqWeight ; // targetCnt must be 1, otherwise uniqWeight will be 0.
+          _uniqReadCount[ allTree.Root() ] += _assignments[i].uniqCount ; // targetCnt must be 1, otherwise uniqCount will be 0.
           continue ;
         }
         //_readCount[ _assignments[i].targets[j] ] += _assignments[i].weight / targetCnt;
-        _uniqReadCount[ _assignments[i].targets[j] ] += _assignments[i].uniqWeight ; // targetCnt must be 1, otherwise uniqWeight will be 0.
-
+        _uniqReadCount[ _assignments[i].targets[j] ] += _assignments[i].uniqCount ; // targetCnt must be 1, otherwise uniqCount will be 0.
 
         uint64_t p = ctid ;
         while (coveredTaxIds.Add(p) == subtreeSize)
@@ -492,7 +500,7 @@ public:
     {
       if (coveredTaxIds.IsIn(i))
       {
-        subtreeTaxIdLen[coveredTaxIds.Map(i)] = _taxidLength[i] ;
+        subtreeTaxIdLen[coveredTaxIds.Map(i)] = _taxidLength[i] ; //+ _taxidLength[_taxonomy.GetRoot()] ; // Adding a baseline length to avoid extremely short genome confounding the length
       }
     }
     
@@ -529,12 +537,13 @@ public:
     {
       size_t targetCnt = _assignments[i].targets.size() ;
       for (j = 0 ; j < targetCnt ; ++j)
-        rawReadCount[ _assignments[i].targets[j] ] += _assignments[i].weight ;
+        rawReadCount[ _assignments[i].targets[j] ] += _assignments[i].count ;
     }
-
+    
+      
     for (i = 0 ; i < nodeCnt ; ++i)
     {
-      if (_readCount[i] < 1e-6)
+      if (rawReadCount[i] < 1e-6)
         continue ;
 
       printf("%s\t%lu\t%s\t%lu\t%d\t%d\t%d\t%lf\n",
