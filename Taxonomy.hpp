@@ -247,8 +247,9 @@ private:
       throw 1;
     }
   }
-  
-  void ReadPresentTaxonomyLeafs(std::string fname, std::map<uint64_t, int> &presentLeafs)
+
+  // File type: 0-seqid map file. 1-taxonomy file, where the first column is the taxonomy IDs 
+  void ReadPresentTaxonomyLeafs(std::string fname, int filetype, std::map<uint64_t, int> &presentLeafs)
   {
     std::ifstream seqmap_file(fname.c_str(), std::ios::in);
     std::map<std::string, uint64_t> rawSeqNameMap ;
@@ -261,7 +262,10 @@ private:
         std::istringstream cline(line);
         uint64_t tid;
         std::string seqId;
-        cline >> seqId >> tid ;
+        if (filetype == 0)
+          cline >> seqId >> tid ;
+        else if (filetype == 1)
+          cline >> tid ;
         presentLeafs[tid] = 0;
       }
       seqmap_file.close();
@@ -444,10 +448,20 @@ public:
   void Init(const char *nodesFile, const char *namesFile, const char *seqIdFile, bool conversionTableAtFileLevel)
   {
     std::map<uint64_t, int> presentTax;
-    ReadPresentTaxonomyLeafs(std::string(seqIdFile), presentTax) ;
+    ReadPresentTaxonomyLeafs(std::string(seqIdFile), 0, presentTax) ;
     ReadTaxonomyTree(std::string(nodesFile), presentTax) ;
     ReadTaxonomyName(std::string(namesFile), presentTax) ;
     ReadSeqNameFile(std::string(seqIdFile), conversionTableAtFileLevel) ;
+  
+    _rootCTaxId = FindRoot() ;
+  }
+  
+  void Init(const char *nodesFile, const char *namesFile)
+  {
+    std::map<uint64_t, int> presentTax;
+    ReadPresentTaxonomyLeafs(std::string(nodesFile), 1, presentTax) ;
+    ReadTaxonomyTree(std::string(nodesFile), presentTax) ;
+    ReadTaxonomyName(std::string(namesFile), presentTax) ;
   
     _rootCTaxId = FindRoot() ;
   }
@@ -868,10 +882,6 @@ public:
     std::vector<std::string> seqNames ;
     GetSeqNames(seqNames) ;
     
-    size_t *taxidCount = (size_t *)calloc(_nodeCnt, sizeof(size_t)) ;// The number of genomes under a tax id. The tax Ids with sequence will be initalized to 1.
-    size_t *taxidNewLength = (size_t *)calloc(_nodeCnt, sizeof(size_t)) ; // the new length of a taxonomy ID
-    bool *hasSequence = (bool *)calloc(_nodeCnt, sizeof(bool)) ; // whether the tax id has some sequence/genome
-
     std::sort(seqNames.begin(), seqNames.end()) ;
 
     for (i = 0 ; i < _nodeCnt ; ++i)
@@ -897,8 +907,6 @@ public:
       {
         if (len > taxidLength[taxid])
           taxidLength[taxid] = len ;
-        taxidCount[taxid] = 1 ;
-        hasSequence[taxid] = true ;
       }
       //else // ignore the case the sequence is not in the tree.
       //  taxidLength[taxid] += len ;
@@ -906,13 +914,37 @@ public:
       i = j ;
     }
 
+    InferAllTaxLength(taxidLength, true) ;
+  }
+
+  // Infer the length for all taxonomy nodes given the taxidLength
+  // Some taxidLength are set non-zero, and use them
+  //  to infer the length for intermediate nodes
+  // lengthFromSeqLength: whether the taxidLength is obtained from seq length information.
+  void InferAllTaxLength(size_t *taxidLength, bool lengthFromSeqLength)
+  {
+    size_t i ;
+
+    size_t *taxidCount = (size_t *)calloc(_nodeCnt, sizeof(size_t)) ;// The number of genomes under a tax id. The tax Ids with sequence will be initalized to 1.
+    size_t *taxidNewLength = (size_t *)calloc(_nodeCnt, sizeof(size_t)) ; // the new length of a taxonomy ID
+    bool *preset = (bool *)calloc(_nodeCnt, sizeof(bool)) ; // whether the tax id has some lengths precalculated
+
+    for (i = 0 ; i < _nodeCnt ; ++i)
+    {
+      if (taxidLength[i] != 0)
+      {
+        preset[i] = true ;
+        taxidCount[i] = 1 ;
+      }
+    }
+
     // Infer the average genome size for intermediate tax IDs
     // If this becomes inefficient in future, consider using a tree DP
     for (i = 0 ; i < _nodeCnt ; ++i)
     {
-      if (!hasSequence[i])  
+      if (!preset[i])  
         continue ;
-      if (i == _taxonomyTree[i].parentTid)
+      if (i == _taxonomyTree[i].parentTid || !_taxonomyTree[i].leaf)
         continue ;
 
       size_t p = _taxonomyTree[i].parentTid ;
@@ -928,15 +960,18 @@ public:
 
     for (i = 0 ; i < _nodeCnt ; ++i)
     {
-      size_t sum = taxidNewLength[i] ;
-      if (hasSequence[i])
-        sum += taxidLength[i] ;
-      taxidLength[i] = sum / taxidCount[i] ;
+      if (taxidLength[i] == 0 || lengthFromSeqLength)
+      {
+        size_t sum = taxidNewLength[i] ;
+        if (preset[i])
+          sum += taxidLength[i] ;
+        taxidLength[i] = sum / taxidCount[i] ;
+      }
     }
 
     free(taxidCount) ;
     free(taxidNewLength) ;
-    free(hasSequence) ;
+    free(preset) ;
   }
 
   void Save(FILE *fp)
@@ -1004,7 +1039,7 @@ public:
     size_t i ;
     for (i = 0 ; i < _nodeCnt ; ++i)
     {
-      printf("%lu\t%s\n", GetOrigTaxId(i), _taxonomyName[i].c_str()) ;
+      printf("%lu\t|\t%s\t|\tscientific name\n", GetOrigTaxId(i), _taxonomyName[i].c_str()) ;
     }
   }
 
