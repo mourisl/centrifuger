@@ -251,6 +251,10 @@ private:
   double CalculateAssignmentWeight(size_t score, size_t hitLength, size_t readLength)
   {
     int diff = readLength - hitLength ;
+    if (diff < int(readLength * 0.01))
+      return 1 ;
+    else
+      diff -= int(readLength * 0.01) ;
     if (diff > 10)
       diff = 11 ;
     return 1.0 / (double)(1 << (2 * diff)) ; // Every difference decrease the probability by 1/4
@@ -467,11 +471,11 @@ public:
         if (ctid == _taxonomy.GetNodeCount())
         {
           subtreeAssignments[i].targets[j] = 0 ; // Subtree's root is 0. We allow duplicated 0 here, so the probability reflect the underlying read assignment
-          //_readCount[ allTree.Root() ] += _assignments[i].weight / targetCnt;
+          _readCount[ allTree.Root() ] += _assignments[i].count / targetCnt;
           _uniqReadCount[ allTree.Root() ] += _assignments[i].uniqCount ; // targetCnt must be 1, otherwise uniqCount will be 0.
           continue ;
         }
-        //_readCount[ _assignments[i].targets[j] ] += _assignments[i].weight / targetCnt;
+        _readCount[ _assignments[i].targets[j] ] += _assignments[i].count / targetCnt;
         _uniqReadCount[ _assignments[i].targets[j] ] += _assignments[i].uniqCount ; // targetCnt must be 1, otherwise uniqCount will be 0.
 
         uint64_t p = ctid ;
@@ -484,8 +488,8 @@ public:
       }
       subtreeAssignments[i].targets.resize(targetCnt) ;
     }
-    //GenerateTreeAbundance(allTree.Root(), _readCount, allTree) ;
-    //GenerateTreeAbundance(allTree.Root(), _uniqReadCount, allTree) ;
+    GenerateTreeAbundance(allTree.Root(), _readCount, allTree) ;
+    GenerateTreeAbundance(allTree.Root(), _uniqReadCount, allTree) ;
     
     // Create the subtree's structure
     subtree.Init(subtreeSize) ;
@@ -500,7 +504,7 @@ public:
     {
       if (coveredTaxIds.IsIn(i))
       {
-        subtreeTaxIdLen[coveredTaxIds.Map(i)] = _taxidLength[i] ; //+ _taxidLength[_taxonomy.GetRoot()] ; // Adding a baseline length to avoid extremely short genome confounding the length
+        subtreeTaxIdLen[coveredTaxIds.Map(i)] = _taxidLength[i] + _taxidLength[_taxonomy.GetRoot()] / 10 ; // Adding a baseline length to avoid extremely short genome confounding the length
       }
     }
     
@@ -513,7 +517,6 @@ public:
 
     for (i = 0 ; i < subtreeSize; ++i)
     {
-      _readCount[ coveredTaxIds.Inverse(i) ] = subtreeReadCount[i] ;
       _abund[ coveredTaxIds.Inverse(i) ] = subtreeAbund[i] ;
     }
     free(subtreeAbund) ;
@@ -525,37 +528,24 @@ public:
   //        1 - kraken
   void Output(FILE *fp, int format)
   {
-    size_t i, j ;
+    size_t i ;
 
     // Get the read assignment information
-    fprintf(fp, "name\ttaxID\ttaxRank\tgenomeSize\tnumReads\tnumUniqueReads\testNumReads\tabundance\n") ;
+    fprintf(fp, "name\ttaxID\ttaxRank\tgenomeSize\tnumReads\tnumUniqueReads\tabundance\n") ;
     size_t nodeCnt = _taxonomy.GetNodeCount() ;
-    size_t assignCnt = _assignments.size() ;
-
-    double *rawReadCount = (double *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(rawReadCount)) ; // number of reads assigned to this tax ID and its subtree directly based on classification output file
-    for (i = 0 ; i < assignCnt ; ++i)
-    {
-      size_t targetCnt = _assignments[i].targets.size() ;
-      for (j = 0 ; j < targetCnt ; ++j)
-        rawReadCount[ _assignments[i].targets[j] ] += _assignments[i].count ;
-    }
-    
       
     for (i = 0 ; i < nodeCnt ; ++i)
     {
-      if (rawReadCount[i] < 1e-6)
+      if (_readCount[i] < 1e-6)
         continue ;
 
-      printf("%s\t%lu\t%s\t%lu\t%d\t%d\t%d\t%lf\n",
+      printf("%s\t%lu\t%s\t%lu\t%d\t%d\t%lf\n",
           _taxonomy.GetTaxIdName(i).c_str(), 
           _taxonomy.GetOrigTaxId(i),
           _taxonomy.GetTaxRankString( _taxonomy.GetTaxIdRank(i)),
           _taxidLength[i], 
-          (int)(rawReadCount[i] + 1e-3), (int)(_uniqReadCount[i] + 1e-3), 
-          (int)(_readCount[i] + 0.5), _abund[i]) ;
+          (int)(_readCount[i] + 1e-3), (int)(_uniqReadCount[i] + 1e-3), _abund[i]) ;
     }
-
-    free(rawReadCount) ;
   }
 } ;
 
