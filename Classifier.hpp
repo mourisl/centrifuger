@@ -170,7 +170,7 @@ private:
   void AdjustHitBoundaryFromStrandHits(char *r, char *rc, int len, 
       SimpleVector<struct _BWTHit> *strandHits)
   {
-    int i, j ;
+    int i, j, k ;
     if (!strandHits[0].Size() || !strandHits[1].Size())
       return ;
     int hitSize[2] = {strandHits[0].Size(), strandHits[1].Size()} ;
@@ -178,6 +178,7 @@ private:
     size_t sp, ep ;
     int l ;
     j = hitSize[0] - 1 ;
+    bool needFix[2] = {false, false} ;
     for (i = 0 ; i < hitSize[1] ; ++i)
     {
       int left, right ; // range on the read, original read
@@ -204,8 +205,9 @@ private:
           l = _fm.BackwardSearch(r, rcRight + 1, sp, ep) ;
           if (rcRight - l + 1 == left && sp <= ep)
           {
-            struct _BWTHit nh(sp, ep, l, len - rcRight + 1, 1) ;
+            struct _BWTHit nh(sp, ep, l, len - rcRight - 1, 1) ;
             strandHits[1][i] = nh ;
+            needFix[1] = true ;
           }
         }
 
@@ -216,10 +218,53 @@ private:
           {
             struct _BWTHit nh(sp, ep, l, left, -1) ;
             strandHits[0][j] = nh ;
+            needFix[0] = true ;
           }
         }
       }
     }
+
+    // Trim the hit if there is overlapped caused by boundary adjustment
+    for (k = 0 ; k <= 1 ; ++k)
+    {
+      //for (i = 0 ; i < hitSize[k] ; ++i)
+      //  printf("%d %d: %d %d\n", k, i, strandHits[k][i].offset,
+      //      strandHits[k][i].offset + strandHits[k][i].l - 1) ;
+      if (!needFix[k])
+        continue ;
+      for (i = 0 ; i < hitSize[k] - 1 ; ++i)
+      {
+        int starti = strandHits[k][i].offset ; // with respect to the read end (due to backward search) on that strand. Boundary adjustment is moving ahead of the "offset", so it's always the starti moves towards the read end.
+        int endi =  starti + strandHits[k][i].l - 1 ;
+        for (j = i + 1 ; j < hitSize[k] ; ++j)
+        {
+          int startj = strandHits[k][j].offset ;
+          if (startj > endi)
+            break ;
+          int endj = startj + strandHits[k][j].l - 1 ;
+
+          // The two hits overlaps
+          if (strandHits[k][j].l >= strandHits[k][i].l)
+          {
+            // Shrink i
+            strandHits[k][i].l = (startj - starti) ;
+            break ;
+          }
+          else 
+          {
+            // Shrink j
+            if (endj <= endi) // if j is contained in i
+              strandHits[k][j].l = 0 ;
+            else
+            {
+              strandHits[k][j].offset = endi + 1 ;
+              strandHits[k][j].l = (endj - (endi + 1) + 1) ;
+              break ;
+            }
+          }
+        } // for j
+      } // for i
+    } // for k
   }
 
   // It seems the performance for not synchronize mate pair direction works better
@@ -366,6 +411,9 @@ private:
     //   Because sometimes a read can hit both the plus and minus strand and will artifically double the hit length.
     for (i = 0 ; i < hitCnt ; ++i)
     {
+      if (hits[i].l < _param.minHitLen)
+        continue ;
+      
       size_t score = CalculateHitScore(hits[i]) ;
       std::map<size_t, int> localSeqIdHit ;
       k = (hits[i].strand + 1) / 2 ;

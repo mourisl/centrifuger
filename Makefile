@@ -29,7 +29,7 @@ centrifuger-quant: CentrifugerQuant.o
 CentrifugerBuild.o: CentrifugerBuild.cpp Builder.hpp ReadFiles.hpp Taxonomy.hpp defs.h compactds/*.hpp 
 CentrifugerClass.o: CentrifugerClass.cpp Classifier.hpp ReadFiles.hpp Taxonomy.hpp defs.h ResultWriter.hpp ReadPairMerger.hpp ReadFormatter.hpp BarcodeCorrector.hpp BarcodeTranslator.hpp compactds/*.hpp 
 CentrifugerInspect.o: CentrifugerInspect.cpp Taxonomy.hpp defs.h compactds/*.hpp 
-CentrifugerQuant.o: CentrifugerQuant.cpp Quantifier.hpp Taxonomy.hpp compactds/*.hpp
+CentrifugerQuant.o: CentrifugerQuant.cpp Quantifier.hpp Taxonomy.hpp defs.h compactds/*.hpp
 
 clean:
 	rm -f *.o centrifuger-build centrifuger centrifuger-inspect centrifuger-quant
