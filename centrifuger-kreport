@@ -236,7 +236,7 @@ sub load_taxonomy {
   while (<NAMES>) {
     chomp;
     s/\t\|$//;
-    my @fields = split /\t/;
+    my @fields = split /\t\|\t/;
     my ($node_id, $name) = @fields[0,1];
     $name_map{$node_id} = $name;
   }
