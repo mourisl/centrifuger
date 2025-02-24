@@ -28,6 +28,7 @@ class ReadFiles
   private:
     std::vector<std::string> fileNames ;
     std::vector<bool> hasMate ;
+    std::vector<int> interleavedId ; // 0-not interleave, 1-odd lines, 2-even lines
 
     gzFile gzFp ;
     kseq_t *inSeq ;
@@ -136,7 +137,8 @@ class ReadFiles
       }
     }
 
-    void AddReadFile( char *file, bool fileHasMate )
+		// interleaved file is not frequently set. 0-no, 1-first line, 2-second line
+    void AddReadFile(char *file, bool fileHasMate, int fileInterleavedId = 0)
     {
       //std::string s(file) ;
       unsigned int i ;
@@ -150,6 +152,7 @@ class ReadFiles
       {
         fileNames.push_back(file) ;
         hasMate.push_back(fileHasMate) ;
+        interleavedId.push_back(fileInterleavedId) ;
       }
       else
       {
@@ -167,6 +170,7 @@ class ReadFiles
         {
           fileNames.push_back(globResult.gl_pathv[i]) ;
           hasMate.push_back(fileHasMate) ;
+          interleavedId.push_back(fileInterleavedId) ;
         }
 
         addFileCnt = globResult.gl_pathc ;
@@ -195,12 +199,16 @@ class ReadFiles
       currentFpInd = 0 ;
 
       OpenFile(0) ;
+      if (interleavedId[0] == 2)
+        Next() ;
     }
 
     int Next() 
     {
       //int len ;
       //char buffer[2048] ;
+			if (currentFpInd < fileCnt && interleavedId[currentFpInd] == 2)
+				kseq_read(inSeq) ;
       while ( currentFpInd < fileCnt && ( kseq_read( inSeq ) < 0 ) )
       {
         ++currentFpInd ;
@@ -229,6 +237,9 @@ class ReadFiles
         qual = strdup( inSeq->qual.s ) ;
       else
         qual = NULL ;
+			
+      if (interleavedId[currentFpInd] == 1)
+				kseq_read(inSeq) ;
 
       return 1 ;
     }
@@ -237,6 +248,8 @@ class ReadFiles
     {
       //int len ;
       //char buffer[2048] ;
+			if (currentFpInd < fileCnt && interleavedId[currentFpInd] == 2)
+				kseq_read(inSeq) ;
       while ( currentFpInd < fileCnt && ( kseq_read( inSeq ) < 0 ) )
       {
         ++currentFpInd ;
@@ -271,6 +284,8 @@ class ReadFiles
       else
         *qual = NULL ;
 
+			if (interleavedId[currentFpInd] == 1)
+				kseq_read(inSeq) ;
       return 1 ;
     }
 
@@ -330,10 +345,5 @@ class ReadFiles
       return fileCnt ;
     }
 } ;
-
-// The class handling read in a batch of reads
-/*class ReadBatch
-{
-} ;*/
 
 #endif

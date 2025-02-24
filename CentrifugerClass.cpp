@@ -22,6 +22,7 @@ char usage[] = "./centrifuger [OPTIONS] > output.tsv:\n"
   "\t-x FILE: index prefix\n"
   "\t-1 FILE -2 FILE: paired-end read\n"
   "\t-u FILE: single-end read\n"
+  "\t-i FILE: interleaved read file\n"
   //"\t--sample-sheet FILE: \n"
   "Optional:\n"
   //"\t-o STRING: output prefix [centrifuger]\n"
@@ -40,7 +41,7 @@ char usage[] = "./centrifuger [OPTIONS] > output.tsv:\n"
   "\t-v: print the version information and quit\n"
   ;
 
-static const char *short_options = "x:1:2:u:o:t:k:v" ;
+static const char *short_options = "x:1:2:u:i:o:t:k:v" ;
 static struct option long_options[] = {
   { "un", required_argument, 0, ARGV_OUTPUT_UNCLASSIFIED},
   { "cl", required_argument, 0, ARGV_OUTPUT_CLASSIFIED},
@@ -283,6 +284,12 @@ int main(int argc, char *argv[])
       mateReads.AddReadFile( optarg, true ) ;
       hasMate = true ;
     }
+		else if ( c == 'i' )
+		{
+			reads.AddReadFile( optarg, true, /*interleavedId=*/1) ;
+			mateReads.AddReadFile( optarg, true, /*interleavedId=*/2) ;
+			hasMate = true ;
+		}
     else if (c == 'o')
     {
       strcpy(outputPrefix, optarg) ;
