@@ -21,6 +21,7 @@ struct _Read
   char *id ;
   char *seq ;
   char *qual ;
+  char *comment ;
 } ;
 
 class ReadFiles
@@ -28,13 +29,13 @@ class ReadFiles
   private:
     std::vector<std::string> fileNames ;
     std::vector<bool> hasMate ;
-    std::vector<int> interleavedId ; // 0-not interleave, 1-odd lines, 2-even lines
+    std::vector<bool> interleaved ; // it is also interleaved 
 
     gzFile gzFp ;
     kseq_t *inSeq ;
-    int fileType ; // 0-FASTA, 1-FASTQ
     int fileCnt ;
     int currentFpInd ;
+    bool needComment ;
     
     bool opened ;
 
@@ -69,30 +70,6 @@ class ReadFiles
       opened = true ;
       gzFp = gzopen( fileNames[fileInd].c_str(), "r" ) ;
       inSeq = kseq_init( gzFp ) ;
-
-      kseq_read( inSeq ) ;
-      if ( inSeq->qual.l == 0 )
-      {
-        fileType = 0 ;
-        //qual[0] = '\0' ;
-      }
-      else 
-      {
-        fileType = 1 ;
-      }
-      /*else
-      {
-        fprintf( stderr, "\"%s\"'s format is wrong.\n", file ) ;
-        exit( 1 ) ;
-      }*/
-
-      //printf( "%s %s\n", inSeq[fileCnt]->name.s, inSeq[fileCnt]->comment.s ) ;
-      gzrewind( gzFp ) ;
-      kseq_rewind( inSeq ) ;
-      //kseq_read( inSeq[ fileCnt ] ) ;
-      //printf( "%s %s\n", inSeq[fileCnt]->name.s, inSeq[fileCnt]->comment.s ) ;
-      //gzrewind( gzFp[ fileCnt ]) ;
-      //kseq_rewind( inSeq[ fileCnt] ) ;
     }
 
     void RemoveReadIdSuffix(char *id)
@@ -106,6 +83,7 @@ class ReadFiles
     }
   public:
     char *id ;
+    char *comment ;
     char *seq ;
     char *qual ;
 
@@ -123,6 +101,8 @@ class ReadFiles
     {
       if ( id != NULL )
         free( id ) ;
+      if ( comment != NULL )
+        free( comment ) ;
       if ( seq != NULL )
         free( seq ) ;
       if ( qual != NULL )
@@ -137,8 +117,13 @@ class ReadFiles
       }
     }
 
-		// interleaved file is not frequently set. 0-no, 1-first line, 2-second line
-    void AddReadFile(char *file, bool fileHasMate, int fileInterleavedId = 0)
+    void SetNeedComment(bool in)
+    {
+      needComment = in ;
+    }
+
+    // interleaved file is not frequently set
+    void AddReadFile(char *file, bool fileHasMate, int fileInterleaved = false)
     {
       //std::string s(file) ;
       unsigned int i ;
@@ -152,7 +137,7 @@ class ReadFiles
       {
         fileNames.push_back(file) ;
         hasMate.push_back(fileHasMate) ;
-        interleavedId.push_back(fileInterleavedId) ;
+        interleaved.push_back(fileInterleaved) ;
       }
       else
       {
@@ -170,7 +155,7 @@ class ReadFiles
         {
           fileNames.push_back(globResult.gl_pathv[i]) ;
           hasMate.push_back(fileHasMate) ;
-          interleavedId.push_back(fileInterleavedId) ;
+          interleaved.push_back(fileInterleaved) ;
         }
 
         addFileCnt = globResult.gl_pathc ;
@@ -182,15 +167,12 @@ class ReadFiles
       fileCnt += addFileCnt ;
     }
 
-    bool HasQuality()
-    {
-      return ( fileType != 0  ) ;
-    }
-
     void Rewind() 
     {
       if ( id != NULL )
         free( id ) ;
+      if ( comment != NULL )
+        free( comment ) ;
       if ( seq != NULL )
         free( seq ) ;
       if ( qual != NULL )
@@ -199,16 +181,22 @@ class ReadFiles
       currentFpInd = 0 ;
 
       OpenFile(0) ;
-      if (interleavedId[0] == 2)
-        Next() ;
+    }
+    
+    bool HasMate()
+    {
+      return hasMate[currentFpInd] ;
+    }
+
+    bool IsInterleaved()
+    {
+      return interleaved[currentFpInd] ;
     }
 
     int Next() 
     {
       //int len ;
       //char buffer[2048] ;
-			if (currentFpInd < fileCnt && interleavedId[currentFpInd] == 2)
-				kseq_read(inSeq) ;
       while ( currentFpInd < fileCnt && ( kseq_read( inSeq ) < 0 ) )
       {
         ++currentFpInd ;
@@ -225,6 +213,8 @@ class ReadFiles
         }*/
       if ( id != NULL )	
         free( id ) ;
+      if ( comment != NULL )
+        free( comment ) ;
       if ( seq != NULL )
         free( seq ) ;
       if ( qual != NULL )
@@ -233,23 +223,22 @@ class ReadFiles
       id = strdup( inSeq->name.s ) ;
       RemoveReadIdSuffix(id) ;
       seq = strdup( inSeq->seq.s ) ;
+      if ( needComment && inSeq->comment.l )
+        comment = strdup(inSeq->comment.s) ;
+      else
+        comment = NULL ;
       if ( inSeq->qual.l )
         qual = strdup( inSeq->qual.s ) ;
       else
         qual = NULL ;
-			
-      if (interleavedId[currentFpInd] == 1)
-				kseq_read(inSeq) ;
 
       return 1 ;
     }
 
-    int NextWithBuffer( char **id, char **seq, char **qual, bool removeReturn = true, bool stopWhenFileEnds = false ) 
+    int NextWithBuffer( char **id, char **seq, char **qual, char **comment, bool removeReturn = true, bool stopWhenFileEnds = false ) 
     {
       //int len ;
       //char buffer[2048] ;
-			if (currentFpInd < fileCnt && interleavedId[currentFpInd] == 2)
-				kseq_read(inSeq) ;
       while ( currentFpInd < fileCnt && ( kseq_read( inSeq ) < 0 ) )
       {
         ++currentFpInd ;
@@ -263,6 +252,8 @@ class ReadFiles
 
       if ( *id != NULL )
         free( *id ) ;
+      if ( *comment != NULL )
+        free( *comment ) ;
       if ( *seq != NULL )
         free( *seq ) ;
       if ( *qual != NULL )
@@ -279,25 +270,34 @@ class ReadFiles
         break ;
         (*seq)[i + 1] = '\0' ;
         }*/
+      if ( needComment && inSeq->comment.l )
+        *comment = strdup(inSeq->comment.s) ;
+      else
+        *comment = NULL ;
       if ( inSeq->qual.l )
         *qual = strdup( inSeq->qual.s ) ;
       else
         *qual = NULL ;
 
-			if (interleavedId[currentFpInd] == 1)
-				kseq_read(inSeq) ;
       return 1 ;
     }
 
     // Get a batch of reads, it terminates until the buffer is full or 
     // the file ends.
-    int GetBatch( struct _Read *readBatch, int maxBatchSize, int &fileInd, bool trimReturn, bool stopWhenFileEnds )
+    // readBatch2 can be for interleaved file. 
+    int GetBatch( struct _Read *readBatch, int maxBatchSize, int &fileInd, bool trimReturn, bool stopWhenFileEnds, struct _Read *readBatch2 = NULL)
     {
       int batchSize = 0 ;
       while ( batchSize < maxBatchSize ) 
       {
         int tmp = NextWithBuffer( &readBatch[ batchSize].id, &readBatch[batchSize].seq,
-            &readBatch[batchSize].qual, trimReturn, stopWhenFileEnds ) ;
+            &readBatch[batchSize].qual, &readBatch[batchSize].comment,
+            trimReturn, stopWhenFileEnds ) ;
+        if (readBatch2 != NULL)
+          tmp = NextWithBuffer( &readBatch2[ batchSize].id, &readBatch2[batchSize].seq,
+              &readBatch2[batchSize].qual, &readBatch2[batchSize].comment,
+              trimReturn, stopWhenFileEnds ) ;
+        
         if ( tmp == -1 && batchSize > 0 )
         {
           fileInd = currentFpInd - 1 ;
@@ -318,6 +318,27 @@ class ReadFiles
       return batchSize ;
     }
 
+    void CopyBatch(struct _Read *to, struct _Read *from, int batchSize)
+    {
+      int i ;
+      for (i = 0 ; i < batchSize ; ++i)
+      {
+        free(to[i].id) ;
+        free(to[i].seq) ;
+        if (needComment && to[i].comment)
+          free(to[i].comment) ;
+        if (to[i].qual)
+          free(to[i].qual) ;
+        
+        to[i].id = strdup(from[i].id) ;
+        to[i].seq = strdup(from[i].seq) ;
+        if (needComment && from[i].comment)
+          to[i].comment = strdup(from[i].comment) ;
+        if (from[i].qual)
+          to[i].qual = strdup(from[i].qual) ;
+      }
+    }
+
     void FreeBatch(struct _Read *readBatch, int batchSize)
     {
       int i ;
@@ -325,6 +346,8 @@ class ReadFiles
       {
         free(readBatch[i].id) ;
         free(readBatch[i].seq) ;
+        if (needComment && readBatch[i].comment)
+          free(readBatch[i].comment) ;
         if (readBatch[i].qual)
           free(readBatch[i].qual) ;
       }

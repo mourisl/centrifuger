@@ -24,7 +24,8 @@ struct _segInfo
   int end ;
   int strand ; // -1: minus, 1:posiive
   
-	bool operator<( const struct _segInfo &b )	const
+  int field ; // -1: no need to search for field. Otherwise, the field is segments separated by space or tab
+  bool operator<( const struct _segInfo &b )	const
   {
     return start < b.start ; 
   }
@@ -39,7 +40,7 @@ private:
   char _compChar[256] ;
 
   std::vector<struct _segInfo> _segs[FORMAT_CATEGORY_COUNT] ;
-  bool _areSegmentsSorted[FORMAT_CATEGORY_COUNT] ; // Whether the segments for this category is sorted or not
+  bool _areSegmentsSorted[FORMAT_CATEGORY_COUNT] ; // Whether the segments for this category is sorted or not. Sorted segments may be parsed quicker in certain functions.
   
   // Return false if it fails to parse the format string.
   bool ParseFormatStringAndAppendEffectiveRange(const char *s, int len) {
@@ -47,6 +48,7 @@ private:
     int j = 0;  // start, end, strand section
     char buffer[20];
     int blen = 0;
+    int start; 
     
     struct _segInfo seg ;
     if (s[2] != ':')
@@ -63,9 +65,32 @@ private:
     } else {
       return false ;
     }
+
+    //Specification like: r1:hd:XX:YY. (hd is for header, XX is the field, YY is the conventional segment specification string)
+    start = 3 ;
+    seg.field = -1 ;
+    if (len >= 6 && s[3] == 'h' && s[4] == 'd' && s[5] == ':')
+    {
+      blen = 0 ;
+      start = 6 ;
+      for (i = start ; i <= len ; ++i)
+      {
+        if (i == len || s[i] == ':')
+        {
+          buffer[blen] = '\0' ;
+          seg.field = atoi(buffer) ;
+          break ;
+        }
+
+        buffer[blen] = s[i] ;
+        ++blen ;
+      }
+      start = i + 1 ;
+    }
     
     seg.strand = 1 ;
-    for (i = 3; i <= len; ++i) {
+    blen = 0 ;
+    for (i = start; i <= len; ++i) {
       if (i == len || s[i] == ':') {
         buffer[blen] = '\0';
         if (j == 0) {
@@ -92,7 +117,7 @@ private:
     _segs[category].push_back(seg) ;
     return true;
   }
-  
+
   bool AreSegmentsSorted(int category)
   {
     int size = _segs[category].size() ;
@@ -161,7 +186,7 @@ public:
     }
     
     // Sort the order in each specification
-    // It seems there are applications the sorted might not be desirable 
+    // It seems there are applications 
     //for (i = 0 ; i < FORMAT_CATEGORY_COUNT ; ++i)
     //  std::sort(_segs[i].begin(), _segs[i].end()) ;
     for (i = 0 ; i < FORMAT_CATEGORY_COUNT ; ++i)
@@ -180,13 +205,22 @@ public:
     if (_buffers.GetBufferCount() == 0)
       AllocateBuffers(2) ;
   }
-
-  int GetTotalSegmentCount()
+  
+  // category == FORMAT_CATEGORY_COUNT would be total segment count
+  int GetSegmentCount(int category)
   {
     int i ;
     int ret = 0 ;
-    for (i = 0 ; i < FORMAT_CATEGORY_COUNT ; ++i)
-      ret += _segs[i].size() ;
+
+    if (category == FORMAT_CATEGORY_COUNT)
+    {
+      for (i = 0 ; i < FORMAT_CATEGORY_COUNT ; ++i)
+        ret += _segs[i].size() ;
+    }
+    else
+    {
+      return _segs[category].size() ;
+    }
     return ret ;
   }
 
@@ -199,10 +233,23 @@ public:
     {
       if (_segs[category][0].start == 0  
           && _segs[category][0].end == -1
-          && _segs[category][0].strand == 1)
+          && _segs[category][0].strand == 1
+          && _segs[category][0].field == -1)
         return 0 ;
     }
     return 1 ;
+  }
+
+  bool HasField(int category)
+  {
+    if (_segs[category].size() > 0 && _segs[category][0].field >= 0)
+      return true ;
+    return false ;
+  }
+
+  bool IsInComment(int category)
+  {
+    return HasField(category) ;
   }
 
   // needComplement=true: reverse complement. Otherwise, just reverse
@@ -228,24 +275,53 @@ public:
         return buffer ;
       }
     }
-    
+
     char *buffer = seq ;
     if (bufferId >= 0)
       buffer = _buffers.Get(bufferId, len + 1) ;
     
     i = 0 ;
-		for (k = 0 ; k < segSize ; ++k)
+    for (k = 0 ; k < segSize ; ++k)
     {
       int start = seg[k].start ;
       int end = seg[k].end ;
       
-      if (start < 0)
-        start = len + start ;
+      int lenk = len ;
+      if (HasField(category))
+      {
+        // Move seq to the appropriate section and adjust start, end, lenk
+        // Assume seq is the comment
+        int f = 0 ; 
+        int fstart = 0, fend = 0 ;
+        for (j = 0 ; j <= len ; ++j)
+        {
+          if (seq[j] == ' ' || seq[j] == '\t' || seq[j] == '\0')
+          {
+            ++f ;
+            if (f == seg[k].field)
+              fstart = j + 1 ;
+            else if (f == seg[k].field + 1)
+            {
+              fend = j - 1 ;
+              break ;
+            }
+          }
+        }
 
-      if (end >= len)
-        end = len - 1 ;
+        if (start >= 0)
+          start += fstart ;
+        if (end >= 0)
+          end += fstart ;
+        lenk = fend + 1 ;
+      }
+      
+      if (start < 0)
+        start = lenk + start ;
+
+      if (end >= lenk)
+        end = lenk - 1 ;
       else if (end < 0)
-        end = len + end ;
+        end = lenk + end ;
 
       for (j = start ; j <= end ; ++j)
       {
@@ -265,7 +341,7 @@ public:
     }
     return buffer ;
   }
-  
+
   // Directly change the content of seq and qual
   void InplaceExtractSeqAndQual(char *seq, char *qual, int category, int bufferId = 0)
   {

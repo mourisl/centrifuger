@@ -93,35 +93,57 @@ int GetReadBatch(ReadFiles &reads, struct _Read *readBatch,
 {
   int i ;
   int fileInd1, fileInd2, fileIndBc, fileIndUmi ;
+  int batchSize ;
 
-  int batchSize = reads.GetBatch( readBatch, maxBatchSize, fileInd1, true, true ) ;
-  if ( readBatch2 != NULL )
+  if (reads.IsInterleaved())
   {
-    int tmp = mateReads.GetBatch( readBatch2, maxBatchSize, fileInd2, true, true ) ;
-    if ( tmp != batchSize )
+    batchSize = reads.GetBatch(readBatch, maxBatchSize, fileInd1, true, true, readBatch2) ;
+  }
+  else
+  {
+    batchSize = reads.GetBatch( readBatch, maxBatchSize, fileInd1, true, true ) ;
+    if ( readBatch2 != NULL )
     {
-      Utils::PrintLog("ERROR: The two mate-pair read files have different number of reads." ) ;
-      exit(EXIT_FAILURE) ;
+      int tmp = mateReads.GetBatch( readBatch2, maxBatchSize, fileInd2, true, true ) ;
+      if ( tmp != batchSize )
+      {
+        Utils::PrintLog("ERROR: The two mate-pair read files have different number of reads." ) ;
+        exit(EXIT_FAILURE) ;
+      }
     }
   }
 
   if (barcodeBatch != NULL)
   {
-    int tmp = barcodeFile.GetBatch( barcodeBatch, maxBatchSize, fileIndBc, true, true ) ;
-    if ( tmp != batchSize )
+    if (barcodeFile.GetFileCount() > 0)
     {
-      Utils::PrintLog("ERROR: The barcode file and read file have different number of reads." ) ;
-      exit(EXIT_FAILURE) ;
+      int tmp = barcodeFile.GetBatch( barcodeBatch, maxBatchSize, fileIndBc, true, true ) ;
+      if ( tmp != batchSize )
+      {
+        Utils::PrintLog("ERROR: The barcode file and read file have different number of reads." ) ;
+        exit(EXIT_FAILURE) ;
+      }
+    }
+    else // things are stored in read 1
+    {
+      reads.CopyBatch(barcodeBatch, readBatch, batchSize) ;
     }
   }
   
-  if (umiBatch != NULL)
+  if (umiBatch != NULL) 
   {
-    int tmp = umiFile.GetBatch( umiBatch, maxBatchSize, fileIndUmi, true, true ) ;
-    if ( tmp != batchSize )
+    if (umiFile.GetFileCount() > 0)
     {
-      Utils::PrintLog("ERROR: The UMI file and read file have different number of reads." ) ;
-      exit(EXIT_FAILURE) ;
+      int tmp = umiFile.GetBatch( umiBatch, maxBatchSize, fileIndUmi, true, true ) ;
+      if ( tmp != batchSize )
+      {
+        Utils::PrintLog("ERROR: The UMI file and read file have different number of reads." ) ;
+        exit(EXIT_FAILURE) ;
+      }
+    }
+    else // things are stored in read 1
+    {
+      reads.CopyBatch(umiBatch, readBatch, batchSize) ;
     }
   }
 
@@ -134,7 +156,19 @@ int GetReadBatch(ReadFiles &reads, struct _Read *readBatch,
       readFormatter.InplaceExtractSeqAndQual(readBatch2[i].seq, readBatch2[i].qual, FORMAT_READ2) ;
     if (barcodeBatch != NULL)
     {
-      readFormatter.InplaceExtractSeqAndQual(barcodeBatch[i].seq, barcodeBatch[i].qual, FORMAT_BARCODE) ;
+      if (!readFormatter.IsInComment(FORMAT_BARCODE))
+        readFormatter.InplaceExtractSeqAndQual(barcodeBatch[i].seq, barcodeBatch[i].qual, FORMAT_BARCODE) ;
+      else
+      {
+        free(barcodeBatch[i].seq) ;
+        if (barcodeBatch[i].qual)
+        {
+          free(barcodeBatch[i].qual) ;
+          barcodeBatch[i].qual = NULL ;
+        }
+        barcodeBatch[i].seq = strdup(readFormatter.Extract(barcodeBatch[i].comment, FORMAT_BARCODE, true, true, 0)) ;
+      }
+      
       
       char *barcode = barcodeBatch[i].seq ;
       char *qual = barcodeBatch[i].qual ;
@@ -157,8 +191,22 @@ int GetReadBatch(ReadFiles &reads, struct _Read *readBatch,
         barcode[1] = '\0' ;
       }
     }
+
     if (umiBatch != NULL)
-      readFormatter.InplaceExtractSeqAndQual(umiBatch[i].seq, umiBatch[i].qual, FORMAT_UMI) ;
+    {
+      if (!readFormatter.IsInComment(FORMAT_UMI))
+        readFormatter.InplaceExtractSeqAndQual(umiBatch[i].seq, umiBatch[i].qual, FORMAT_UMI) ;
+      else
+      {
+        free(umiBatch[i].seq) ;
+        if (umiBatch[i].qual)
+        {
+          free(umiBatch[i].qual) ;
+          umiBatch[i].qual = NULL ;
+        }
+        umiBatch[i].seq = strdup(readFormatter.Extract(umiBatch[i].comment, FORMAT_BARCODE, true, true, 0)) ;
+      }
+    }
   }
   return batchSize ;
 }
@@ -286,8 +334,7 @@ int main(int argc, char *argv[])
     }
 		else if ( c == 'i' )
 		{
-			reads.AddReadFile( optarg, true, /*interleavedId=*/1) ;
-			mateReads.AddReadFile( optarg, true, /*interleavedId=*/2) ;
+			reads.AddReadFile( optarg, true, /*interleaved=*/true) ;
 			hasMate = true ;
 		}
     else if (c == 'o')
@@ -368,12 +415,33 @@ int main(int argc, char *argv[])
     return EXIT_FAILURE ;
   }
 
+  if (!hasBarcode && readFormatter.GetSegmentCount(FORMAT_BARCODE) > 0)
+      hasBarcode = true ;
+  if (!hasUmi && readFormatter.GetSegmentCount(FORMAT_UMI) > 0)
+      hasUmi = true ;
+
   if ( hasBarcode && hasBarcodeWhitelist )
   {
     barcodeCorrector.CollectBackgroundDistribution(barcodeFile, readFormatter) ;
   }
-  
-  if (threadCnt > 1 && readFormatter.GetTotalSegmentCount() > 0)
+	
+  if (readFormatter.IsInComment(FORMAT_BARCODE))
+  {
+    if (barcodeFile.GetFileCount() > 0)
+      barcodeFile.SetNeedComment(true) ;
+    else
+      reads.SetNeedComment(true) ;
+  }
+
+	if (readFormatter.IsInComment(FORMAT_UMI))
+  {
+    if (umiFile.GetFileCount() > 0)
+      umiFile.SetNeedComment(true) ;
+    else
+      reads.SetNeedComment(true) ;
+  }
+
+  if (threadCnt > 1 && readFormatter.GetSegmentCount(FORMAT_CATEGORY_COUNT) > 0)
     readFormatter.AllocateBuffers(4 * threadCnt) ;
 
   classifier.Init(idxPrefix, classifierParam) ;
