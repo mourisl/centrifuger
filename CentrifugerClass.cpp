@@ -94,7 +94,6 @@ int GetReadBatch(ReadFiles &reads, struct _Read *readBatch,
   int i ;
   int fileInd1, fileInd2, fileIndBc, fileIndUmi ;
   int batchSize ;
-
   if (reads.IsInterleaved())
   {
     batchSize = reads.GetBatch(readBatch, maxBatchSize, fileInd1, true, true, readBatch2) ;
@@ -422,7 +421,13 @@ int main(int argc, char *argv[])
 
   if ( hasBarcode && hasBarcodeWhitelist )
   {
-    barcodeCorrector.CollectBackgroundDistribution(barcodeFile, readFormatter) ;
+    if (barcodeFile.GetFileCount() > 0)
+      barcodeCorrector.CollectBackgroundDistribution(barcodeFile, readFormatter) ;
+    else
+    {
+      Utils::PrintLog("Barcode whitelist has to be used with --barcode option, so cases like piping input is not supported.") ;
+      return EXIT_FAILURE ;
+    }
   }
 	
   if (readFormatter.IsInComment(FORMAT_BARCODE))

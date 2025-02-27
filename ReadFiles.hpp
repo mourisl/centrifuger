@@ -68,7 +68,10 @@ class ReadFiles
       }
 
       opened = true ;
-      gzFp = gzopen( fileNames[fileInd].c_str(), "r" ) ;
+      if (fileNames[fileInd] != "-")
+        gzFp = gzopen( fileNames[fileInd].c_str(), "r" ) ;
+      else
+        gzFp = gzdopen(fileno(stdin), "r") ;
       inSeq = kseq_init( gzFp ) ;
     }
 
@@ -89,7 +92,8 @@ class ReadFiles
 
     ReadFiles(): fileCnt(0), currentFpInd(0), opened(false)
     {
-      id = seq = qual = NULL ;
+      needComment = false ;
+      id = comment = seq = qual = NULL ;
     }
 
     ~ReadFiles()
@@ -185,12 +189,12 @@ class ReadFiles
     
     bool HasMate()
     {
-      return hasMate[currentFpInd] ;
+      return hasMate[0] ;
     }
 
     bool IsInterleaved()
     {
-      return interleaved[currentFpInd] ;
+      return interleaved[0] ;
     }
 
     int Next() 
@@ -293,10 +297,6 @@ class ReadFiles
         int tmp = NextWithBuffer( &readBatch[ batchSize].id, &readBatch[batchSize].seq,
             &readBatch[batchSize].qual, &readBatch[batchSize].comment,
             trimReturn, stopWhenFileEnds ) ;
-        if (readBatch2 != NULL)
-          tmp = NextWithBuffer( &readBatch2[ batchSize].id, &readBatch2[batchSize].seq,
-              &readBatch2[batchSize].qual, &readBatch2[batchSize].comment,
-              trimReturn, stopWhenFileEnds ) ;
         
         if ( tmp == -1 && batchSize > 0 )
         {
@@ -310,6 +310,11 @@ class ReadFiles
           fileInd = currentFpInd ;
           return 0 ; // Finished reading	
         }
+        
+        if (readBatch2 != NULL)
+          tmp = NextWithBuffer( &readBatch2[ batchSize].id, &readBatch2[batchSize].seq,
+              &readBatch2[batchSize].qual, &readBatch2[batchSize].comment,
+              trimReturn, stopWhenFileEnds ) ;
 
         ++batchSize ;
       }
@@ -334,8 +339,12 @@ class ReadFiles
         to[i].seq = strdup(from[i].seq) ;
         if (needComment && from[i].comment)
           to[i].comment = strdup(from[i].comment) ;
+        else
+          to[i].comment = NULL ;
         if (from[i].qual)
           to[i].qual = strdup(from[i].qual) ;
+        else
+          to[i].qual = NULL ;
       }
     }
 
@@ -346,7 +355,7 @@ class ReadFiles
       {
         free(readBatch[i].id) ;
         free(readBatch[i].seq) ;
-        if (needComment && readBatch[i].comment)
+        if (readBatch[i].comment)
           free(readBatch[i].comment) ;
         if (readBatch[i].qual)
           free(readBatch[i].qual) ;
