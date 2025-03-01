@@ -378,7 +378,7 @@ public:
     
     // read in the classificaiton result
     size_t lineCnt = 0 ;
-    gzFile gzfp = gzopen(file, "r") ;
+    gzFile gzfp = strcmp(file, "-") ? gzopen(file, "r") : gzdopen(fileno(stdin), "r");
 
     char *line =  _buffers.Get(0, 0) ;
     char *readId = _buffers.Get(2, 0) ;
