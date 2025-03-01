@@ -804,6 +804,8 @@ int main(int argc, char *argv[])
   free( args ) ;
   free(idxPrefix) ;
 
+  resWriter.Finalize() ;
+
   Utils::PrintLog("Centrifuger finishes." ) ;
   return 0 ;
 }

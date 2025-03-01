@@ -19,6 +19,9 @@ private:
   gzFile _gzFpUnclassified[4] ; 
   gzFile _gzFpClassified[4] ;
 
+  size_t _classifiedCnt ;
+  size_t _totalCnt ;
+
   void PrintExtraCol(const char *s) 
   {
     if (s == NULL)
@@ -42,6 +45,8 @@ public:
       _gzFpUnclassified[i] = NULL ;
       _gzFpClassified[i] = NULL ;
     }
+
+    _classifiedCnt = _totalCnt = 0 ;
   }
 
   ~ResultWriter() 
@@ -149,8 +154,10 @@ public:
   {
     int i ;
     int matchCnt = r.taxIds.size() ;
+    ++_totalCnt ;
     if (matchCnt > 0)
     {
+      ++_classifiedCnt ;
       for (i = 0 ; i < matchCnt ; ++i)
       {
         fprintf(_fpClassification,
@@ -212,6 +219,8 @@ public:
 
   void Finalize()
   {
+    Utils::PrintLog("Processed %lu read fragments, and %lu (%.2lf\%) can be classified.",
+        _totalCnt, _classifiedCnt, (double)_classifiedCnt / (double)_totalCnt * 100.0) ;
   }
 } ;
 
