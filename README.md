@@ -52,9 +52,11 @@ An example of pre-built index containing human, bacteria, archea, and virus geno
     Usage: ./centrifuger [OPTIONS] > classification.tsv
       Required:
         -x FILE: index prefix
-        -1 FILE -2 FILE: paired-end read
+        -1 FILE -2 FILE: paired-end read files
           or
-        -u FILE: single-end read
+        -u FILE: single-end read file
+          or
+        -i FILE: interleaved paried-end read file
       Optional:
         -t INT: number of threads [1]
         -k INT: report upto <int> distinct, primary assignments for each read pair [1]
@@ -158,6 +160,8 @@ Centrifuger supports using wildcard in the -1 -2/-u option, so a typical way to 
 The exact options depend on your 10x Genomics kit. The quotes around the paths with wildcard  are necessary.
 
 Moreover, Centrifuger can translate input cell barcodes to another set of barcodes. You can specify the translation file through the option --barcodeTranslate. The translation file is a two-column tsv/csv file with the translated barcode on the first column and the original barcode on the second column. This option also supports combinatorial barcoding, such as SHARE-seq. Centrifuger can translate each barcode segment provided in the second column to the ID in the first column and add "-" to concatenate the IDs in the output.
+
+The bc and um option can parse the barcode and UMI from the fastq header comment field. The format is [bc|um]:hd:field:start:end:strand. "hd" is a keyword so the search will be in the header comment. "field" can be a number (0-based), which is specifies which field in the comment (read id is excluded) contains the barcode/UMI. "field" can also be a string, and it search for the pattern starting with the "field" and extract the barcode/UMI from there. For example, if the header looks like "@r1 CR:Z:NNNN CB:Z:ACGT UR:Z:NNNN", then "bc:hd:1:5:-1" or "bc:hd:CB:5:-1" will extract the barcode "ACGT" from the header.  
 
 ### Example
 
