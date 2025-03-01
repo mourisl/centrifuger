@@ -69,8 +69,7 @@ public:
   }
 
   // category: 0: unclassified reads, 1: classified reads
-  void SetOutputReads(const char *prefix, bool hasMate, bool hasBarcode, bool hasUmi,
-      ReadFiles &reads, int category)
+  void SetOutputReads(const char *prefix, bool hasMate, bool hasBarcode, bool hasUmi, int category)
   {
     int len = strlen(prefix) ;      
     char extension[10] = "" ;
@@ -86,11 +85,10 @@ public:
     }
     
     // Add "fa" or "fq" to the name
-    reads.Next() ;
+    // Now always fq.
     extension[0] = '.' ;
     extension[1] = 'f' ;
-    extension[2] = reads.qual == NULL ? 'a' : 'q' ;
-    reads.Rewind() ;
+    extension[2] = 'q' ;
 
     // Add "gz" to the name
     extension[3] = '.' ;

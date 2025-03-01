@@ -455,11 +455,11 @@ int main(int argc, char *argv[])
   resWriter.SetHasUmi(hasUmi) ;
   if (unclassifiedOutputPrefix[0] != '\0')
   {
-    resWriter.SetOutputReads(unclassifiedOutputPrefix, hasMate, hasBarcode, hasUmi, reads, 0) ;
+    resWriter.SetOutputReads(unclassifiedOutputPrefix, hasMate, hasBarcode, hasUmi, 0) ;
   }
   if (classifiedOutputPrefix[0] != '\0')
   {
-    resWriter.SetOutputReads(classifiedOutputPrefix, hasMate, hasBarcode, hasUmi, reads, 1) ;
+    resWriter.SetOutputReads(classifiedOutputPrefix, hasMate, hasBarcode, hasUmi, 1) ;
   }
   resWriter.OutputHeader() ;
 
