@@ -19,6 +19,9 @@ private:
   gzFile _gzFpUnclassified[4] ; 
   gzFile _gzFpClassified[4] ;
 
+  size_t _classifiedCnt ;
+  size_t _totalCnt ;
+
   void PrintExtraCol(const char *s) 
   {
     if (s == NULL)
@@ -42,6 +45,8 @@ public:
       _gzFpUnclassified[i] = NULL ;
       _gzFpClassified[i] = NULL ;
     }
+
+    _classifiedCnt = _totalCnt = 0 ;
   }
 
   ~ResultWriter() 
@@ -64,8 +69,7 @@ public:
   }
 
   // category: 0: unclassified reads, 1: classified reads
-  void SetOutputReads(const char *prefix, bool hasMate, bool hasBarcode, bool hasUmi,
-      ReadFiles &reads, int category)
+  void SetOutputReads(const char *prefix, bool hasMate, bool hasBarcode, bool hasUmi, int category)
   {
     int len = strlen(prefix) ;      
     char extension[10] = "" ;
@@ -81,11 +85,10 @@ public:
     }
     
     // Add "fa" or "fq" to the name
-    reads.Next() ;
+    // Now always fq.
     extension[0] = '.' ;
     extension[1] = 'f' ;
-    extension[2] = reads.qual == NULL ? 'a' : 'q' ;
-    reads.Rewind() ;
+    extension[2] = 'q' ;
 
     // Add "gz" to the name
     extension[3] = '.' ;
@@ -149,8 +152,10 @@ public:
   {
     int i ;
     int matchCnt = r.taxIds.size() ;
+    ++_totalCnt ;
     if (matchCnt > 0)
     {
+      ++_classifiedCnt ;
       for (i = 0 ; i < matchCnt ; ++i)
       {
         fprintf(_fpClassification,
@@ -212,6 +217,8 @@ public:
 
   void Finalize()
   {
+    Utils::PrintLog("Processed %lu read fragments, and %lu (%.2lf\%) can be classified.",
+        _totalCnt, _classifiedCnt, (double)_classifiedCnt / (double)_totalCnt * 100.0) ;
   }
 } ;
 

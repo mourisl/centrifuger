@@ -21,6 +21,7 @@ char usage[] = "./centrifuger-build [OPTIONS]:\n"
   "\t--bmax INT: block size for blockwise suffix array sorting [16777216]\n"
   "\t--dcv INT: difference cover period [4096]\n"
   "\t--offrate INT: SA/offset is sampled every (2^<int>) BWT chars [4]\n"
+  "\t--ftabchars INT: # of chars consumed in initial lookup (default: 10)\n"
   "\t--rbbwt-b INT: block size for run-block compressed BWT. 0 for auto. 1 for no compression [0]\n"
   "\t--subset-tax INT: only consider the subset of input genomes under taxonomy node INT [0]\n"
   ""
@@ -32,6 +33,7 @@ static struct option long_options[] = {
 			{ "dcv", required_argument, 0, ARGV_DCV},
       { "build-mem", required_argument, 0, ARGV_BUILD_MEMORY},
       { "offrate", required_argument, 0, ARGV_OFFRATE},
+      { "ftabchars", required_argument, 0, ARGV_FTABCHARS},
       { "rbbwt-b", required_argument, 0, ARGV_RBBWT_B}, 
       { "taxonomy-tree", required_argument, 0, ARGV_TAXONOMY_TREE},
       { "conversion-table", required_argument, 0, ARGV_CONVERSION_TABLE},
@@ -138,6 +140,10 @@ int main(int argc, char *argv[])
     else if (c == ARGV_OFFRATE)
     {
       fmBuilderParam.sampleRate = (1<<atoi(optarg)) ;
+    }
+    else if (c == ARGV_FTABCHARS)
+    {
+      fmBuilderParam.precomputeWidth = atoi(optarg) ;
     }
     else if (c == ARGV_RBBWT_B)
     {

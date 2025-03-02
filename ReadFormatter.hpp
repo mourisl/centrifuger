@@ -24,7 +24,11 @@ struct _segInfo
   int end ;
   int strand ; // -1: minus, 1:posiive
   
-	bool operator<( const struct _segInfo &b )	const
+  bool inComment ;
+  int field ; // -1: field tag is a string. Otherwise, the field is segments separated by space or tab
+  char *fieldPrefix ;
+
+  bool operator<( const struct _segInfo &b )	const
   {
     return start < b.start ; 
   }
@@ -39,7 +43,7 @@ private:
   char _compChar[256] ;
 
   std::vector<struct _segInfo> _segs[FORMAT_CATEGORY_COUNT] ;
-  bool _areSegmentsSorted[FORMAT_CATEGORY_COUNT] ; // Whether the segments for this category is sorted or not
+  bool _areSegmentsSorted[FORMAT_CATEGORY_COUNT] ; // Whether the segments for this category is sorted or not. Sorted segments may be parsed quicker in certain functions.
   
   // Return false if it fails to parse the format string.
   bool ParseFormatStringAndAppendEffectiveRange(const char *s, int len) {
@@ -47,6 +51,7 @@ private:
     int j = 0;  // start, end, strand section
     char buffer[20];
     int blen = 0;
+    int start; 
     
     struct _segInfo seg ;
     if (s[2] != ':')
@@ -63,9 +68,49 @@ private:
     } else {
       return false ;
     }
+
+    //Specification like: bc:hd:XX:YY. (hd is for header comment field, XX is the number, YY is the conventional segment specification string)
+    //Also support bc:hd:SSS:YY for searching the tag with SSS as the prefix
+    start = 3 ;
+    seg.inComment = false ;
+    if (len >= 6 && s[3] == 'h' && s[4] == 'd' && s[5] == ':')
+    {
+      seg.inComment = true ;
+      blen = 0 ;
+      start = 6 ;
+      for (i = start ; i <= len ; ++i)
+      {
+        if (i == len || s[i] == ':')
+        {
+          buffer[blen] = '\0' ;
+
+          int l ;
+          for (l = 0 ; l < blen ; ++l)
+            if (buffer[l] < '0' || buffer[l] > '9')
+              break ;
+
+          if (l == blen)
+          {
+            seg.field = atoi(buffer) ;
+            seg.fieldPrefix = NULL ;
+          }
+          else
+          {
+            seg.field = -1 ; 
+            seg.fieldPrefix = strdup(buffer) ;
+          }
+          break ;
+        }
+
+        buffer[blen] = s[i] ;
+        ++blen ;
+      }
+      start = i + 1 ;
+    }
     
     seg.strand = 1 ;
-    for (i = 3; i <= len; ++i) {
+    blen = 0 ;
+    for (i = start; i <= len; ++i) {
       if (i == len || s[i] == ':') {
         buffer[blen] = '\0';
         if (j == 0) {
@@ -92,7 +137,7 @@ private:
     _segs[category].push_back(seg) ;
     return true;
   }
-  
+
   bool AreSegmentsSorted(int category)
   {
     int size = _segs[category].size() ;
@@ -132,7 +177,18 @@ public:
     _compChar['T'] = 'A' ;
   } 
 
-  ~ReadFormatter() {
+  ~ReadFormatter() 
+  {
+    int i, j ;
+    for (i = 0 ; i < FORMAT_CATEGORY_COUNT ; ++i)
+    {
+      if (!IsInComment(i))
+        continue ;
+      int segCnt = _segs[i].size() ;
+      for (j = 0 ; j < segCnt ; ++j)
+        if (_segs[i][j].inComment && _segs[i][j].field == -1)
+          free(_segs[i][j].fieldPrefix) ;
+    }
   }
 
   void AllocateBuffers(int bufferCnt)
@@ -161,7 +217,7 @@ public:
     }
     
     // Sort the order in each specification
-    // It seems there are applications the sorted might not be desirable 
+    // It seems there are applications 
     //for (i = 0 ; i < FORMAT_CATEGORY_COUNT ; ++i)
     //  std::sort(_segs[i].begin(), _segs[i].end()) ;
     for (i = 0 ; i < FORMAT_CATEGORY_COUNT ; ++i)
@@ -180,13 +236,22 @@ public:
     if (_buffers.GetBufferCount() == 0)
       AllocateBuffers(2) ;
   }
-
-  int GetTotalSegmentCount()
+  
+  // category == FORMAT_CATEGORY_COUNT would be total segment count
+  int GetSegmentCount(int category)
   {
     int i ;
     int ret = 0 ;
-    for (i = 0 ; i < FORMAT_CATEGORY_COUNT ; ++i)
-      ret += _segs[i].size() ;
+
+    if (category == FORMAT_CATEGORY_COUNT)
+    {
+      for (i = 0 ; i < FORMAT_CATEGORY_COUNT ; ++i)
+        ret += _segs[i].size() ;
+    }
+    else
+    {
+      return _segs[category].size() ;
+    }
     return ret ;
   }
 
@@ -199,10 +264,18 @@ public:
     {
       if (_segs[category][0].start == 0  
           && _segs[category][0].end == -1
-          && _segs[category][0].strand == 1)
+          && _segs[category][0].strand == 1
+          && _segs[category][0].inComment == false)
         return 0 ;
     }
     return 1 ;
+  }
+
+  bool IsInComment(int category)
+  {
+    if (_segs[category].size() > 0 && _segs[category][0].inComment)
+      return true ;
+    return false ;
   }
 
   // needComplement=true: reverse complement. Otherwise, just reverse
@@ -228,24 +301,64 @@ public:
         return buffer ;
       }
     }
-    
+
     char *buffer = seq ;
     if (bufferId >= 0)
       buffer = _buffers.Get(bufferId, len + 1) ;
     
     i = 0 ;
-		for (k = 0 ; k < segSize ; ++k)
+    for (k = 0 ; k < segSize ; ++k)
     {
       int start = seg[k].start ;
       int end = seg[k].end ;
       
-      if (start < 0)
-        start = len + start ;
+      int lenk = len ;
+      if (IsInComment(category))
+      {
+        // Move seq to the appropriate section and adjust start, end, lenk
+        // Assume seq is the comment
+        int f = 0 ; 
+        int fstart = 0, fend = 0 ;
+        if (seg[k].field >= 0)
+        {
+          for (j = 0 ; j <= len ; ++j)
+          {
+            if (seq[j] == ' ' || seq[j] == '\t' || seq[j] == '\0')
+            {
+              ++f ;
+              if (f == seg[k].field)
+                fstart = j + 1 ;
+              else if (f == seg[k].field + 1)
+              {
+                fend = j - 1 ;
+                break ;
+              }
+            }
+          }
+        }
+        else
+        {
+          char *p = strstr(seq, seg[k].fieldPrefix) ;
+          fstart = p - seq ;
+          for (; *p != ' ' && *p != '\t' && *p != '\0' ; ++p)
+            ;
+          fend = p - seq - 1 ;
+        }
 
-      if (end >= len)
-        end = len - 1 ;
+        if (start >= 0)
+          start += fstart ;
+        if (end >= 0)
+          end += fstart ;
+        lenk = fend + 1 ;
+      }
+      
+      if (start < 0)
+        start = lenk + start ;
+
+      if (end >= lenk)
+        end = lenk - 1 ;
       else if (end < 0)
-        end = len + end ;
+        end = lenk + end ;
 
       for (j = start ; j <= end ; ++j)
       {
@@ -265,7 +378,7 @@ public:
     }
     return buffer ;
   }
-  
+
   // Directly change the content of seq and qual
   void InplaceExtractSeqAndQual(char *seq, char *qual, int category, int bufferId = 0)
   {

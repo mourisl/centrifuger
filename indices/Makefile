@@ -122,7 +122,7 @@ refseq_microbial: export ANY_LEVEL_GENOMES:=viral
 refseq_microbial: export MAMMALIAN_TAXIDS:=9606 10090
 refseq_microbial: export INCLUDE_CONTAMINANTS:=1
 refseq_microbial: export IDX_NAME:=refseq_microbial
-#refseq_microbial: export CFR_BUILD_OPTS+=--ftabchars 14
+refseq_microbial: export CFR_BUILD_OPTS+=--ftabchars 14
 
 refseq_full: export COMPLETE_GENOMES:=archaea bacteria fungi invertebrate plant protozoa vertebrate_mammalian vertebrate_other viral
 refseq_full: export CHROMOSOME_LEVEL_GENOMES:=$(COMPLETE_GENOMES)
@@ -155,7 +155,7 @@ else
 REFERENCE_SEQUENCES+=nt-sorted.fna
 endif
 TAXID_MAPS+=nt.map
-#CFR_BUILD_OPTS+=--ftabchars=14
+CFR_BUILD_OPTS+=--ftabchars=14
 endif
 
 
