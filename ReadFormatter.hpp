@@ -175,6 +175,9 @@ public:
     _compChar['C'] = 'G' ;
     _compChar['G'] = 'C' ;
     _compChar['T'] = 'A' ;
+
+    for (i = 0 ; i < FORMAT_CATEGORY_COUNT ; ++i)
+      _areSegmentsSorted[i] = true ;
   } 
 
   ~ReadFormatter() 
