@@ -203,7 +203,7 @@ int GetReadBatch(ReadFiles &reads, struct _Read *readBatch,
           free(umiBatch[i].qual) ;
           umiBatch[i].qual = NULL ;
         }
-        umiBatch[i].seq = strdup(readFormatter.Extract(umiBatch[i].comment, FORMAT_BARCODE, true, true, 0)) ;
+        umiBatch[i].seq = strdup(readFormatter.Extract(umiBatch[i].comment, FORMAT_UMI, true, true, 0)) ;
       }
     }
   }
@@ -331,11 +331,11 @@ int main(int argc, char *argv[])
       mateReads.AddReadFile( optarg, true ) ;
       hasMate = true ;
     }
-		else if ( c == 'i' )
-		{
-			reads.AddReadFile( optarg, true, /*interleaved=*/true) ;
-			hasMate = true ;
-		}
+    else if ( c == 'i' )
+    {
+      reads.AddReadFile( optarg, true, /*interleaved=*/true) ;
+      hasMate = true ;
+    }
     else if (c == 'o')
     {
       strcpy(outputPrefix, optarg) ;
@@ -429,7 +429,7 @@ int main(int argc, char *argv[])
       return EXIT_FAILURE ;
     }
   }
-	
+
   if (readFormatter.IsInComment(FORMAT_BARCODE))
   {
     if (barcodeFile.GetFileCount() > 0)
@@ -438,7 +438,7 @@ int main(int argc, char *argv[])
       reads.SetNeedComment(true) ;
   }
 
-	if (readFormatter.IsInComment(FORMAT_UMI))
+  if (readFormatter.IsInComment(FORMAT_UMI))
   {
     if (umiFile.GetFileCount() > 0)
       umiFile.SetNeedComment(true) ;
@@ -482,7 +482,7 @@ int main(int argc, char *argv[])
   pthread_attr_t attr ;
   pthread_attr_init( &attr ) ;
   pthread_attr_setdetachstate( &attr, PTHREAD_CREATE_JOINABLE ) ;
- 
+  
   for (i = 0 ; i < classificationThreadCnt ; ++i)
   {
     args[i].threadCnt = classificationThreadCnt ;
