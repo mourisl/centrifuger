@@ -16,7 +16,7 @@ char usage[] = "./centrifuger-inspect [OPTIONS]:\n"
   "\t--conversion-table: print the seqID to taxonomy ID translation information\n"
   "\t--taxonomy-tree: print the taxonomy tree\n"
   "\t--name-table: print the scientific name for each strain in the database\n"
-  "\t--size-table: print the lengths of the sequences belonging to the same taxonomic ID"
+  "\t--size-table: print the lengths of the sequences belonging to the same taxonomic ID\n"
   "\t--index-size: print the index information\n"
   ""
   ;

@@ -45,7 +45,7 @@ Centrifuger is also available from [Bioconda](https://anaconda.org/bioconda/cent
         --offrate INT: SA/offset is sampled every (2^<int>) BWT chars [4]
         --subset-tax INT: only consider the subset of input genomes under taxonomy node <int> [0]
 
-An example of pre-built index containing human, bacteria, archea, and virus genomes from RefSeq plus SARS-CoV-2 variants from GenBank is available at [Zenodo](https://zenodo.org/records/10023239). Another pre-built index for [GTDB](https://gtdb.ecogenomic.org/) r220 is available at [Dropbox](https://www.dropbox.com/scl/fo/wtsermtdd62n1ttryuhwv/ADWTYiJA6Dh5gdbHmwC2nfo?rlkey=fgdpthjukcj1uhsjrcv35j927&dl=0). The default --bmax and --dcv option may be inefficient for building indexes for larger genome databases, please use --build-mem option to specify the rough estimation of the available memory.
+An example of pre-built index containing human, bacteria, archea, and virus genomes from RefSeq plus SARS-CoV-2 variants from GenBank is available at [Zenodo](https://zenodo.org/records/10023239). Other pre-built indices are [GTDB_r220](https://gtdb.ecogenomic.org/) available at [Dropbox](https://www.dropbox.com/scl/fo/wtsermtdd62n1ttryuhwv/ADWTYiJA6Dh5gdbHmwC2nfo?rlkey=fgdpthjukcj1uhsjrcv35j927&dl=0), and NCBI nt database from 2019 available at [Dropbox](https://www.dropbox.com/scl/fo/dbjzuerib7nfluj2u3yw7/AER-MP9RaqL0g59YwTXe4RU?rlkey=7zy78nvwdw19fuaetnn3u7qhi&st=6un1f4ux&dl=0). The default --bmax and --dcv option may be inefficient for building indexes for larger genome databases, please use --build-mem option to specify the rough estimation of the available memory.
 
 #### Classification
 

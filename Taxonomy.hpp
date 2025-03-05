@@ -630,6 +630,12 @@ public:
       return _taxonomyTree[ctid].rank ;
   }
 
+  void SetTaxIdName(size_t ctid, const std::string &name)
+  {
+    if (ctid < _nodeCnt)
+      _taxonomyName[ctid] = name ;
+  }
+
   std::string GetTaxIdName(size_t ctid)
   {
     if (ctid < _nodeCnt)
