@@ -123,11 +123,11 @@ You can use "centrifuger-download" to download reference sequences from NCBI. Th
 To add human (taxonomy ID 9606) or mouse (taxonomy ID 10090) genome to the downloaded files, you can use the following command
 
 	# human: T2T-CHM13
-	./centrifuger-download -o library -d "vertebrate_mammalian" -t 9606 refseq >> seqid.map
+	./centrifuger-download -o library -d "vertebrate_mammalian" -t 9606 refseq >> seqid2taxid.map
 	# human: hg38 reference genome
-	./centrifuger-download -o library -d "vertebrate_mammalian" -a "Chromosome" -t 9606 -c 'reference genome' refseq	
+	./centrifuger-download -o library -d "vertebrate_mammalian" -a "Chromosome" -t 9606 -c 'reference genome' refseq >> seqid2taxid.map
 	# mouse
-	./centrifuger-download -o library -d "vertebrate_mammalian" -a "Chromosome" -t 10090 -c 'reference genome' refseq >> seqid.map
+	./centrifuger-download -o library -d "vertebrate_mammalian" -a "Chromosome" -t 10090 -c 'reference genome' refseq >> seqid2taxid.map
 
 To build the index, first put the downloaded files in a list (this part is different from Centrifuge, where the files need to be concatendated) and then run centrifuger-build:
 	
