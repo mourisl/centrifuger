@@ -17,3 +17,13 @@ The repetitiveness of GTDB representative genomes is very low, so the run-block 
 ../centrifuger-build -l gtdb_fname_to_taxid.map --taxonomy-tree gtdb_nodes.dmp --name-table gtdb_names.dmp -t 16 -o cfr_gtdb --build-mem 500G --offrate 5 --rbbwt-b 1
 ```
 A pre-built index for GTDB r220 representative genomes is available at: https://www.dropbox.com/scl/fo/wtsermtdd62n1ttryuhwv/ADWTYiJA6Dh5gdbHmwC2nfo?rlkey=fgdpthjukcj1uhsjrcv35j927&dl=0 .
+
+### Create seqid2taxid.map from NCBI accession2taxid mapping file
+The seqID, e.g. accession ID, to taxonomy ID mapping file is necessary for Centrifuge and optional for Centrifuger. In case you have downloaded the genomes and also have access to the (nucl_gb.accession2taxid.gz)[https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/accession2taxid/nucl_gb.accession2taxid.gz] file, here is the procedure to create the seqid_taxid.map file.
+
+```
+
+find genomes -type f -name "*.fna.gz" | xargs -I{} zcat {} | grep "^>" | cut -f1 -d' ' | tr -d ">" > seqid.list # Get the seqID list
+
+perl SearchAccessionIdToTaxId.pl seqid.list <(zcat nucl_gb.accession2taxid.gz) > seqid_to_taxid.map # seqIDs not in the accession file will be assigned to taxonomy ID 1 in this script.
+```
