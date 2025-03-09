@@ -17,6 +17,7 @@ char usage[] = "./centrifuger-quant [OPTIONS]:\n"
   "Optional:\n"
   "\t--min-score INT: only consider reads with score at least <int> \n"
   "\t--min-length INT: only consider reads with classified length at least <int>\n"
+  "\t--output-format INT: output format. (0:centrifuge,default, 1:kraken, 2:metaphlan, 3:CAMI)\n"
   ""
 	;
 
@@ -27,6 +28,7 @@ static struct option long_options[] = {
   { "size-table", required_argument, 0, ARGV_SIZE_TABLE},
   { "min-score", required_argument, 0, ARGV_QUANT_MINSCORE},
   { "min-length", required_argument, 0, ARGV_QUANT_MINLENGTH},
+  { "output-format", required_argument, 0, ARGV_QUANT_OUTPUT_FORMAT},
   { (char *)0, 0, 0, 0} 
 } ;
 
@@ -49,6 +51,7 @@ int main(int argc, char *argv[])
   char *taxonomyFile = NULL ; // taxonomy tree file
   char *nameTable = NULL ;
   char *sizeTable = NULL ;
+  int outputFormat = 0 ;
 
   while (1)
   {
@@ -85,6 +88,10 @@ int main(int argc, char *argv[])
     {
       sizeTable = strdup(optarg) ;
     }
+    else if (c == ARGV_QUANT_OUTPUT_FORMAT)
+    {
+      outputFormat = atoi(optarg) ;
+    }
     else
     {
       fprintf(stderr, "Unknown parameter found.\n%s", usage) ;
@@ -110,7 +117,7 @@ int main(int argc, char *argv[])
 
   quantifier.Quantification() ;
 
-  quantifier.Output(stdout, 0) ;
+  quantifier.Output(stdout, outputFormat) ;
 
   free(classificationFile) ;
  

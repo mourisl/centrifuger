@@ -14,6 +14,14 @@
 
 using namespace compactds ;
 
+enum
+{
+  QUANTIFIER_OUTPUT_FORMAT_CENTRIFUGER,
+  QUANTIFIER_OUTPUT_FORMAT_KRAKEN2,
+  QUANTIFIER_OUTPUT_FORMAT_METAPHLAN,
+  QUANTIFIER_OUTPUT_FORMAT_CAMI
+} ;
+
 struct _readAssignment
 {
   std::vector<uint64_t> targets ;
@@ -258,6 +266,62 @@ private:
     if (diff > 10)
       diff = 11 ;
     return 1.0 / (double)(1 << (2 * diff)) ; // Every difference decrease the probability by 1/4
+  }
+
+  // Get the taxonomy lineage string for the taxId
+  // style: from quantifier_output_format
+  // useName: the path string uses scientific name. (false is to use ID)
+  // canonicalRankOnly: for intermediate node, only use those in the canonical rank
+  // @return: length of the selected nodes. 
+  int GetTaxLineagePathString(size_t ctid, int style, bool useName, bool canonicalRankOnly, std::string &pathString)
+  {
+    int i ;
+
+    SimpleVector<size_t> path ;
+    _taxonomy.GetTaxLineagePath(ctid, path) ;
+    path.Reverse() ;
+
+    int pathSize = path.Size() ;
+    pathString = "" ;
+    for (i = 0 ; i < pathSize ; ++i)
+    {
+      if (canonicalRankOnly && !_taxonomy.IsInCanonicalRank(path[i]))
+        continue ;
+      
+      if (style == QUANTIFIER_OUTPUT_FORMAT_METAPHLAN)
+      {
+        char r[4] ; //rank descriptor
+        if (_taxonomy.IsInCanonicalRank(path[i]))
+        {
+          if (_taxonomy.GetTaxIdRank(path[i]) == RANK_SUPER_KINGDOM)
+            r[0] = 'k' ;
+          else
+            r[0] = _taxonomy.GetTaxRankString( _taxonomy.GetTaxIdRank(path[i]))[0] ;
+          r[1] = '_' ;
+          r[2] = '_' ;
+          r[3] = '\0' ;
+        }
+        else
+        {
+          r[0] = r[1] = '_' ;
+          r[2] = '\0' ;
+        }
+        pathString += r ;
+      }
+      
+      if (useName)
+        pathString += _taxonomy.GetTaxIdName(path[i]) ;
+      else
+      {
+        char buffer[30] ;
+        sprintf(buffer, "%lu", _taxonomy.GetOrigTaxId(path[i])) ;
+        pathString += buffer ; 
+      }
+      if (i < pathSize - 1) 
+        pathString += "|" ;
+    }
+
+    return pathSize ;
   }
 
 public:
@@ -526,25 +590,55 @@ public:
 
   // format: 0-centrifuge's report
   //        1 - kraken
+  //        2 - metaphlan
+  //        3 - CAMI 
   void Output(FILE *fp, int format)
   {
     size_t i ;
-
-    // Get the read assignment information
-    fprintf(fp, "name\ttaxID\ttaxRank\tgenomeSize\tnumReads\tnumUniqueReads\tabundance\n") ;
     size_t nodeCnt = _taxonomy.GetNodeCount() ;
       
-    for (i = 0 ; i < nodeCnt ; ++i)
+    if (format == QUANTIFIER_OUTPUT_FORMAT_METAPHLAN)
     {
-      if (_readCount[i] < 1e-6)
-        continue ;
 
-      printf("%s\t%lu\t%s\t%lu\t%d\t%d\t%lf\n",
-          _taxonomy.GetTaxIdName(i).c_str(), 
-          _taxonomy.GetOrigTaxId(i),
-          _taxonomy.GetTaxRankString( _taxonomy.GetTaxIdRank(i)),
-          _taxidLength[i], 
-          (int)(_readCount[i] + 1e-3), (int)(_uniqReadCount[i] + 1e-3), _abund[i]) ;
+    }
+    else if (format == QUANTIFIER_OUTPUT_FORMAT_CAMI)
+    {
+      fprintf(fp, "#CAMI Submission for Taxonomic Profiling\n") ;
+      fprintf(fp, "@@TAXID\tRANK\tTAXPATH\tTAXPATHSN\tPERCENTAGE\n") ;
+      for (i = 0 ; i < nodeCnt ; ++i)
+      {
+        if (_readCount[i] < 1e-6)
+          continue ;
+        if (!_taxonomy.IsInCanonicalRank(i))
+          continue ;
+        
+        std::string taxIdPathString ;
+        std::string taxNamePathString ;
+
+        GetTaxLineagePathString(i, format, false, true, taxIdPathString) ;
+        GetTaxLineagePathString(i, format, true, true, taxNamePathString) ;
+        
+        fprintf(fp, "%lu\t%s\t%s\t%s\t%.5lf\n", _taxonomy.GetOrigTaxId(i), _taxonomy.GetTaxRankString(_taxonomy.GetTaxIdRank(i)), taxIdPathString.c_str(), taxNamePathString.c_str(), _abund[i] * 100.0 ) ; 
+      }
+    }
+    else
+    {
+      if (format != QUANTIFIER_OUTPUT_FORMAT_CENTRIFUGER)
+        Utils::PrintLog("Warning: unknown output format, will output in Centrifuger format.\n") ;
+      
+      fprintf(fp, "name\ttaxID\ttaxRank\tgenomeSize\tnumReads\tnumUniqueReads\tabundance\n") ;
+      for (i = 0 ; i < nodeCnt ; ++i)
+      {
+        if (_readCount[i] < 1e-6)
+          continue ;
+
+        fprintf(fp, "%s\t%lu\t%s\t%lu\t%d\t%d\t%lf\n",
+            _taxonomy.GetTaxIdName(i).c_str(), 
+            _taxonomy.GetOrigTaxId(i),
+            _taxonomy.GetTaxRankString( _taxonomy.GetTaxIdRank(i)),
+            _taxidLength[i], 
+            (int)(_readCount[i] + 1e-3), (int)(_uniqReadCount[i] + 1e-3), _abund[i]) ;
+      }
     }
   }
 } ;

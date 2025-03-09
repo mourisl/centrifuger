@@ -64,7 +64,7 @@ struct TaxonomyNode
     uint8_t  leaf;
 
     TaxonomyNode(uint64_t _parent_tid, uint8_t  _rank, uint8_t _leaf):
-    	parentTid(_parent_tid), rank(_rank), leaf(_leaf) {};
+      parentTid(_parent_tid), rank(_rank), leaf(_leaf) {};
 
     TaxonomyNode(): parentTid(0), rank(RANK_UNKNOWN), leaf(false) {};
 };
@@ -751,7 +751,7 @@ public:
       promotedTaxIds.PushBack(_rootCTaxId) ;
   }
 
-  // Get the taxonomy lineage for two tax IDs
+  // Get the taxonomy lineage for the tax IDs
   // @return: length to the root
   int GetTaxLineagePath(size_t ctid, SimpleVector<size_t> &path)
   {
@@ -769,6 +769,11 @@ public:
     } while (ctid != _taxonomyTree[ctid].parentTid) ;
   
     return (int)path.Size() ;
+  }
+  
+  bool IsInCanonicalRank(size_t ctid)
+  {
+    return IsCanonicalRankNum(_taxonomyTree[ctid].rank) ;
   }
 
   // Promote the taxIds to the ranks defined in the "IsCanonicalRankNum" function
