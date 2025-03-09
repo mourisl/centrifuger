@@ -22,8 +22,15 @@ A pre-built index for GTDB r220 representative genomes is available at: https://
 The seqID, e.g. accession ID, to taxonomy ID mapping file is necessary for Centrifuge and optional for Centrifuger. In case you have downloaded the genomes and also have access to the (nucl_gb.accession2taxid.gz)[https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/accession2taxid/nucl_gb.accession2taxid.gz] file, here is the procedure to create the seqid_taxid.map file.
 
 ```
-
 find genomes -type f -name "*.fna.gz" | xargs -I{} zcat {} | grep "^>" | cut -f1 -d' ' | tr -d ">" > seqid.list # Get the seqID list
 
 perl SearchAccessionIdToTaxId.pl seqid.list <(zcat nucl_gb.accession2taxid.gz) > seqid_to_taxid.map # seqIDs not in the accession file will be assigned to taxonomy ID 1 in this script.
 ```
+
+In the case you want to filter the genomes that is not in the accession2taxid mapping file, you can use the following steps:
+```
+find genomes -type f -name "*.fna.gz" | xargs -I{} zgrep -H "^>" {} | cut -f1 -d' ' | tr -d ">" | tr ":" "\t" > seqid_wfname.list # Create a two-column file where the first column is the file name and the second column is the seqID.
+perl SearchAccessionIdToTaxId.pl <(cut -f2 seqid_wfname.list) <(zcat nucl_gb.accession2taxid.gz) > seqid_to_taxid.map
+paste seqid_wfname.list seqid_to_taxid.map | awk '{if ($4!=1) print $1,$4}' | uniq > genome_file_wtaxid.list 
+```
+The genomes_file_wtaxid.list file can be used for the "-l" option in centrifuger-build and bypass the requirement of the "--conversion-table". Using awk on "$2,$4" will create the filtered seqid_to_taxid.map file.
