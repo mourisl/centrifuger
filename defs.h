@@ -5,7 +5,7 @@
 
 //#define DEBUG
 
-#define CENTRIFUGER_VERSION "1.0.7-r217"
+#define CENTRIFUGER_VERSION "1.0.8-r223"
 
 extern char nucToNum[26] ; 
 extern char numToNuc[26] ;
@@ -13,8 +13,6 @@ extern char numToNuc[26] ;
 //#define MAX(x,y) (((x)>(y))?(x):(y))
 //#define MIN(x,y) (((x)<(y))?(x):(y))
 #define ABS(x) (((x)>(0))?(x):(-(x)))
-
-typedef uint32_t index_t ; 
 
 #define MAX_SEG_COUNT 127
 struct _pair
