@@ -976,7 +976,13 @@ public:
         size_t sum = taxidNewLength[i] ;
         if (preset[i])
           sum += taxidLength[i] ;
-        taxidLength[i] = sum / taxidCount[i] ;
+        if (taxidCount[i] == 0) // leaf with no sequence in the subtree, could be due to wrong taxonomy tree. TODO: look into this case
+        {
+          //Utils::PrintLog("Warning: %s(%lu) has no subtree while not being a leaf, and it's length is %lu", _taxonomyName[i].c_str(), GetOrigTaxId(i), sum) ;
+          taxidLength[i] = sum ;
+        }
+        else
+          taxidLength[i] = sum / taxidCount[i] ;
       }
     }
 

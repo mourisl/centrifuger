@@ -17,7 +17,6 @@ using namespace compactds ;
 enum
 {
   QUANTIFIER_OUTPUT_FORMAT_CENTRIFUGER,
-  QUANTIFIER_OUTPUT_FORMAT_KRAKEN2,
   QUANTIFIER_OUTPUT_FORMAT_METAPHLAN,
   QUANTIFIER_OUTPUT_FORMAT_CAMI
 } ;
@@ -288,7 +287,8 @@ private:
       if (canonicalRankOnly && !_taxonomy.IsInCanonicalRank(path[i]))
         continue ;
       
-      if (style == QUANTIFIER_OUTPUT_FORMAT_METAPHLAN)
+      if (style == QUANTIFIER_OUTPUT_FORMAT_METAPHLAN
+          && useName) // Add some prefix to the taxonomy name
       {
         char r[4] ; //rank descriptor
         if (_taxonomy.IsInCanonicalRank(path[i]))
@@ -588,10 +588,7 @@ public:
     free(subtreeTaxIdLen) ;
   }
 
-  // format: 0-centrifuge's report
-  //        1 - kraken
-  //        2 - metaphlan
-  //        3 - CAMI 
+  // format: check the enum 
   void Output(FILE *fp, int format)
   {
     size_t i ;
@@ -599,11 +596,27 @@ public:
       
     if (format == QUANTIFIER_OUTPUT_FORMAT_METAPHLAN)
     {
+      fprintf(fp, "#clade_name\tNCBI_tax_id\trelative_abundance\tadditional_species\n") ;      
+      for (i = 0 ; i < nodeCnt ; ++i)
+      {
+        if (_readCount[i] < 1e-6)
+          continue ;
+        if (!_taxonomy.IsInCanonicalRank(i))
+          continue ;
+        //if (_abund[i] < 5e-8)
+        //  continue ;
 
+        std::string taxIdPathString ;
+        std::string taxNamePathString ;
+
+        GetTaxLineagePathString(i, format, false, true, taxIdPathString) ;
+        GetTaxLineagePathString(i, format, true, true, taxNamePathString) ;
+
+        fprintf(fp, "%s\t%s\t%.5lf\t\n", taxNamePathString.c_str(), taxIdPathString.c_str(), _abund[i] * 100.0 ) ; 
+      }
     }
     else if (format == QUANTIFIER_OUTPUT_FORMAT_CAMI)
     {
-      fprintf(fp, "#CAMI Submission for Taxonomic Profiling\n") ;
       fprintf(fp, "@@TAXID\tRANK\tTAXPATH\tTAXPATHSN\tPERCENTAGE\n") ;
       for (i = 0 ; i < nodeCnt ; ++i)
       {
@@ -611,6 +624,8 @@ public:
           continue ;
         if (!_taxonomy.IsInCanonicalRank(i))
           continue ;
+        //if (_abund[i] < 5e-8)
+        //  continue ;
         
         std::string taxIdPathString ;
         std::string taxNamePathString ;
@@ -632,7 +647,7 @@ public:
         if (_readCount[i] < 1e-6)
           continue ;
 
-        fprintf(fp, "%s\t%lu\t%s\t%lu\t%d\t%d\t%lf\n",
+        fprintf(fp, "%s\t%lu\t%s\t%lu\t%d\t%d\t%.7lf\n",
             _taxonomy.GetTaxIdName(i).c_str(), 
             _taxonomy.GetOrigTaxId(i),
             _taxonomy.GetTaxRankString( _taxonomy.GetTaxIdRank(i)),

@@ -69,12 +69,16 @@ An example of pre-built index containing human, bacteria, archea, and virus geno
         --hitk-factor INT: resolve at most <int>*k entries for each hit [40; use 0 for no restriction]
         --merge-readpair: merge overlapped paired-end reads and trim adapters 
 
-#### Quantification
+#### Quantification (taxonomic profiling)
 
     Usage: ./centrifuger-quant [OPTIONS] > report.tsv
       Required:
         -x FILE: index prefix
         -c FILE: classification file
+      optional:
+        --min-score INT: only consider reads with score at least <int> 
+        --min-length INT: only consider reads with classified length at least <int>
+        --output-format INT: output format. (0:centrifuge,default, 1:Metaphlan, 2:CAMI)        
 
 The quantification results will be affected by the "-k" option from the classification program "centrifuger". Increasing "-k" will provide ambiguous but more specific classification result, potentially can improve the quantification result.  
 

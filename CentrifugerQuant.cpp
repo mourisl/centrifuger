@@ -17,7 +17,7 @@ char usage[] = "./centrifuger-quant [OPTIONS]:\n"
   "Optional:\n"
   "\t--min-score INT: only consider reads with score at least <int> \n"
   "\t--min-length INT: only consider reads with classified length at least <int>\n"
-  "\t--output-format INT: output format. (0:centrifuge,default, 1:kraken, 2:metaphlan, 3:CAMI)\n"
+  "\t--output-format INT: output format. (0:centrifuge,default, 1:metaphlan, 2:CAMI)\n"
   ""
 	;
 
