@@ -17,9 +17,7 @@ Centrifuger is an efficient taxonomic classification method that compares sequen
 1. Clone the [GitHub repo](https://github.com/mourisl/centrifuger), e.g. with `git clone https://github.com/mourisl/centrifuger.git`
 2. Run `make` in the repo directory
 
-You will find the executable files in the downloaded directory. If you want to run Centrifuger without specifying the directory, you can either add the directory of Centrifuger to the environment variable PATH or create a soft link ("ln -s") of the file "centrifuger" to a directory in PATH. 
-
-**Please note:** The provided Makefile uses the `-O3` and `-march=native` g++ options together, which enables architecture-specific optimizations tailored for the host machine/build environment. This can lead to the use of extra instruction sets and features supported by the host CPU, such as SIMD extensions like SSE and AVX; however, it can lead to compatibility issues (e.g., Illegal Instruction core dump errors) if the executable is run on a different architecture than the one it was built on. This can be problematic if you are compiling the executable to run on an HPC or distributed environment with heterogeneous hardware. To increase compatibility, please update the `CXXFLAGS` variable within the Makefile or during the build process. As an example, if you are broadly targeting x86 machines, please build the executable using the following make command: `make CXXFLAGS="-Wall -g -O2 -march=x86-64"`. 
+You will find the executable files in the downloaded directory. If you want to run Centrifuger without specifying the directory, you can either add the directory of Centrifuger to the environment variable PATH or create a soft link ("ln -s") of the file "centrifuger" to a directory in PATH.
 
 Centrifuger depends on [pthreads](http://en.wikipedia.org/wiki/POSIX_Threads). 
 
