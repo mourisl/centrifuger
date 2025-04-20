@@ -248,7 +248,7 @@ sub dfs_summation {
     for my $child (@$children) {
       dfs_summation($child);
       $clade_counts{$node} += ($clade_counts{$child} || 0);
-      if ($report_score_data)
+      if ($report_score_data && defined $clade_scores{$child})
       {
         if (!defined $clade_scores{$node}
           || ($clade_scores{$child} > $clade_scores{$node}))
