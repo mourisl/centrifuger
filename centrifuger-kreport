@@ -18,6 +18,7 @@ my ($centrifuge_index, $min_score, $min_length);
 my $no_lca = 0;
 my $show_zeros = 0;
 my $is_cnts_table = 0;
+my $report_score_data = 0;
 my $PROG = "centrifuger-kreport";
 my $CWD = dirname( abs_path( $0 ) ) ;
 
@@ -28,7 +29,8 @@ GetOptions(
   "is-count-table" => \$is_cnts_table,
   "min-score=i" => \$min_score,
   "min-length=i"=> \$min_length,
-  "no-lca" => \$no_lca
+  "no-lca" => \$no_lca,
+  "report-score-data"=> \$report_score_data
 ) or usage();
 
 usage() unless defined $centrifuge_index;
@@ -53,7 +55,7 @@ Options:
 
     --min-score SCORE    Require a minimum score for reads to be counted
     --min-length LENGTH  Require a minimum alignment length to the read
-  
+    --report-score-data  Output an extra column summarizing classification scores and other details 
   ";
   exit $exit_code;
 }
@@ -67,8 +69,10 @@ print STDERR "Loading taxonomy ...\n";
 load_taxonomy();
 
 my %taxo_counts;
+my %taxo_scores;
 my $seq_count = 0;
 $taxo_counts{0} = 0;
+$taxo_scores{0} = 0; # score and potentially future other features
 if ($is_cnts_table) {
   while (<>) {
     my ($taxID,$count) = split;
@@ -81,11 +85,9 @@ if ($is_cnts_table) {
   my %headerMap ;
   for ( my $i = 0 ; $i < scalar( @cols ) ; ++$i )
   {
-  	$headerMap{ $cols[$i] } = $i ;
+    $headerMap{ $cols[$i] } = $i ;
   }
 
-  my $prevReadID;
-  my $prevTaxID;
   while (<>) {
     #my (undef,$seqID,$taxID,$score, undef, $hitLength, $queryLength, $numMatches) = split /\t/;
     my @cols = split /\t/ ;
@@ -106,22 +108,34 @@ if ($is_cnts_table) {
       $taxo_counts{$taxID} += 1/$numMatches;
       $seq_count += 1/$numMatches;
     } else {
-      if ( ( defined $prevReadID ) && ( $readID eq $prevReadID ) ) {
-        --$taxo_counts{$prevTaxID};
-        $prevTaxID = lca($prevTaxID, $taxID);
-        ++$taxo_counts{$prevTaxID};
-      } else {
-        ++$taxo_counts{$taxID};
-        ++$seq_count;
-        $prevTaxID = $taxID;
+      if ($numMatches > 1)
+      {
+        for (my $i = 1 ; $i < $numMatches ; ++$i)
+        {
+          my $line = <> ;
+          my @tmpCols = split /\t/, $line ;
+          $taxID = lca($taxID, $tmpCols[ $headerMap{"taxID"}]) ;
+        }
       }
+
+      ++$taxo_counts{$taxID};
+
+      if ($report_score_data)
+      {
+        if (!defined $taxo_scores{$taxID}
+          || $score > $taxo_scores{$taxID})
+        {
+          $taxo_scores{$taxID} = $score ;
+        }
+      }
+      ++$seq_count;
     }
-    $prevReadID = $readID ;
   }
 }
 my $classified_count = $seq_count - $taxo_counts{0};
 
 my %clade_counts = %taxo_counts;
+my %clade_scores = %taxo_scores;
 dfs_summation(1);
 
 for (keys %name_map) {
@@ -130,10 +144,16 @@ for (keys %name_map) {
 
 die "No sequence matches with given settings" unless $seq_count > 0;
 
-printf "%6.2f\t%d\t%d\t%s\t%d\t%s%s\n",
+my $extraInfo = "" ;
+if ($report_score_data)
+{
+  $extraInfo = "\t0";
+}
+
+printf "%6.2f\t%d\t%d\t%s\t%d\t%s%s%s\n",
   $clade_counts{0} * 100 / $seq_count,
   $clade_counts{0}, $taxo_counts{0}, "U",
-  0, "", "unclassified";
+  0, "", "unclassified", $extraInfo;
 dfs_report(1, 0);
 
 sub dfs_report {
@@ -142,14 +162,18 @@ sub dfs_report {
   if (! $clade_counts{$node} && ! $show_zeros) {
     return;
   }
-  printf "%6.2f\t%d\t%d\t%s\t%d\t%s%s\n",
+  if ($report_score_data)
+  {
+    $extraInfo = "\t".($clade_scores{$node} || 0) ;
+  }
+  printf "%6.2f\t%d\t%d\t%s\t%d\t%s%s%s\n",
     ($clade_counts{$node} || 0) * 100 / $seq_count,
     ($clade_counts{$node} || 0),
     ($taxo_counts{$node} || 0),
     rank_code($rank_map{$node}),
     $node,
     "  " x $depth,
-    $name_map{$node};
+    $name_map{$node}, $extraInfo;
   my $children = $child_lists{$node};
   if ($children) {
     my @sorted_children = sort { $clade_counts{$b} <=> $clade_counts{$a} } @$children;
@@ -160,19 +184,19 @@ sub dfs_report {
 }
 
 sub isTaxIDInTree {
-	my $a = $_[0] ;
+  my $a = $_[0] ;
 
-	while ( $a > 1 )
-	{
-		if ( !defined $parent_map{ $a } )
-		{
-			print STDERR "Couldn't find parent of taxID $a - directly assigned to root.\n";
-			return 0 ;
-		}
-		last if ( $a eq $parent_map{$a} ) ;
-		$a = $parent_map{ $a } ;
-	}
-	return 1 ;
+  while ( $a > 1 )
+  {
+    if ( !defined $parent_map{ $a } )
+    {
+      print STDERR "Couldn't find parent of taxID $a - directly assigned to root.\n";
+      return 0 ;
+    }
+    last if ( $a eq $parent_map{$a} ) ;
+    $a = $parent_map{ $a } ;
+  }
+  return 1 ;
 }
 
 sub lca {
@@ -224,6 +248,14 @@ sub dfs_summation {
     for my $child (@$children) {
       dfs_summation($child);
       $clade_counts{$node} += ($clade_counts{$child} || 0);
+      if ($report_score_data && defined $clade_scores{$child})
+      {
+        if (!defined $clade_scores{$node}
+          || ($clade_scores{$child} > $clade_scores{$node}))
+        {
+          $clade_scores{$node} = $clade_scores{$child} ;
+        }
+      }
     }
   }
 }
