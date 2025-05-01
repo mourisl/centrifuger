@@ -34,6 +34,7 @@ enum
     RANK_PHYLUM,
     RANK_KINGDOM,
     RANK_DOMAIN,
+    RANK_ACELLULAR_ROOT,
     RANK_FORMA,
     RANK_INFRA_CLASS,
     RANK_INFRA_ORDER,
@@ -117,10 +118,12 @@ private:
     _taxRankNum[RANK_SUPER_PHYLUM] = rank++;
 
     _taxRankNum[RANK_SUB_KINGDOM] = rank;
-    _taxRankNum[RANK_KINGDOM] = rank;
-    _taxRankNum[RANK_SUPER_KINGDOM] = rank++;
+    _taxRankNum[RANK_KINGDOM] = rank++;
 
-    _taxRankNum[RANK_DOMAIN] = rank;
+    _taxRankNum[RANK_SUPER_KINGDOM] = rank;
+    _taxRankNum[RANK_ACELLULAR_ROOT] = rank;
+    _taxRankNum[RANK_DOMAIN] = rank++;
+
     _taxRankNum[RANK_FORMA] = rank;
     _taxRankNum[RANK_SUB_TRIBE] = rank;
     _taxRankNum[RANK_TRIBE] = rank;
@@ -143,10 +146,20 @@ private:
         uint64_t tid, parent_tid;
         char dummy; std::string rank_string;
         cline >> tid >> dummy >> parent_tid >> dummy >> rank_string;
+        
+        std::string temp ; // There might be rank_string with space now, e.g. acellular root
+        while(true) {
+          cline >> temp;
+          if(temp == "|" || temp == "") break;
+          rank_string.push_back(' ');
+          rank_string += temp;
+        }
+
         if(tree.find(tid) != tree.end()) {
           std::cerr << "Warning: " << tid << " already has a parent!" << std::endl;
           continue;
         }
+        //std::cout<<rank_string<<" | "<< (int)GetTaxRankId(rank_string.c_str()) <<std::endl;
         tree[tid] = TaxonomyNode(parent_tid, GetTaxRankId(rank_string.c_str()), true);
       }
       taxonomy_file.close();
@@ -409,7 +422,7 @@ private:
     if (r == RANK_STRAIN //|| r == RANK_SUB_SPECIES
         || r == RANK_SPECIES || r == RANK_GENUS || r == RANK_FAMILY || r == RANK_ORDER
         || r == RANK_CLASS || r == RANK_PHYLUM || r == RANK_KINGDOM || r == RANK_SUPER_KINGDOM
-        || r == RANK_DOMAIN)
+        || r == RANK_DOMAIN || r == RANK_ACELLULAR_ROOT)
       return true ;
     return false ;
   }
@@ -477,6 +490,8 @@ public:
       case RANK_CLASS:         return "class";
       case RANK_PHYLUM:        return "phylum";
       case RANK_KINGDOM:       return "kingdom";
+      case RANK_DOMAIN:        return "domain";
+      case RANK_ACELLULAR_ROOT: return "acellular root";
       case RANK_FORMA:         return "forma";
       case RANK_INFRA_CLASS:   return "infraclass";
       case RANK_INFRA_ORDER:   return "infraorder";
@@ -519,6 +534,10 @@ public:
       return RANK_PHYLUM;
     } else if(strcmp(rank, "kingdom") == 0) {
       return RANK_KINGDOM;
+    } else if(strcmp(rank, "domain") == 0) {
+      return RANK_DOMAIN;
+    } else if(strcmp(rank, "acellular root") == 0) {
+      return RANK_ACELLULAR_ROOT;
     } else if(strcmp(rank, "forma") == 0) {
       return RANK_FORMA;
     } else if(strcmp(rank, "infraclass") == 0) {

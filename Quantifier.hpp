@@ -91,6 +91,7 @@ private:
   double *_abund ;
   double *_readCount ; // number of reads assigned to this tax ID and its subtree, taking the probability distribution into account.
   double *_uniqReadCount ; // number of reads uniquely assigned to this tax ID. Unique is at the strain/sequence level in its subtree.
+  size_t uncountedReadCount ; // number of reads 
 
   // NOT USED now. Original implementation of taxonomy ID genome length is taking the max, now is taking average.
   size_t GenerateTreeInternalNodeLength(size_t tag, const Tree_Plain &tree, size_t *taxidLen)
@@ -293,8 +294,8 @@ private:
         char r[4] ; //rank descriptor
         if (_taxonomy.IsInCanonicalRank(path[i]))
         {
-          if (_taxonomy.GetTaxIdRank(path[i]) == RANK_SUPER_KINGDOM)
-            r[0] = 'k' ;
+          if (_taxonomy.GetTaxIdRank(path[i]) == RANK_SUPER_KINGDOM || _taxonomy.GetTaxIdRank(path[i]) == RANK_ACELLULAR_ROOT)
+            r[0] = 'd' ;
           else
             r[0] = _taxonomy.GetTaxRankString( _taxonomy.GetTaxIdRank(path[i]))[0] ;
           r[1] = '_' ;
