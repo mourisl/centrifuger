@@ -44,6 +44,7 @@ my $usage = "Usage: gtdb-create-dmp.pl [OPTIONS]\n".
   "\t-o STR: output prefix [gtdb_]\n".
   #"\t-t INT: number of threads to use [1]\n".
   "\t--names STR: NCBI's names.dmp file. If not given, using non-NCBI taxid to represent intermediate nodes.\n".
+  "\t--taxIDStart INT: the tax ID number start to count. [10000000]\n".
   "\t--generateSeqId2TaxId: generate seqid_to_taxid.map conversion file.\n"
   ;
 
@@ -68,6 +69,7 @@ GetOptions(
   #"t=i" => \$numThreads, 
   #"nodes=s" => \$ncbiNodeDmp,
   "names=s" => \$ncbiNameDmp,
+  "taxIDStart=i"=> \$novelTaxId,
   "generateSeqId2TaxId" => \$generateSeqIdMap 
 ) ;
 my $fullGenomeDir = abs_path($genomeDir) ;
@@ -91,7 +93,7 @@ if ($ncbiNameDmp ne "")
     next if ($cols[6] ne "scientific name") ;
 
     my $name = $cols[2] ;
-    $name =~ s/\s/_/g ;
+    #$name =~ s/\s/_/g ; 
     $ncbiNamesToTaxId{$name} = $cols[0] ;
   }
   close FP ;
