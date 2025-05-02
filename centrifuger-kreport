@@ -237,6 +237,8 @@ sub rank_code {
     $_ eq "phylum" and return "P";
     $_ eq "kingdom" and return "K";
     $_ eq "superkingdom" and return "D";
+    $_ eq "domain" and return "D";
+    $_ eq "acellular root" and return "D";
   }
   return "-";
 }
