@@ -281,6 +281,8 @@ class ReadFiles
             *id = strdup(specialReadId.c_str()) ;
             if (*seq != NULL)
               (*seq)[0] = '\0' ;
+            else
+              *seq = strdup("") ;
             fileEndSpecialReadFlag = 1 ;
             return 1 ;
           }

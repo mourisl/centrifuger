@@ -57,7 +57,7 @@ public:
 
   ~ResultWriter() 
   {
-    if (_fpClassification != stdout)
+    if (_fpClassification != stdout && _fpClassification != NULL)
       fclose(_fpClassification) ;
     int i ;
     for (i = 0 ; i < 4 ; ++i)
@@ -83,9 +83,14 @@ public:
   char NextMultiOutputFile()
   {
     if (_fpClassification != NULL)
+    {
       fclose( _fpClassification ) ;
-
+      _fpClassification = NULL ;
+    }
     ++_currentMultiOutputFile ;
+    
+    if (_currentMultiOutputFile >= (int)_multiOutputFileList.size()) 
+      return 'e' ; // end
 
     char mode[2] = "w" ;
     if (_multiOutputFileMap.find(_multiOutputFileList[ _currentMultiOutputFile ]) != _multiOutputFileMap.end() )
@@ -208,7 +213,7 @@ public:
           PrintExtraCol(barcode) ;
         if (_hasUmi)
           PrintExtraCol(umi) ;
-        printf("\n") ;
+        fprintf(_fpClassification, "\n") ;
       }
     }
     else
@@ -219,7 +224,7 @@ public:
         PrintExtraCol(barcode) ;
       if (_hasUmi)
         PrintExtraCol(umi) ;
-      printf("\n") ;
+      fprintf(_fpClassification, "\n") ;
     }
 
     for (i = 0 ; i <= 1 ; ++i)

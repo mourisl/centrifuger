@@ -43,6 +43,7 @@ char usage[] = "./centrifuger [OPTIONS] > output.tsv:\n"
 
 static const char *short_options = "x:1:2:u:i:o:t:k:v" ;
 static struct option long_options[] = {
+  { "sample-sheet", required_argument, 0, ARGV_SAMPLE_SHEET},
   { "un", required_argument, 0, ARGV_OUTPUT_UNCLASSIFIED},
   { "cl", required_argument, 0, ARGV_OUTPUT_CLASSIFIED},
   { "min-hitlen", required_argument, 0, ARGV_MIN_HITLEN},
@@ -391,10 +392,12 @@ int main(int argc, char *argv[])
         while (!fs.eof())
         {
           std::getline(fs, line) ;
+          if (line.length() == 0)
+            continue ;
           std::string read1, read2, barcode, umi, outputFile ;
           std::istringstream cline(line) ;
           cline >> read1 >> read2 >> barcode >> umi >> outputFile ;
-
+          //std::cout << read1 << "|" << read2 << "|" << barcode << "|" << umi << "|" << std::endl ;
           if (read2 != ".")
           {
             reads.AddReadFile(read1.c_str(), true) ;
@@ -575,7 +578,7 @@ int main(int argc, char *argv[])
       batchSize = GetReadBatch(reads, readBatch, mateReads, readBatch2, 
           barcodeFile, barcodeBatch, umiFile, umiBatch,
           readFormatter, barcodeCorrector, barcodeTranslator, maxBatchSize) ;
-
+      
       if ( batchSize == 0 )
         break ; 
 
