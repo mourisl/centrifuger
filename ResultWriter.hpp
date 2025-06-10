@@ -44,6 +44,7 @@ public:
     _outputClassified = false ;
     _hasBarcode = false ;
     _hasUmi = false ;
+    _hasSpecialReadIdForFileEnd = false ;
 
     int i ;
     for (i = 0 ; i < 4 ; ++i)
