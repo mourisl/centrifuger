@@ -22,6 +22,12 @@ private:
   size_t _classifiedCnt ;
   size_t _totalCnt ;
 
+  // Variable to handle output from sample-sheet
+  std::vector< std::string > _multiOutputFileList ;
+  bool _hasSpecialReadIdForFileEnd ;
+  int _currentMultiOutputFile ;
+  std::map< std::string, int > _multiOutputFileMap ;
+
   void PrintExtraCol(const char *s) 
   {
     if (s == NULL)
@@ -38,6 +44,7 @@ public:
     _outputClassified = false ;
     _hasBarcode = false ;
     _hasUmi = false ;
+    _hasSpecialReadIdForFileEnd = false ;
 
     int i ;
     for (i = 0 ; i < 4 ; ++i)
@@ -51,7 +58,7 @@ public:
 
   ~ResultWriter() 
   {
-    if (_fpClassification != stdout)
+    if (_fpClassification != stdout && _fpClassification != NULL)
       fclose(_fpClassification) ;
     int i ;
     for (i = 0 ; i < 4 ; ++i)
@@ -62,10 +69,44 @@ public:
         gzclose(_gzFpClassified[i]) ;
     }
   }
-  
-  void SetClassificationOutput(const char *filename)
+
+  void SetMultiOutputFileList(std::vector< std::string > &filenames)
   {
-    _fpClassification = fopen(filename, "w") ;
+    _multiOutputFileList = filenames ;
+    SetClassificationOutput(filenames[0].c_str(), "w") ;
+
+    _currentMultiOutputFile = 0 ;
+    _multiOutputFileMap[ _multiOutputFileList[0] ] = 1 ;
+    _hasSpecialReadIdForFileEnd = true ;
+  }
+
+  //@return: open file mode
+  char NextMultiOutputFile()
+  {
+    if (_fpClassification != NULL)
+    {
+      fclose( _fpClassification ) ;
+      _fpClassification = NULL ;
+    }
+    ++_currentMultiOutputFile ;
+    
+    if (_currentMultiOutputFile >= (int)_multiOutputFileList.size()) 
+      return 'e' ; // end
+
+    char mode[2] = "w" ;
+    if (_multiOutputFileMap.find(_multiOutputFileList[ _currentMultiOutputFile ]) != _multiOutputFileMap.end() )
+      mode[0] = 'a' ;
+    SetClassificationOutput(_multiOutputFileList[ _currentMultiOutputFile ].c_str(), mode ) ;
+    if (mode[0] == 'w') 
+    {
+      _multiOutputFileMap[ _multiOutputFileList[ _currentMultiOutputFile ] ] = 1 ;
+    }
+    return mode[0] ;
+  }
+  
+  void SetClassificationOutput(const char *filename, const char *mode)
+  {
+    _fpClassification = fopen(filename, mode) ;
   }
 
   // category: 0: unclassified reads, 1: classified reads
@@ -150,6 +191,13 @@ public:
       const char *seq1, const char *qual1, const char *seq2, const char *qual2,
       const char *barcode, const char *umi, const struct _classifierResult &r)
   {
+    if (_hasSpecialReadIdForFileEnd && !strcmp(readid, SAMPLE_SHEET_SEPARATOR_READ_ID))
+    {
+      if (NextMultiOutputFile() == 'w') 
+        OutputHeader() ;
+      return ;
+    }
+
     int i ;
     int matchCnt = r.taxIds.size() ;
     ++_totalCnt ;
@@ -166,7 +214,7 @@ public:
           PrintExtraCol(barcode) ;
         if (_hasUmi)
           PrintExtraCol(umi) ;
-        printf("\n") ;
+        fprintf(_fpClassification, "\n") ;
       }
     }
     else
@@ -177,7 +225,7 @@ public:
         PrintExtraCol(barcode) ;
       if (_hasUmi)
         PrintExtraCol(umi) ;
-      printf("\n") ;
+      fprintf(_fpClassification, "\n") ;
     }
 
     for (i = 0 ; i <= 1 ; ++i)

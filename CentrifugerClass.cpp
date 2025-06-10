@@ -21,9 +21,12 @@ char usage[] = "./centrifuger [OPTIONS] > output.tsv:\n"
   "Required:\n"
   "\t-x FILE: index prefix\n"
   "\t-1 FILE -2 FILE: paired-end read\n"
+  "\t\tor\n"
   "\t-u FILE: single-end read\n"
+  "\t\tor\n"
   "\t-i FILE: interleaved read file\n"
-  //"\t--sample-sheet FILE: \n"
+  "\t\tor\n"
+  "\t--sample-sheet FILE: list of sample files, each row: \"read1 read2 barcode UMI output\". Use dot(.) to represent no such file\n"
   "Optional:\n"
   //"\t-o STRING: output prefix [centrifuger]\n"
   "\t-t INT: number of threads [1]\n"
@@ -43,6 +46,7 @@ char usage[] = "./centrifuger [OPTIONS] > output.tsv:\n"
 
 static const char *short_options = "x:1:2:u:i:o:t:k:v" ;
 static struct option long_options[] = {
+  { "sample-sheet", required_argument, 0, ARGV_SAMPLE_SHEET},
   { "un", required_argument, 0, ARGV_OUTPUT_UNCLASSIFIED},
   { "cl", required_argument, 0, ARGV_OUTPUT_CLASSIFIED},
   { "min-hitlen", required_argument, 0, ARGV_MIN_HITLEN},
@@ -305,6 +309,8 @@ int main(int argc, char *argv[])
   bool hasBarcode = false ;
   bool hasBarcodeWhitelist = false ;
   bool hasUmi = false ;
+  bool useSampleSheet = false ;
+  std::vector< std::string > sampleSheetOutputFileList ;
 
   while (1)
   {
@@ -378,6 +384,55 @@ int main(int argc, char *argv[])
     {
       hasUmi = true ;
       umiFile.AddReadFile(optarg, false) ;
+    }
+    else if (c == ARGV_SAMPLE_SHEET)
+    {
+      useSampleSheet = true ;
+      std::ifstream fs(optarg, std::ios::in) ;
+      std::string line ;
+      if (fs.is_open())
+      {
+        while (!fs.eof())
+        {
+          std::getline(fs, line) ;
+          if (line.length() == 0)
+            continue ;
+          std::string read1, read2, barcode, umi, outputFile ;
+          std::istringstream cline(line) ;
+          cline >> read1 >> read2 >> barcode >> umi >> outputFile ;
+          //std::cout << read1 << "|" << read2 << "|" << barcode << "|" << umi << "|" << std::endl ;
+          if (read2 != ".")
+          {
+            reads.AddReadFile(read1.c_str(), true) ;
+            mateReads.AddReadFile(read2.c_str(), true) ;
+            hasMate = true ;
+          }
+          else
+          {
+            reads.AddReadFile(read1.c_str(), false) ;
+          }
+
+          if (barcode != ".")
+          {
+            hasBarcode = true ;
+            barcodeFile.AddReadFile(barcode.c_str(), false) ;
+          }
+
+          if (umi != ".")
+          {
+            hasUmi = true ;
+            umiFile.AddReadFile(umi.c_str(), false) ;
+          }
+
+          sampleSheetOutputFileList.push_back(outputFile) ;
+        }
+        fs.close() ;
+      }
+      else
+      {
+        Utils::PrintLog("Cannot open the sample sheet %s", optarg) ;
+        return EXIT_FAILURE ;
+      }
     }
     else if (c == ARGV_READFORMAT)
     {
@@ -461,6 +516,15 @@ int main(int argc, char *argv[])
   {
     resWriter.SetOutputReads(classifiedOutputPrefix, hasMate, hasBarcode, hasUmi, 1) ;
   }
+
+  if (useSampleSheet)
+  {
+    resWriter.SetMultiOutputFileList(sampleSheetOutputFileList) ; 
+    reads.SetSpecialReadToMarkFileEnd(SAMPLE_SHEET_SEPARATOR_READ_ID) ;
+    mateReads.SetSpecialReadToMarkFileEnd(SAMPLE_SHEET_SEPARATOR_READ_ID) ;
+    barcodeFile.SetSpecialReadToMarkFileEnd(SAMPLE_SHEET_SEPARATOR_READ_ID) ;
+    umiFile.SetSpecialReadToMarkFileEnd(SAMPLE_SHEET_SEPARATOR_READ_ID) ;
+  }
   resWriter.OutputHeader() ;
 
   const int maxBatchSize = 1024 * threadCnt ;
@@ -517,7 +581,7 @@ int main(int argc, char *argv[])
       batchSize = GetReadBatch(reads, readBatch, mateReads, readBatch2, 
           barcodeFile, barcodeBatch, umiFile, umiBatch,
           readFormatter, barcodeCorrector, barcodeTranslator, maxBatchSize) ;
-
+      
       if ( batchSize == 0 )
         break ; 
 

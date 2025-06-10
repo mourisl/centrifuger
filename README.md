@@ -66,6 +66,8 @@ Here is a list of pre-built indexes:
         -u FILE: single-end read file
           or
         -i FILE: interleaved paried-end read file
+          or
+        --sample-sheet FILE: list of sample files, each row: "read1 read2 barcode UMI output". Use dot(.) to represent no such file.
       Optional:
         -t INT: number of threads [1]
         -k INT: report upto <int> distinct, primary assignments for each read pair [1]
