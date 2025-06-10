@@ -7,6 +7,8 @@
 
 #define CENTRIFUGER_VERSION "1.0.9-r245"
 
+#define SAMPLE_SHEET_SEPARATOR_READ_ID "__centrifuger_sample_sheet_separator__"
+
 extern char nucToNum[26] ; 
 extern char numToNuc[26] ;
 

@@ -23,7 +23,7 @@ char usage[] = "./centrifuger [OPTIONS] > output.tsv:\n"
   "\t-1 FILE -2 FILE: paired-end read\n"
   "\t-u FILE: single-end read\n"
   "\t-i FILE: interleaved read file\n"
-  //"\t--sample-sheet FILE: \n"
+  "\t--sample-sheet FILE: list of files, each row: read1\\tread2\\tbarcode\\tUMI\\tother\n"
   "Optional:\n"
   //"\t-o STRING: output prefix [centrifuger]\n"
   "\t-t INT: number of threads [1]\n"
@@ -305,6 +305,8 @@ int main(int argc, char *argv[])
   bool hasBarcode = false ;
   bool hasBarcodeWhitelist = false ;
   bool hasUmi = false ;
+  bool useSampleSheet = false ;
+  std::vector< std::string > sampleSheetOutputFileList ;
 
   while (1)
   {
@@ -378,6 +380,53 @@ int main(int argc, char *argv[])
     {
       hasUmi = true ;
       umiFile.AddReadFile(optarg, false) ;
+    }
+    else if (c == ARGV_SAMPLE_SHEET)
+    {
+      useSampleSheet = true ;
+      std::ifstream fs(optarg, std::ios::in) ;
+      std::string line ;
+      if (fs.is_open())
+      {
+        while (!fs.eof())
+        {
+          std::getline(fs, line) ;
+          std::string read1, read2, barcode, umi, outputFile ;
+          std::istringstream cline(line) ;
+          cline >> read1 >> read2 >> barcode >> umi >> outputFile ;
+
+          if (read2 != ".")
+          {
+            reads.AddReadFile(read1.c_str(), true) ;
+            mateReads.AddReadFile(read2.c_str(), true) ;
+            hasMate = true ;
+          }
+          else
+          {
+            reads.AddReadFile(read1.c_str(), false) ;
+          }
+
+          if (barcode != ".")
+          {
+            hasBarcode = true ;
+            barcodeFile.AddReadFile(barcode.c_str(), false) ;
+          }
+
+          if (umi != ".")
+          {
+            hasUmi = true ;
+            umiFile.AddReadFile(umi.c_str(), false) ;
+          }
+
+          sampleSheetOutputFileList.push_back(outputFile) ;
+        }
+        fs.close() ;
+      }
+      else
+      {
+        Utils::PrintLog("Cannot open the sample sheet %s", optarg) ;
+        return EXIT_FAILURE ;
+      }
     }
     else if (c == ARGV_READFORMAT)
     {
@@ -460,6 +509,15 @@ int main(int argc, char *argv[])
   if (classifiedOutputPrefix[0] != '\0')
   {
     resWriter.SetOutputReads(classifiedOutputPrefix, hasMate, hasBarcode, hasUmi, 1) ;
+  }
+
+  if (useSampleSheet)
+  {
+    resWriter.SetMultiOutputFileList(sampleSheetOutputFileList) ; 
+    reads.SetSpecialReadToMarkFileEnd(SAMPLE_SHEET_SEPARATOR_READ_ID) ;
+    mateReads.SetSpecialReadToMarkFileEnd(SAMPLE_SHEET_SEPARATOR_READ_ID) ;
+    barcodeFile.SetSpecialReadToMarkFileEnd(SAMPLE_SHEET_SEPARATOR_READ_ID) ;
+    umiFile.SetSpecialReadToMarkFileEnd(SAMPLE_SHEET_SEPARATOR_READ_ID) ;
   }
   resWriter.OutputHeader() ;
 
