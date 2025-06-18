@@ -34,7 +34,6 @@ enum
     RANK_PHYLUM,
     RANK_KINGDOM,
     RANK_DOMAIN,
-    RANK_ACELLULAR_ROOT,
     RANK_FORMA,
     RANK_INFRA_CLASS,
     RANK_INFRA_ORDER,
@@ -55,6 +54,7 @@ enum
     RANK_TRIBE,
     RANK_VARIETAS,
     RANK_LIFE,
+    RANK_ACELLULAR_ROOT, // New taxonomy rank IDs should be added to the end of the list to make sure backward compatbility
     RANK_MAX
 };
 
