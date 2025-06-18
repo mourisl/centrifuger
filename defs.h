@@ -5,7 +5,7 @@
 
 //#define DEBUG
 
-#define CENTRIFUGER_VERSION "1.0.10-r249"
+#define CENTRIFUGER_VERSION "1.0.10-r251"
 
 #define SAMPLE_SHEET_SEPARATOR_READ_ID "__centrifuger_sample_sheet_separator__"
 
