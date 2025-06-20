@@ -47,12 +47,13 @@ Centrifuger is also available from [Bioconda](https://anaconda.org/bioconda/cent
 
 The default --bmax and --dcv option may be inefficient for building indexes for larger genome databases, please use --build-mem option to specify the rough estimation of the available memory.
 
-Here is a list of pre-built indexes (The pre-built RefSeq and NCBI nt indices have some inconsistency issues with the current release v1.0.9. Please use "git clone" to get the github version. This will be fixed soon):
+Here is a list of pre-built indexes:
 
 | Title | Link | Date |
 |-------|------|------|
 | Refseq human, bacteria, archea, virus + SARS-CoV2-variants from GenBank | [Zenodo](https://zenodo.org/records/10023239) | 2023/10/1 |
 | [GTDB r226](https://gtdb.ecogenomic.org/) | [Dropbox](https://www.dropbox.com/scl/fo/xjp5r81jxkzxest9ijxul/ADfYFKoxIyl0hrICeEI63QM?rlkey=5lij0ocrbre165pa52mavux5z&st=4ol28yv2&dl=0) | 2025/05/20 |
+| GTDB r226 + Refseq human, virus, fungi, and contaminant (UniVec,EmVec)| [Dropbox](https://www.dropbox.com/scl/fo/tkoge61zh199i9n2l7891/AL_8z4zzTm0tHvHJh8UrIdg?rlkey=3abt78pbbtn9v5w2ulz0nfjw2&st=m1ir66th&dl=0) | 2025/05/20 |
 | NCBI nt | [Dropbox](https://www.dropbox.com/scl/fo/dbjzuerib7nfluj2u3yw7/AER-MP9RaqL0g59YwTXe4RU?rlkey=7zy78nvwdw19fuaetnn3u7qhi&st=6un1f4ux&dl=0)  | 2018 |
 
 #### Classification
