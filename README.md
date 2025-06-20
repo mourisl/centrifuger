@@ -47,7 +47,7 @@ Centrifuger is also available from [Bioconda](https://anaconda.org/bioconda/cent
 
 The default --bmax and --dcv option may be inefficient for building indexes for larger genome databases, please use --build-mem option to specify the rough estimation of the available memory.
 
-Here is a list of pre-built indexes:
+Here is a list of pre-built indexes (The pre-built RefSeq and NCBI nt indices have some inconsistency issues with the current release v1.0.9. Please use "git clone" to get the github version. This will be fixed soon):
 
 | Title | Link | Date |
 |-------|------|------|
