@@ -1065,7 +1065,7 @@ public:
   {
     size_t i ;
     for (i = 0 ; i < _nodeCnt ; ++i)
-      printf("%lu\t|\t%lu\t|\t%s\n", 
+      printf("%lu\t|\t%lu\t|\t%s\t|\n", 
           GetOrigTaxId(i), GetOrigTaxId( _taxonomyTree[i].parentTid ), 
           GetTaxRankString(_taxonomyTree[i].rank)) ;
   }
@@ -1075,7 +1075,7 @@ public:
     size_t i ;
     for (i = 0 ; i < _nodeCnt ; ++i)
     {
-      printf("%lu\t|\t%s\t|\tscientific name\n", GetOrigTaxId(i), _taxonomyName[i].c_str()) ;
+      printf("%lu\t|\t%s\t|\tscientific name\t|\n", GetOrigTaxId(i), _taxonomyName[i].c_str()) ;
     }
   }
 
