@@ -511,6 +511,7 @@ int main(int argc, char *argv[])
   if (threadCnt > 1 && readFormatter.GetSegmentCount(FORMAT_CATEGORY_COUNT) > 0)
     readFormatter.AllocateBuffers(4 * threadCnt) ;
 
+  classifierParam.outputExpandedResult = true ;
   classifier.Init(idxPrefix, classifierParam) ;
   
 	if (classifierParam.outputExpandedResult)
