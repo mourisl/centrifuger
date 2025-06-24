@@ -16,6 +16,7 @@ private:
   bool _hasUmi ;
   bool _outputUnclassified ;
   bool _outputClassified ;
+  bool _outputExpandedTaxIds ;
   gzFile _gzFpUnclassified[4] ; 
   gzFile _gzFpClassified[4] ;
 
@@ -45,6 +46,7 @@ public:
     _hasBarcode = false ;
     _hasUmi = false ;
     _hasSpecialReadIdForFileEnd = false ;
+    _outputExpandedTaxIds = false ;
 
     int i ;
     for (i = 0 ; i < 4 ; ++i)
@@ -107,6 +109,11 @@ public:
   void SetClassificationOutput(const char *filename, const char *mode)
   {
     _fpClassification = fopen(filename, mode) ;
+  }
+
+  void SetOutputExpandedTaxIds(bool in)
+  {
+    _outputExpandedTaxIds = in ;
   }
 
   // category: 0: unclassified reads, 1: classified reads
@@ -184,6 +191,8 @@ public:
       fprintf(_fpClassification, "\tbarcode") ;
     if (_hasUmi)
       fprintf(_fpClassification, "\tUMI") ;
+    if (_outputExpandedTaxIds)
+      fprintf(_fpClassification, "\texpandedTaxIDs") ;
     fprintf(_fpClassification, "\n") ;
   }
 
@@ -214,6 +223,8 @@ public:
           PrintExtraCol(barcode) ;
         if (_hasUmi)
           PrintExtraCol(umi) ;
+        if (_outputExpandedTaxIds)
+          PrintExtraCol(r.expandedTaxIdStrings[i].c_str()) ;
         fprintf(_fpClassification, "\n") ;
       }
     }
@@ -225,6 +236,8 @@ public:
         PrintExtraCol(barcode) ;
       if (_hasUmi)
         PrintExtraCol(umi) ;
+      if (_outputExpandedTaxIds)
+        PrintExtraCol("") ;
       fprintf(_fpClassification, "\n") ;
     }
 

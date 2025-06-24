@@ -17,12 +17,14 @@ struct _classifierParam
 {
   int maxResult ; // the number of entries in the results    
   int minHitLen ;
-  int maxResultPerHitFactor ; // Get the SA/tax id for at most maxREsultPerHitsFactor * maxResult entries for each hit 
+  int maxResultPerHitFactor ; // Get the SA/tax id for at most maxResultPerHitsFactor * maxResult entries for each hit 
+  bool outputExpandedResult ; // for each entry in the result, whether to output the children tax information. Might be useful for quantification 
   _classifierParam()
   {
     maxResult = 1 ;
     minHitLen = 0 ;
     maxResultPerHitFactor = 40 ;
+    outputExpandedResult = false ;
   }
 } ;
 
@@ -35,6 +37,7 @@ struct _classifierResult
   int queryLength ;
   std::vector<std::string> seqStrNames ; // sequence names 
   std::vector<uint64_t> taxIds ; // taxonomy ids (original, not compacted)
+  std::vector< std::string > expandedTaxIdStrings ; // the children taxonomy ids (orginal, not compacted) that result in the final taxIds. It's empty if the taxIds is sequence-level hit
 
   void Clear()
   {
@@ -574,7 +577,10 @@ private:
         bestSeqTaxIds.PushBack( _taxonomy.SeqIdToTaxId(bestSeqIds[i]) ) ;
 
       SimpleVector<size_t> taxIds ;
-      _taxonomy.ReduceTaxIds(bestSeqTaxIds, taxIds, _param.maxResult) ;
+      std::vector< std::vector<size_t> > expandedTaxIds ;
+      _taxonomy.ReduceTaxIds(bestSeqTaxIds, taxIds, _param.maxResult, 
+          _param.outputExpandedResult ? &expandedTaxIds : NULL) ;
+
       // Centrifuge will promote to canonical tax levels here. 
       //   Maybe we will do the same in some future version.
       //_taxonomy.PromoteToCanonicalTaxRank(taxIds, /*dedup=*/true) ;
@@ -585,6 +591,20 @@ private:
         std::string rankName(_taxonomy.GetTaxRankString( _taxonomy.GetTaxIdRank(taxIds[i])) ) ;
         result.seqStrNames.push_back( rankName ) ;
         result.taxIds.push_back( _taxonomy.GetOrigTaxId(taxIds[i]) ) ;
+        if (_param.outputExpandedResult)
+        {
+          // Taxonomy.hpp should include the sstream
+          std::ostringstream streams ; 
+          size_t j ;
+          size_t size = expandedTaxIds[i].size() ;
+          for (j = 0 ; j < size ; ++j)
+          {
+            if (j != 0)
+              streams << "," ;
+            streams << _taxonomy.GetOrigTaxId(expandedTaxIds[i][j]) ;
+          }
+          result.expandedTaxIdStrings.push_back(streams.str()) ;
+        }
       }
     }
     return result.taxIds.size() ;
