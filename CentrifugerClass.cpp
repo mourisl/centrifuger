@@ -468,6 +468,7 @@ int main(int argc, char *argv[])
     Utils::PrintLog("Need to use -x to specify index prefix.") ;
     return EXIT_FAILURE ;
   }
+	
 
   if (!hasBarcode && readFormatter.GetSegmentCount(FORMAT_BARCODE) > 0)
       hasBarcode = true ;
@@ -504,8 +505,10 @@ int main(int argc, char *argv[])
   if (threadCnt > 1 && readFormatter.GetSegmentCount(FORMAT_CATEGORY_COUNT) > 0)
     readFormatter.AllocateBuffers(4 * threadCnt) ;
 
+  classifierParam.outputExpandedResult = true ;
   classifier.Init(idxPrefix, classifierParam) ;
   
+  resWriter.SetOutputExpandedTaxIds(true) ;
   resWriter.SetHasBarcode(hasBarcode) ;
   resWriter.SetHasUmi(hasUmi) ;
   if (unclassifiedOutputPrefix[0] != '\0')

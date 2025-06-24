@@ -709,7 +709,8 @@ public:
   }
 
   // Promote the tax id to higher level until number of taxids <= k, or reach LCA 
-  void ReduceTaxIds(const SimpleVector<size_t> &taxIds, SimpleVector<size_t> &promotedTaxIds, int k)
+  void ReduceTaxIds(const SimpleVector<size_t> &taxIds, SimpleVector<size_t> &promotedTaxIds, int k,
+      std::vector< std::vector<size_t> > *promotedChildTaxIds)
   {
     int i ;
     int taxCnt = taxIds.Size() ;
@@ -766,8 +767,45 @@ public:
     for (std::map<size_t, int>::iterator iter = taxIdsInRankNum[ri].begin() ;
         iter != taxIdsInRankNum[ri].end() ; ++iter)
       promotedTaxIds.PushBack(iter->first) ;
+
     if (promotedTaxIds.Size() == 0)
       promotedTaxIds.PushBack(_rootCTaxId) ;
+    else if (promotedChildTaxIds != NULL && ri > 0) 
+    {
+      // Obtain the information that 
+      int size = promotedTaxIds.Size() ;
+      std::map<size_t, int> promotedTaxIdIdx ; // The index in the returned promotedTaxIds
+      for (i = 0 ; i < size ; ++i)
+      {
+        int k = 0 ;
+        for (std::map<size_t, int>::iterator iter = taxIdsInRankNum[ri].begin() ;
+            iter != taxIdsInRankNum[ri].end() ; ++iter, ++k)
+          promotedTaxIdIdx[iter->first] = k ;
+        promotedChildTaxIds->push_back( std::vector<size_t>() ) ;
+      }
+
+      for (std::map<size_t, int>::iterator iter = taxIdsInRankNum[ri - 1].begin() ;
+          iter != taxIdsInRankNum[ri - 1].end() ; ++iter)
+      {
+        size_t t = iter->first ;
+        while (t != _taxonomyTree[t].parentTid)
+        {
+          t = _taxonomyTree[t].parentTid ;
+          if (_taxRankNum[ _taxonomyTree[t].rank ] > ri)
+            break ;
+          else if (_taxRankNum[ _taxonomyTree[t].rank ] == ri)
+          {
+            // In case (somehow) the parent is not in the end result
+            if (promotedTaxIdIdx.find(t) != promotedTaxIdIdx.end())
+            {
+              int k = promotedTaxIdIdx[t] ;
+              promotedChildTaxIds->at(k).push_back(iter->first) ;
+            }
+            break ;
+          }
+        }
+      } // end- for iter 
+    } // end- if create child tax ids
   }
 
   // Get the taxonomy lineage for the tax IDs
