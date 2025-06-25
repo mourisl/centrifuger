@@ -45,6 +45,7 @@ struct _classifierResult
     hitLength = queryLength = 0 ;
     seqStrNames.clear() ;
     taxIds.clear() ;
+    expandedTaxIdStrings.clear() ;
   }
 } ;
 
@@ -566,6 +567,10 @@ private:
       {
         result.seqStrNames.push_back( _taxonomy.SeqIdToName(bestSeqIds[i]) ) ;
         result.taxIds.push_back( _taxonomy.GetOrigTaxId(_taxonomy.SeqIdToTaxId( bestSeqIds[i] )) ) ;
+        if (_param.outputExpandedResult)
+        {
+          result.expandedTaxIdStrings.push_back( std::string("") ) ;
+        }
       }
     }
     else
@@ -593,17 +598,22 @@ private:
         result.taxIds.push_back( _taxonomy.GetOrigTaxId(taxIds[i]) ) ;
         if (_param.outputExpandedResult)
         {
-          // Taxonomy.hpp should include the sstream
-          std::ostringstream streams ; 
-          size_t j ;
-          size_t size = expandedTaxIds[i].size() ;
-          for (j = 0 ; j < size ; ++j)
+          if ((int)expandedTaxIds.size() == size)
           {
-            if (j != 0)
-              streams << "," ;
-            streams << _taxonomy.GetOrigTaxId(expandedTaxIds[i][j]) ;
+            // Taxonomy.hpp should include the sstream
+            std::ostringstream streams ; 
+            int j ;
+            int expandedTaxIdsSize = expandedTaxIds[i].size() ;
+            for (j = 0 ; j < expandedTaxIdsSize ; ++j)
+            {
+              if (j != 0)
+                streams << "," ;
+              streams << _taxonomy.GetOrigTaxId(expandedTaxIds[i][j]) ;
+            }
+            result.expandedTaxIdStrings.push_back(streams.str()) ;
           }
-          result.expandedTaxIdStrings.push_back(streams.str()) ;
+          else
+            result.expandedTaxIdStrings.push_back(std::string("")) ;
         }
       }
     }
