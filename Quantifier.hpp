@@ -480,8 +480,8 @@ public:
     {
       if (lineCnt == 0) // header
       {
-        if (strstr(line, "expandedTaxIDs"))
-          hasExpandedTaxIds = true ;
+        //if (strstr(line, "expandedTaxIDs"))
+        //  hasExpandedTaxIds = true ;
         ++lineCnt ; 
         continue ;
       }
@@ -492,7 +492,7 @@ public:
       if (hitLength < minHitLength || score < minScore || taxid == 0)
         continue ;
 
-      if (hasExpandedTaxIds)
+      if (hasExpandedTaxIds) // It is not set. The feature is disabled for now.
       {
         //TODO: find the actual column. Currently assume the last column is the expanded taxIdx
         int lineLength = strlen(line) ;
@@ -535,7 +535,7 @@ public:
           std::pair<size_t, size_t> p ;
           p.first = _taxonomy.CompactTaxId(taxid) ;
           p.second = _taxonomy.CompactTaxId(expandedTaxIds[i]) ;
-          _childReadCount[p] += 1.0 / (double)expandedTaxIdSize ;
+          _childReadCount[p] += CalculateAssignmentWeight(score, hitLength, readLength) / (double)expandedTaxIdSize ;
         }
       }
 
