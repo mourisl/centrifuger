@@ -93,6 +93,9 @@ private:
   double *_uniqReadCount ; // number of reads uniquely assigned to this tax ID. Unique is at the strain/sequence level in its subtree.
   size_t uncountedReadCount ; // number of reads 
 
+  bool _hasExpandedTaxIds ;
+  std::map< std::pair<size_t, size_t>, double > _childReadCount ; // pair<a,b>: a: parent ctid, b: child ctid. double: count sum (each count is fractioned by the expanded tax id size)
+
   // NOT USED now. Original implementation of taxonomy ID genome length is taking the max, now is taking average.
   size_t GenerateTreeInternalNodeLength(size_t tag, const Tree_Plain &tree, size_t *taxidLen)
   {
@@ -129,7 +132,7 @@ private:
   } 
 
   // Redistribute the parent node's abundance to the children.
-  void RedistributeAbundToChildren(uint64_t tag, double *abund, const Tree_Plain &tree, size_t *taxidLen)
+  void RedistributeAbundToChildren(uint64_t tag, double *abund, const Tree_Plain &tree, size_t *taxidLen, double *treeEdgeWeight)
   {
     size_t i ;
     std::vector<size_t> children = tree.GetChildren(tag) ;
@@ -141,24 +144,42 @@ private:
     {
       childrenSum += abund[children[i]] ;
       // Since the abund represents the fraction of cells, there is no need to normalize of the genome length
-      weightedChildrenSum += abund[children[i]] / (taxidLen ? taxidLen[children[i]] : 1);
+      //weightedChildrenSum += abund[children[i]] / (taxidLen ? taxidLen[children[i]] : 1);
     }
     double excess = abund[tag] - childrenSum ;
     if (excess < 0)
       excess = 0 ;
-    if (weightedChildrenSum == 0)
+    if (childrenSum == 0)
       return ;
+
+    double expandedChildSum = 0 ;
+    if (treeEdgeWeight != NULL)
+    {
+      for (i = 0 ; i < csize ; ++i)
+        expandedChildSum += treeEdgeWeight[ children[i] ] ;
+    }
 
     for (i = 0 ; i < csize ; ++i)
     {
-      abund[children[i]] += excess * (abund[children[i]] / (taxidLen ? taxidLen[children[i]] : 1)) / weightedChildrenSum ;
-      RedistributeAbundToChildren(children[i], abund, tree, taxidLen) ;
+      weightedChildrenSum += abund[children[i]] / (taxidLen ? taxidLen[children[i]] : 1) *
+        ((excess - expandedChildSum) / csize + 
+         (expandedChildSum == 0 ? 0 : treeEdgeWeight[children[i]] / expandedChildSum)) ;
+    }
+
+    for (i = 0 ; i < csize ; ++i)
+    {
+      abund[children[i]] += excess * 
+        (abund[children[i]] / (taxidLen ? taxidLen[children[i]] : 1)
+          * ((excess - expandedChildSum) / csize 
+            + (expandedChildSum == 0 ? 0 : treeEdgeWeight[children[i]] / expandedChildSum)))
+        / weightedChildrenSum ;
+      RedistributeAbundToChildren(children[i], abund, tree, taxidLen, treeEdgeWeight) ;
     }
   }
   
   // Update the abund0 to abund1 using one iteration of EM
   // return: |abund1-abund0|
-  double EMupdate(double *abund0, double *abund1, double *readCount, const std::vector< struct _readAssignment> &assignments, const Tree_Plain &tree, size_t *taxidLen)
+  double EMupdate(double *abund0, double *abund1, double *readCount, const std::vector< struct _readAssignment> &assignments, const Tree_Plain &tree, size_t *taxidLen, double *treeEdgeWeight)
   {
     size_t i, j ;
     size_t size = assignments.size() ;
@@ -199,7 +220,8 @@ private:
     }
     
     GenerateTreeAbundance(0, abund1, tree) ;
-    RedistributeAbundToChildren(0, abund1, tree, NULL);
+    // When redistrubitng using abundance, we don't need to reconsider the genome length
+    RedistributeAbundToChildren(0, abund1, tree, /*taxidLen*/NULL, treeEdgeWeight);
     for (i = 0 ; i < treeSize ; ++i)
     {
       diffSum += ABS(abund0[i] - abund1[i]) ;
@@ -207,7 +229,7 @@ private:
     return diffSum ;
   }
 
-  void EstimateAbundanceWithEM(const std::vector< struct _readAssignment > &assignments, const Tree_Plain &tree, size_t *taxidLen, double *readCount, double *abund)
+  void EstimateAbundanceWithEM(const std::vector< struct _readAssignment > &assignments, const Tree_Plain &tree, size_t *taxidLen, double *treeEdgeWeight, double *readCount, double *abund)
   {
     size_t i, j ;
 
@@ -227,7 +249,7 @@ private:
       tmp += readCount[i] ;
     
     GenerateTreeAbundance(tree.Root(), readCount, tree) ;
-    RedistributeAbundToChildren(tree.Root(), readCount, tree, taxidLen);
+    RedistributeAbundToChildren(tree.Root(), readCount, tree, taxidLen, treeEdgeWeight);
     
     size_t treeSize = tree.GetSize() ;
     double factor = readCount[tree.Root()] ;
@@ -244,7 +266,7 @@ private:
     int t ;
     for (t = 0 ; t < maxIterCnt ; ++t)
     {
-      delta = EMupdate(abund, nextAbund, readCount, assignments, tree, taxidLen) ; 
+      delta = EMupdate(abund, nextAbund, readCount, assignments, tree, taxidLen, treeEdgeWeight) ; 
       memcpy(abund, nextAbund, sizeof(double) * treeSize) ;
       //printf("delta: %lf\n", delta) ;
       if (delta < 1e-6 && delta < 0.1 / (double)treeSize)
@@ -252,7 +274,7 @@ private:
     }
     
     GenerateTreeAbundance(0, readCount, tree) ;
-    RedistributeAbundToChildren(tree.Root(), readCount, tree, taxidLen);
+    RedistributeAbundToChildren(tree.Root(), readCount, tree, taxidLen, treeEdgeWeight);
     free(nextAbund) ;
   }
 
@@ -451,10 +473,15 @@ public:
 
     struct _readAssignment assign ;
     prevReadId[0] = '\0' ;
+    bool hasExpandedTaxIds = false ;
+    std::vector<uint64_t> expandedTaxIds ;
+
     while (gzgets(gzfp, line, sizeof(char) * _buffers.GetBufferSize(0)))
     {
       if (lineCnt == 0) // header
       {
+        //if (strstr(line, "expandedTaxIDs"))
+        //  hasExpandedTaxIds = true ;
         ++lineCnt ; 
         continue ;
       }
@@ -464,6 +491,53 @@ public:
       sscanf(line, "%s\t%[^\t]\t%lu\t%lu\t%lu\t%lu\t%lu", readId, buffer, &taxid, &score, &secondScore, &hitLength, &readLength) ;
       if (hitLength < minHitLength || score < minScore || taxid == 0)
         continue ;
+
+      if (hasExpandedTaxIds) // It is not set. The feature is disabled for now.
+      {
+        //TODO: find the actual column. Currently assume the last column is the expanded taxIdx
+        int lineLength = strlen(line) ;
+        int i = lineLength - 1 ;
+        int j, k = 0 ;
+        if (line[i] == '\n')
+          --i ;
+        for (; i >= 0 && line[i] != '\t' ; --i)
+        {
+          buffer[k] = line[i] ;
+          ++k ;
+        }
+        k = '\0' ;
+
+        for (i = 0, j = k - 1 ; i < j ; ++i, --j)
+        {
+          char tmp = buffer[i] ;
+          buffer[i] = buffer[j] ;
+          buffer[j] = tmp ;
+        }
+
+        uint64_t childTid = 0 ;
+        expandedTaxIds.clear() ;
+        for (i = 0 ; i < k ; ++i)
+        {
+          if (buffer[i] >= '0' && buffer[i] <= '9')
+          {
+            childTid = childTid * 10 + buffer[i] - '0' ; 
+          }
+          else
+          {
+            expandedTaxIds.push_back(childTid) ;
+            childTid = 0 ;
+          }
+        }
+
+        int expandedTaxIdSize = expandedTaxIds.size() ;
+        for (i = 0 ; i < expandedTaxIdSize ; ++i)
+        {
+          std::pair<size_t, size_t> p ;
+          p.first = _taxonomy.CompactTaxId(taxid) ;
+          p.second = _taxonomy.CompactTaxId(expandedTaxIds[i]) ;
+          _childReadCount[p] += CalculateAssignmentWeight(score, hitLength, readLength) / (double)expandedTaxIdSize ;
+        }
+      }
 
       if (strcmp(readId, prevReadId))
       {
@@ -576,9 +650,30 @@ public:
     // Initialize abundance
     double *subtreeAbund = (double *)calloc(subtreeSize, sizeof(*subtreeAbund)) ; 
     double *subtreeReadCount = (double *)calloc(subtreeSize, sizeof(*subtreeReadCount)) ; 
+    double *subtreeEdgeWeight = (double *)calloc(subtreeSize, sizeof(*subtreeEdgeWeight)) ; // The edge from node i to its parent. The weight is the number of normalized read count 
+
+    if (_hasExpandedTaxIds)
+    {
+      for (std::map< std::pair<size_t, size_t>, double>::iterator iter = _childReadCount.begin() ;
+          iter != _childReadCount.end() ; ++iter)
+      {
+        std::pair<size_t, size_t> p = iter->first ;
+        double weight = iter->second ;
+        if (coveredTaxIds.IsIn(p.first) && coveredTaxIds.IsIn(p.second))
+        {
+          size_t mf, ms ; //mapped p.first, mapped p.second
+          mf = coveredTaxIds.Map(p.first) ;
+          ms = coveredTaxIds.Map(p.second) ;
+          if (subtree.Parent(ms) == mf)
+            subtreeEdgeWeight[ms] = weight ;
+        }
+      }
+    }
     
     // Start the calculation using EM.
-    EstimateAbundanceWithEM(subtreeAssignments, subtree, subtreeTaxIdLen, subtreeReadCount, subtreeAbund) ;
+    EstimateAbundanceWithEM(subtreeAssignments, subtree, subtreeTaxIdLen, 
+        _hasExpandedTaxIds ? subtreeEdgeWeight : NULL, 
+        subtreeReadCount, subtreeAbund) ;
 
     for (i = 0 ; i < subtreeSize; ++i)
     {
@@ -587,6 +682,7 @@ public:
     free(subtreeAbund) ;
     free(subtreeReadCount) ;
     free(subtreeTaxIdLen) ;
+    free(subtreeEdgeWeight) ;
   }
 
   // format: check the enum 
