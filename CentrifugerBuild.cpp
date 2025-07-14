@@ -24,6 +24,8 @@ char usage[] = "./centrifuger-build [OPTIONS]:\n"
   "\t--ftabchars INT: # of chars consumed in initial lookup (default: 10)\n"
   "\t--rbbwt-b INT: block size for run-block compressed BWT. 0 for auto. 1 for no compression [0]\n"
   "\t--subset-tax INT: only consider the subset of input genomes under taxonomy node INT [0]\n"
+	"\t--concat-tax-genome: concatenate the genomes with the same taxID and discard the seqID information [not used]\n"
+  "\t--ignore-uncategorized-genome: ignore genomes whose seqID or taxID is missing or uncategorized. [include all]\n"
   ""
   ;
 
@@ -38,7 +40,9 @@ static struct option long_options[] = {
       { "taxonomy-tree", required_argument, 0, ARGV_TAXONOMY_TREE},
       { "conversion-table", required_argument, 0, ARGV_CONVERSION_TABLE},
 			{ "name-table", required_argument, 0, ARGV_NAME_TABLE},
-      { "subset-tax", required_argument, 0, ARGV_SUBSET_TAXONOMY}, 
+      { "subset-tax", required_argument, 0, ARGV_SUBSET_TAXONOMY},
+      { "concat-tax-genome", no_argument, 0, ARGV_BUILD_CONCAT_SAME_TAXID_SEQS},
+      { "igore-uncategorized-genome", no_argument, 0, ARGV_BUILD_IGNORE_UNCATEGORIZED },
 			{ (char *)0, 0, 0, 0} 
 			} ;
 
@@ -62,6 +66,8 @@ int main(int argc, char *argv[])
   char *fileList = NULL ; // the file corresponds to "-l" option
   int fileListColumnCnt = 0 ;
   bool conversionTableAtFileLevel = false ;
+	bool concatSameTaxIdSeqs = false ;
+  bool ignoreUncategorizedSeqs = false ;
 
   Builder builder ;
   
@@ -153,11 +159,19 @@ int main(int argc, char *argv[])
     {
       sscanf(optarg, "%lu", &subsetTax) ;
     }
-		else
-		{
-			fprintf( stderr, "Unknown parameter found\n%s", usage ) ;
-			return EXIT_FAILURE ;
-		}
+    else if (c == ARGV_BUILD_CONCAT_SAME_TAXID_SEQS)
+    {
+      concatSameTaxIdSeqs = true ;
+    }
+    else if (c == ARGV_BUILD_IGNORE_UNCATEGORIZED)
+    {
+      ignoreUncategorizedSeqs = true ;
+    }
+    else
+    {
+      fprintf( stderr, "Unknown parameter found\n%s", usage ) ;
+      return EXIT_FAILURE ;
+    }
   }
 
   if (!taxonomyFile)
@@ -185,10 +199,10 @@ int main(int argc, char *argv[])
   }
 
   const char alphabetList[] = "ACGT" ;
-	
-	Utils::PrintLog("Start to read in the genome files.") ; 
+
+  Utils::PrintLog("Start to read in the genome files.") ; 
   builder.Build(refGenomeFile, taxonomyFile, nameTable, 
-      conversionTableAtFileLevel ? fileList : conversionTable, conversionTableAtFileLevel,
+      conversionTableAtFileLevel ? fileList : conversionTable, conversionTableAtFileLevel, concatSameTaxIdSeqs, ignoreUncategorizedSeqs,
       subsetTax, buildMemoryConstraint, fmBuilderParam, alphabetList) ;
   builder.Save(outputPrefix) ;
 
@@ -196,9 +210,9 @@ int main(int argc, char *argv[])
   free(nameTable) ;
   if (conversionTable)
     free(conversionTable) ;
-  if (fileList)	
+  if (fileList)
     free(fileList) ;
-	Utils::PrintLog("Done.") ; 
+  Utils::PrintLog("Done.") ; 
 
   return 0 ;
 }
