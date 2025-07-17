@@ -281,6 +281,7 @@ sub load_taxonomy {
     or die "$PROG: can't open nodes file: $!\n";
   while (<NODES>) {
     chomp;
+    s/\t\|$//;
     my @fields = split /\t\|\t/;
     my ($node_id, $parent_id, $rank) = @fields[0,1,2];
     if ($node_id == 1) {
