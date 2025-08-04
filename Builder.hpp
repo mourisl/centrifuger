@@ -106,17 +106,17 @@ public:
           continue ;
       }
 
-      size_t len = seqCompactor.Compact(refGenomeFile.seq, genomes) ;
-      if (len < fmBuilderParam.precomputeWidth + 1ull) // A genome too short
-      {
-        fprintf(stderr, "WARNING: %s is filtered due to its short length (could be from masker)!\n", refGenomeFile.id) ;
-        size_t size = genomes.GetSize() ;
-        genomes.SetSize(size - len) ;
-        continue ;
-      }
-
       if (!concatSameTaxIdSeqs)
       {
+        size_t len = seqCompactor.Compact(refGenomeFile.seq, genomes) ;
+        if (len < fmBuilderParam.precomputeWidth + 1ull) // A genome too short
+        {
+          fprintf(stderr, "WARNING: %s is filtered due to its short length (could be from masker)!\n", refGenomeFile.id) ;
+          size_t size = genomes.GetSize() ;
+          genomes.SetSize(size - len) ;
+          continue ;
+        }
+
         if (_seqLength.find(seqid) == _seqLength.end()) // Assume there is no duplicated seqid
         {
           _seqLength[seqid] = len ;
@@ -135,15 +135,19 @@ public:
         if (taxIdGenomes.find(taxid) == taxIdGenomes.end())
         {
           FixedSizeElemArray *a = new FixedSizeElemArray ;
-          a->Malloc(Utils::Log2Ceil(alphabetSize), 100000) ;
-          a->SetSize(0) ;
+          seqCompactor.Init(alphabetList, *a, 10000) ;
           taxIdGenomes[taxid] = a ;
         }
 
         FixedSizeElemArray *a = taxIdGenomes[taxid] ;
-        a->PushBack(genomes, genomes.GetSize()) ;
-
-        genomes.SetSize(0) ;
+        size_t len = seqCompactor.Compact(refGenomeFile.seq, *a) ;
+        if (len < fmBuilderParam.precomputeWidth + 1ull) // A genome too short
+        {
+          fprintf(stderr, "WARNING: %s is filtered due to its short length (could be from masker)!\n", refGenomeFile.id) ;
+          size_t size = a->GetSize() ;
+          a->SetSize(size - len) ;
+          continue ;
+        }
       }
     }
 
@@ -157,11 +161,18 @@ public:
       for ( std::map<size_t, FixedSizeElemArray *>::iterator iter = taxIdGenomes.begin() ;
           iter != taxIdGenomes.end() ; ++iter)
       {
+        if (iter->second->GetSize() == 0)
+        {
+          delete iter->second ;
+          continue ;
+        }
         genomes.PushBack(*(iter->second), iter->second->GetSize()) ;
         genomeSeqIds.push_back(iter->first) ;
         genomeLens.push_back(iter->second->GetSize()) ;
+        _seqLength[iter->first] = iter->second->GetSize() ;
         delete iter->second ;
       }
+      Utils::PrintLog("Finish concatenating genomes") ; 
     }
 
     FixedSizeElemArray BWT ;

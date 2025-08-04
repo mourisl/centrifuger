@@ -30,7 +30,8 @@ public:
 
   void Free()
   {
-    delete[] _Bvs ; 
+    delete[] _Bvs ;
+    Sequence::Free() ;
   }
 
   size_t GetSpace() 
@@ -58,7 +59,7 @@ public:
         WORD w = 0 ;
         for (k = 0 ; k < WORDBITS && j + k < _n ; ++k)
         {
-          if (S.Read(j + k) == (int)i)
+          if (S.Read(j + k) == i)
             w |= (1ull<<k) ;
         }
         B[j / WORDBITS] = w ;

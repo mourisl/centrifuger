@@ -121,7 +121,12 @@ public:
       //for (i = 0 ; i < alphabetSize ; ++i) 
       //  free(_alphabetBlockPartialSum[i]) ;
       //free(_alphabetBlockPartialSum) ;
-      _n = 0 ;
+
+      _useRunBlock.Free() ;
+      _waveletSeq.Free() ;
+      _runBlockSeq.Free() ;
+
+      Sequence::Free() ;
     }
   }
  
@@ -164,7 +169,6 @@ public:
       _b = ComputeBlockSize(S, sequenceLength, alphabetSize) ;
     if (_b == 1)
       _b = _n ;
-    
     _blockCnt = DIV_CEIL(_n, _b) ;
     
     WORD *B = Utils::MallocByBits(_blockCnt) ; // block indicator 
@@ -193,12 +197,18 @@ public:
     
     // Split the sequence into two parts
     FixedSizeElemArray tmpS ;
-    tmpS.Malloc(S.GetElemLength(), _n) ;
+    
+    size_t rbCount = _useRunBlock.Rank(1, _blockCnt) ;
+    if (rbCount > 0)
+      tmpS.Malloc(S.GetElemLength(), MAX(rbCount, _n - _b * (rbCount-1)) + 1) ; // The minus 1 to the rbCount is to handle the case where the last block is a run block and will overcount 
+    else
+      tmpS.Malloc(S.GetElemLength(), _n) ;
+
     int k ; // use run block
     for ( k = 0 ; k <= 1 ; ++k)
     {
       size_t size = 0 ; 
-      size_t elemPerWord = DIV_CEIL(WORDBITS, alphabetBits) ; // each word can hold this number of elements  
+      size_t elemPerWord = size_t(WORDBITS/alphabetBits) ; // each word can hold this number of elements  
       WORD w = 0 ; // w holding tempoary elements that will be write into tmpS in chunk
       size_t wElem = 0 ; // How many element w is holding now
       for (i = 0 ; i < _n ; i += _b)
@@ -302,7 +312,7 @@ public:
     size_t bi = i / _b ;
     int type = _useRunBlock.Access(bi) ;
     //size_t ranki = _useRunBlock.Rank(type, bi) ;
-    size_t ranki = _b < _n ?  _useRunBlock.Rank(type, bi) : 1 ;
+    size_t ranki = _b < _n ? _useRunBlock.Rank(type, bi) : 1 ;
     size_t otherRanki = (bi + 1) - ranki ;
      
     size_t ret = 0 ;
@@ -345,7 +355,7 @@ public:
     S.Malloc(alphabetBit, _n) ;
     for (i = 0 ; i < _n ; i += _b)
     {
-      size_t elemPerWord = DIV_CEIL(WORDBITS, alphabetBit) ; // each word can hold this number of elements  
+      size_t elemPerWord = size_t(WORDBITS/alphabetBit) ; // each word can hold this number of elements  
       WORD w = 0 ;
       if (_useRunBlock.Access(i / _b) == 1)
       {

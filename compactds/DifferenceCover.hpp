@@ -181,19 +181,30 @@ public:
   }
 
   // Return the offset delta that (i+delta)%v and (j+delta)%v is in the difference cover
+  // There are two such offset, depending on the order of i,j, and we select the smaller one. This also makes the selection symmetric
   int Delta(size_t i, size_t j)
   {
     int ri = i % v ;
     int rj = j % v ;
-    
+
     int d = (rj - ri)%v ;
     if (d < 0)
       d += v ;
     d = (precomputedD[d] - ri)%v ;
     if (d < 0)
       d += v ; 
-    
-    return d ;     
+
+    int d2 = (ri - rj)%v ;
+    if (d2 < 0)
+      d2 += v ;
+    d2 = (precomputedD[d2] - rj)%v ;
+    if (d2 < 0)
+      d2 += v ; 
+
+    if (d2 < d)
+      return d2 ;
+    else
+      return d ;     
   }
 } ;
 }

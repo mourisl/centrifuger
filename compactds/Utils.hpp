@@ -26,6 +26,8 @@ namespace compactds {
   #define WORDBITS_WIDTH 5
 #endif
 
+#define BYTEBITS 8
+
 #define DIV_CEIL(x,y) (((x)%(y))?((x)/(y)+1):((x)/(y)))
 #define CEIL(x) (((int)(x) == (x))?((int)(x)):((int)(x) + 1))
 #define MIN(x,y) ((x)<=(y)?(x):(y))
@@ -34,6 +36,19 @@ namespace compactds {
 // Create a mask of l 1s
 #define MASK_WCHECK(l) (((l)>=(int)WORDBITS)?(0xffffffffffffffff):((1ull<<(l))-1ull))
 #define MASK(l) ((1ull<<((uint64_t)(l)))-1ull)
+
+const uint64_t MASK_ARRAY[65] =
+{
+  0ull, 
+  0x1ull, 0x3ull, 0x7ull, 0xfull, 0x1full, 0x3full, 0x7full, 0xffull, 
+  0x1ffull, 0x3ffull, 0x7ffull, 0xfffull, 0x1fffull, 0x3fffull, 0x7fffull, 0xffffull, 
+  0x1ffffull, 0x3ffffull, 0x7ffffull, 0xfffffull, 0x1fffffull, 0x3fffffull, 0x7fffffull, 0xffffffull, 
+  0x1ffffffull, 0x3ffffffull, 0x7ffffffull, 0xfffffffull, 0x1fffffffull, 0x3fffffffull, 0x7fffffffull, 0xffffffffull, 
+  0x1ffffffffull, 0x3ffffffffull, 0x7ffffffffull, 0xfffffffffull, 0x1fffffffffull, 0x3fffffffffull, 0x7fffffffffull, 0xffffffffffull, 
+  0x1ffffffffffull, 0x3ffffffffffull, 0x7ffffffffffull, 0xfffffffffffull, 0x1fffffffffffull, 0x3fffffffffffull, 0x7fffffffffffull, 0xffffffffffffull, 
+  0x1ffffffffffffull, 0x3ffffffffffffull, 0x7ffffffffffffull, 0xfffffffffffffull, 0x1fffffffffffffull, 0x3fffffffffffffull, 0x7fffffffffffffull, 0xffffffffffffffull, 
+  0x1ffffffffffffffull, 0x3ffffffffffffffull, 0x7ffffffffffffffull, 0xfffffffffffffffull, 0x1fffffffffffffffull, 0x3fffffffffffffffull, 0x7fffffffffffffffull, 0xffffffffffffffffull
+} ;
 
 // positive infinity
 #define POSITIVE_INF ((uint64_t)-1)
@@ -96,6 +111,20 @@ public:
         ++ret ;
       return ret ;
     }*/
+  }
+
+  static int CountTrailingZeros(WORD x)
+  {
+    if (x == 0)
+      return WORDBITS ;
+#ifdef __GNUC__
+    return __builtin_ctzll(x) ;
+#else
+    int ret = 0 ;
+    for (; !(x & 1ull) ; x >>= 1ull, ++ret)
+      ;
+    return ret ;
+#endif
   }
 
   // Select the r-th (1-index) 1 in word x
@@ -170,16 +199,16 @@ public:
     // In practice we should let other part be correct about this
     //if (s > e)   
     //  return 0 ;
-
-    const size_t ie = e >> WORDBITS_WIDTH ; // index for e
-    const size_t is = s >> WORDBITS_WIDTH ;
-
+    const size_t is = s >> WORDBITS_WIDTH ; // index for s
     const int rs = s & (WORDBITS - 1) ;
+    const size_t ie = e >> WORDBITS_WIDTH ;
     
-    if (ie == is)
+    //if (rs + (e - s) <= MASK(WORDBITS_WIDTH))
+    //if ((e^s) <= MASK(WORDBITS_WIDTH))
+    if (is == ie)
     {
       // in the same block
-      return (W[ie] >> rs) & MASK_WCHECK(e-s+1) ;
+      return (W[is] >> rs) & MASK_WCHECK(e-s+1) ;
     }
     else
     {

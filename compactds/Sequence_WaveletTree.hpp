@@ -181,6 +181,7 @@ public:
       delete[] _T ;
       _T = NULL ;
       _tNodeCnt = 0 ;
+      Sequence::Free() ;
     }
   }
 

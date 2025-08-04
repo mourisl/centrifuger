@@ -403,17 +403,37 @@ private:
       }
     }
 
-    size_t i ;
+    size_t i, j ;
     size_t tmp ;
+    
+    size_t shortRangeDTarget = (size_t)_dc.GetV() ; // Set a large value, so it is ineffective when the range is not short.
+    if (dcStrategy == 1 && s + 3 >= e) // very few element (4 for now), then we check whether the difference cover is effective, if so, we can use insert sort
+    {
+      size_t maxDelta = 0 ;
+      for (i = s ; i < e ; ++i)
+      {
+        for (j = i + 1 ; j <= e ; ++j)
+        {
+          tmp = _dc.Delta(sa[i], sa[j]) ;
+          if (tmp > maxDelta) 
+            maxDelta = tmp ;
+        }
+      }
+      
+      shortRangeDTarget = maxDelta ;
+    }
+
     // Find pivot
     size_t pivot = 0 ;
     
     // quick check whether every suffix is the same using blocks
+    //  Now it will also reach to the point where the differnece happens
     const int alphabetBits = T.GetElemLength() ;
     const int block = WORDBITS / alphabetBits ;
     while (1)
     {
-      if (dcStrategy != 0 && d >= (size_t)_dc.GetV())
+      if ((dcStrategy != 0 && d >= (size_t)_dc.GetV())
+          || (dcStrategy == 1 && s + 3 >= e && d >= shortRangeDTarget))
         break ;
       bool passEnd = false ; // any suffix pass the end of the T
       WORD foundw = 0 ;
@@ -422,6 +442,7 @@ private:
       else
         passEnd = true ;
       
+      int skipSize = block ;
       if (!passEnd)
       {
         for (i = s + 1 ; i <= e ; ++i)
@@ -430,7 +451,15 @@ private:
           {
             WORD w = T.PackRead(sa[i] + d, block) ;
             if (w != foundw)
-              break ;
+            {
+              int prefixLen = Utils::CountTrailingZeros(w ^ foundw) / alphabetBits;
+              if (prefixLen < skipSize)
+              {
+                skipSize = prefixLen ;
+                if (skipSize == 0) // No shared prefix at all for this range, so we don't need to check future elements
+                  break ;
+              }
+            }
           }
           else
           {
@@ -440,10 +469,36 @@ private:
           }
         }
       }
-      if (!passEnd && i > e)
+      
+      if (!passEnd && skipSize >= block)
         d += block ;
       else
+      {
+        if (!passEnd)
+          d += skipSize ;
         break ;
+      }
+    }
+
+    // We can use insert sort if the shared prefix (d) is long enough for the short range case
+    // If the range already satisfy the d target, the while loop above
+    // actually won't happen. So we don't need this insert sort before
+    // the loop, with the same speed.
+    if (dcStrategy == 1 && s + 3 >= e
+        && d >= shortRangeDTarget)
+    {
+      for (i = s ; i < e ; ++i)
+      {
+        size_t minTag = i ;
+        for (j = i + 1 ; j <= e ; ++j)
+        {
+          if (CompareSuffixWithDC(sa[j], sa[minTag], n) < 0)
+            minTag = j ;
+        }
+
+        Swap(sa[i], sa[minTag]) ;
+      }
+      return ;    
     }
 
     // Real search
@@ -658,12 +713,12 @@ private:
     L = (size_t *)malloc(sizeof(size_t) * _dcSize) ;
 
     // Sort by their first v characters
-    //Utils::PrintLog("SA sort start") ;
+    Utils::PrintLog("Start to sort |dc|-prefix") ;
     _dc.GetDiffCoverList(n, sa) ;
     size_t *alphabetCounts = (size_t *)malloc(sizeof(size_t) * (_alphabetSize + 1)) ;
     MultikeyQSort(T, n, sa, _dcSize, 0, _dcSize - 1, 0, /*dcStrategy=*/2, alphabetCounts) ;
     free(alphabetCounts) ; 
-    //Utils::PrintLog("SA sort MultikeyQSort finishes") ;
+    Utils::PrintLog("Finish sorting |dc|-prefix") ;
 
     // Initialization
     size_t count = 0 ;
@@ -892,14 +947,17 @@ public:
     this->_alphabetSize = alphabetSize ;
     _dc.Init(dcv) ;
     _dcSize = _dc.GetSize(n) ;
+		Utils::PrintLog("Start to sort %lu difference cover points.", _dcSize) ;
     size_t *dcSA = SortSuffixInDCWithLS(T, n) ; 
     /*for (size_t i = 0 ; i < _dcSize ; ++i)
       printf("dcSA[%lu]=%lu\n", i, dcSA[i]) ;
     for (size_t i = 0 ; i < _dcSize ; ++i)
       printf("dcISA[%lu]=%lu\n", i, _dcISA[i]) ;*/
     GenerateCuts(dcSA) ; 
+		Utils::PrintLog("Start to calculate LCP for %lu cuts.", _cutCnt) ;
     ComputeCutLCP(T, n, dcv) ;
     free(dcSA) ;
+		Utils::PrintLog("Finish initializing suffix array generator.") ;
     return _cutCnt ;
   }
 
