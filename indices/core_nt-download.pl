@@ -12,7 +12,7 @@ my $usage = "perl ./core_nt-download.pl [options]:\n".
   "\t--blast STR: path to blast bin folder hold blastdbcmd []\n". 
   "\t--accession2taxid STR: the accesion2taxid file\n".
   "\t-o STR: output prefix [core_nt]\n".
-  "\t--clean: whether remove the blastdb files [keep]\n"
+  "\t--noclean: whether remove the blastdb files and intermediate files [remove]\n"
   if (@ARGV == 0) ;
 
 sub PrintLog
@@ -30,13 +30,13 @@ sub system_call
 
 my $outputPrefix = "core_nt" ;
 my $blastPath = "" ;
-my $clean = 0 ;
+my $noclean = 0 ;
 
 GetOptions
 (
   "o=s" => \$outputPrefix,
   "blast=s" => \$blastPath
-  "clean" => \$clean
+  "noclean" => \$noclean
 ) ;
 
 # get the download list
@@ -77,10 +77,13 @@ foreach my $link (@tars)
   }
 }
 
-system_call("${blastPath}/blastdbcmd -entry all -db core_nt -out /dev/stdout | gzip -c > ${outputPrefix}.fa.gz") ;
+# Some how this gzipped output always fail on my system.
+# It might be fine, as the dustmasker requires uncomrpessed input.
+#system_call("${blastPath}/blastdbcmd -entry all -db core_nt -out - | gzip -c > ${outputPrefix}.fa.gz") ;
+system_call("${blastPath}/blastdbcmd -entry all -db core_nt -out ${outputPrefix}.fa") ;
 
 system_call("rm core_nt.*.tar.gz") ;
-if ($clean == 1)
+if ($noclean == 0)
 {
   if ($outputPrefix ne "core_nt")
   {
@@ -88,12 +91,17 @@ if ($clean == 1)
   }
   else
   {
-    system_call("ls core_nt.* | grep -v core_nt.fa.gz | xargs -I{} rm {}") ;
+    system_call("ls core_nt.* | grep -v core_nt.fa. | xargs -I{} rm {}") ;
   }
 }
 
 # User need to download: wget https://ftp.ncbi.nih.gov/pub/taxonomy/accession2taxid/nucl_gb.accession2taxid.gz
 # and run centrifuger-download taxonomy to get the nodes.dmp and names.dmp file
+system_call("${blastPath}/dustmasker -in ${outputPrefix}.fa -outfmt fasta | gzip -c > ${outputPrefix}_dustmasker.fa.gz") ;
 
-
+if ($noclean == 0)
+{
+  system_call("rm ${outputPrefix}.fa") ;
+}
+# Lastly to run "perl GenerateSeqIdToTaxId.pl core_nt_dustmasker.fa.gz nucl_gb.accession2taxid.gz > core_nt_seqid_to_taxid.map"
 
