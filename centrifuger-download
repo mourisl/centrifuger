@@ -74,8 +74,8 @@ function download_n_process() {
           rm $UNZIPPED_FILE
         fi
     fi
-
-    if [[ "$FILE_TAXID_MAP" == 0 ]]; then 
+   
+    if [[ "$FILE_TAXID_MAP" == "0" ]]; then 
       ## Output sequenceID to taxonomy ID map to STDOUT
       gzip -cd < $RES_FILE | map_headers_to_taxid $TAXID
     else
@@ -326,6 +326,7 @@ fi
 export LIBDIR="$BASE_DIR"
 export DO_DUST="$DO_DUST"
 export CHANGE_HEADER="$CHANGE_HEADER"
+export FILE_TAXID_MAP="$FILE_TAXID_MAP"
 
 #### Handle multithreading
 export LOCK_FILE=""
