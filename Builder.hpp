@@ -59,7 +59,7 @@ public:
     _fmIndex.SetSequenceExtraParameter((void *)b) ;
   }
 
-  void Build(ReadFiles &refGenomeFile, char *taxonomyFile, char *nameTable, char *conversionTable, bool conversionTableAtFileLevel, uint64_t subsetTax, size_t memoryConstraint, struct _FMBuilderParam &fmBuilderParam, const char *alphabetList)
+  void Build(ReadFiles &refGenomeFile, char *taxonomyFile, char *nameTable, char *conversionTable, bool conversionTableAtFileLevel, bool concatSameTaxIdSeqs, bool ignoreUncategorizedSeqs, uint64_t subsetTax, size_t memoryConstraint, struct _FMBuilderParam &fmBuilderParam, const char *alphabetList)
   {
     size_t i ;
     const int alphabetSize = strlen(alphabetList) ;
@@ -67,6 +67,7 @@ public:
     _taxonomy.Init(taxonomyFile, nameTable, conversionTable, conversionTableAtFileLevel)  ; 
 
     FixedSizeElemArray genomes ;
+    std::map<size_t, FixedSizeElemArray *> taxIdGenomes ; // the genomes from each tax ID. For the concatSameTaxIdSeqs option.
     SequenceCompactor seqCompactor ;
     seqCompactor.Init(alphabetList, genomes, 1000000) ;
     
@@ -87,41 +88,91 @@ public:
       }
       else
         seqid = _taxonomy.SeqNameToId(refGenomeFile.id) ;
-      
+
       if (subsetTax != 0)
       {
         size_t taxid = _taxonomy.SeqIdToTaxId(seqid) ;
         if (selectedTaxIds.find(taxid) == selectedTaxIds.end())
           continue ;
       }
-      
+
       if (seqid >= _taxonomy.GetSeqCount())
       {
         fprintf(stderr, "WARNING: taxonomy id doesn't exist for %s!\n", 
             conversionTableAtFileLevel ? fileNameBuffer : refGenomeFile.id) ;
-        seqid = _taxonomy.AddExtraSeqName(conversionTableAtFileLevel ? fileNameBuffer : refGenomeFile.id) ;
+        if (!ignoreUncategorizedSeqs)
+          seqid = _taxonomy.AddExtraSeqName(conversionTableAtFileLevel ? fileNameBuffer : refGenomeFile.id) ;
+        else
+          continue ;
       }
 
-      size_t len = seqCompactor.Compact(refGenomeFile.seq, genomes) ;
-      if (len < fmBuilderParam.precomputeWidth + 1ull) // A genome too short
+      if (!concatSameTaxIdSeqs)
       {
-        fprintf(stderr, "WARNING: %s is filtered due to its short length (could be from masker)!\n", refGenomeFile.id) ;
-        size_t size = genomes.GetSize() ;
-        genomes.SetSize(size - len) ;
-        continue ;
+        size_t len = seqCompactor.Compact(refGenomeFile.seq, genomes) ;
+        if (len < fmBuilderParam.precomputeWidth + 1ull) // A genome too short
+        {
+          fprintf(stderr, "WARNING: %s is filtered due to its short length (could be from masker)!\n", refGenomeFile.id) ;
+          size_t size = genomes.GetSize() ;
+          genomes.SetSize(size - len) ;
+          continue ;
+        }
+
+        if (_seqLength.find(seqid) == _seqLength.end()) // Assume there is no duplicated seqid
+        {
+          _seqLength[seqid] = len ;
+          genomeSeqIds.push_back(seqid) ;
+          genomeLens.push_back(len) ;
+        }
+        else
+        {
+          _seqLength[seqid] += len ;
+          genomeLens[ genomeLens.size() - 1 ] += len ;
+        }
       }
+      else // concatenate seuqences with the same tax ID
+      {
+        size_t taxid = _taxonomy.SeqIdToTaxId(seqid) ;
+        if (taxIdGenomes.find(taxid) == taxIdGenomes.end())
+        {
+          FixedSizeElemArray *a = new FixedSizeElemArray ;
+          seqCompactor.Init(alphabetList, *a, 10000) ;
+          taxIdGenomes[taxid] = a ;
+        }
+
+        FixedSizeElemArray *a = taxIdGenomes[taxid] ;
+        size_t len = seqCompactor.Compact(refGenomeFile.seq, *a) ;
+        if (len < fmBuilderParam.precomputeWidth + 1ull) // A genome too short
+        {
+          fprintf(stderr, "WARNING: %s is filtered due to its short length (could be from masker)!\n", refGenomeFile.id) ;
+          size_t size = a->GetSize() ;
+          a->SetSize(size - len) ;
+          continue ;
+        }
+      }
+    }
+
+    if (concatSameTaxIdSeqs)
+    {
+      genomes.SetSize(0) ;
       
-      if (_seqLength.find(seqid) == _seqLength.end()) // Assume there is no duplicated seqid
+      // In this case, seqId essentially is taxId
+      _taxonomy.SetTaxIdAsSeqId() ;
+
+      for ( std::map<size_t, FixedSizeElemArray *>::iterator iter = taxIdGenomes.begin() ;
+          iter != taxIdGenomes.end() ; ++iter)
       {
-        _seqLength[seqid] = len ;
-        genomeSeqIds.push_back(seqid) ;
-        genomeLens.push_back(len) ;
+        if (iter->second->GetSize() == 0)
+        {
+          delete iter->second ;
+          continue ;
+        }
+        genomes.PushBack(*(iter->second), iter->second->GetSize()) ;
+        genomeSeqIds.push_back(iter->first) ;
+        genomeLens.push_back(iter->second->GetSize()) ;
+        _seqLength[iter->first] = iter->second->GetSize() ;
+        delete iter->second ;
       }
-      else
-      {
-        _seqLength[seqid] += len ;
-        genomeLens[ genomeLens.size() - 1 ] += len ;
-      }
+      Utils::PrintLog("Finish concatenating genomes") ; 
     }
 
     FixedSizeElemArray BWT ;

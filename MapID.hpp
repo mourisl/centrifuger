@@ -31,6 +31,12 @@ public:
       return _toNumId[elem] ;
   }
 
+  void Clear()
+  {
+    _toNumId.clear() ;
+    _toOrigElem.clear() ;
+  }
+
   size_t Map(const T &elem)
   {
     return _toNumId[elem] ;

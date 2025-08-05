@@ -156,7 +156,7 @@ private:
         }
 
         if(tree.find(tid) != tree.end()) {
-          std::cerr << "Warning: " << tid << " already has a parent!" << std::endl;
+          std::cerr << "WARNING: " << tid << " already has a parent!" << std::endl;
           continue;
         }
         //std::cout<<rank_string<<" | "<< (int)GetTaxRankId(rank_string.c_str()) <<std::endl;
@@ -173,7 +173,7 @@ private:
     for (std::map<uint64_t, int>::iterator iter = presentTax.begin() ; iter != presentTax.end(); ++iter)
     {
       if (tree.find(iter->first) ==tree.end()) {
-        std::cerr << "Warning: " << iter->first << " is not in the taxonomy tree" << std::endl;
+        std::cerr << "WARNING: " << iter->first << " is not in the taxonomy tree" << std::endl;
         continue;
       }
       uint64_t p = iter->first ;
@@ -355,6 +355,7 @@ private:
     }
     _seqCnt = _seqStrNameMap.GetSize() ;
   }
+
 
   // Whether b is next to a in accession id
   bool IsNextSeqName(const char *a, const char *b)
@@ -723,13 +724,33 @@ public:
     }
 
     // If there is a tax id not in the tree, we 
-    //   give it no rank directly.
+    //   give it no rank or root directly.
     for (i = 0 ; i < taxCnt ; ++i)
+    {
+      bool flag = false ;
       if (taxIds[i] >= _nodeCnt)
       {
         promotedTaxIds.PushBack(_nodeCnt) ;
+        flag = true ;
+      }
+      /*if (taxIds[i] == _rootCTaxId) // root case, seems ignoring this is better.
+      {
+        promotedTaxIds.PushBack(_rootCTaxId) ;
+        flag = true ;
+      }*/
+
+      if (flag == true)
+      {
+        if (promotedChildTaxIds != NULL)
+        {
+          promotedChildTaxIds->push_back( std::vector<size_t>() ) ;
+          int j ;
+          for (j = 0 ; j < taxCnt ; ++j)
+            promotedChildTaxIds->at(0).push_back(taxIds[j]) ;
+        }
         return ;
       }
+    }
     // For each tax level, collect the found tax id on this level 
     std::map<size_t, int> taxIdsInRankNum[RANK_MAX] ;
     for (i = 0 ; i < taxCnt ; ++i)
@@ -1047,7 +1068,30 @@ public:
     free(taxidNewLength) ;
     free(preset) ;
   }
+  
+  // Use taxonomy ID to represent the seqIDs
+  // This function has to be called after the Init
+  void SetTaxIdAsSeqId()
+  {
+    size_t i ;
 
+    delete[] _seqIdToTaxId ;
+    _seqCnt = 0 ;
+    _seqStrNameMap.Clear() ;  
+  
+    _seqIdToTaxId = new uint64_t[_nodeCnt + 1] ; // + 1 to handle the case seqId not in the taxonomy tree
+    for (i = 0 ; i <= _nodeCnt ; ++i)
+    {
+      _seqIdToTaxId[i] = i ;
+      if (i < _nodeCnt)
+        _seqStrNameMap.Add(_taxonomyName[i]) ; 
+      else
+        _seqStrNameMap.Add("uncategorized") ;
+    }
+    _extraSeqCnt = 0 ;
+    _seqCnt = _nodeCnt + 1 ;
+  }
+  
   void Save(FILE *fp)
   {
     SAVE_VAR(fp, _nodeCnt) ;
