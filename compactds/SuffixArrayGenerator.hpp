@@ -5,8 +5,6 @@
 
 #include "FixedSizeElemArray.hpp"
 #include "DifferenceCover.hpp"
-#include "Bitvector_Plain.hpp"
-
 
 // The class handle the generation of suffix array by chunks
 // The chunk creation is based the sampled difference cover (Algorithm 11.9 from the textbook is commented out)
@@ -28,13 +26,6 @@ private:
   DifferenceCover _dc ;
   size_t *_dcISA ; // The difference cover's index should be compacted when query this ISA 
   size_t _dcSize ; 
-  
-  // Variables related to the difference cover from repetitive regions
-  size_t repetitiveRegionBlockSize ;
-  Bitvector_Plain _isRepetitiveRegions ;
-  DifferenceCover _dcRepetitiveRegions ;
-  size_t *_dcRepetitiveRegionISA ;
-  size_t _dcRepetitiveRegionSize ;
   
   // Relate to cut ============================================  
 #if 0 // The commented out codes is for Algorithm 11.9, which might be too slow for very repetitive sequence (i.e: ACGTACGTACGT....), so we have another implementation now
