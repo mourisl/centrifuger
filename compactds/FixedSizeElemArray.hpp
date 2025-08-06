@@ -149,27 +149,27 @@ public:
   {
     _n = n ;
   }
-	
-	// Set the elements from [start, start+len -1] to 0
-	void SetZero(size_t start, size_t len )
-	{
-		size_t s = start * _l ;
-		size_t e = (start + len) * _l - 1 ; 
+
+  // Set the elements from [start, start+len -1] to 0
+  void SetZero(size_t start, size_t len )
+  {
+    size_t s = start * _l ;
+    size_t e = (start + len) * _l - 1 ; 
     //if (start + len >= _n && e % WORDBITS > 0)
     //  e += (WORDBITS - e % WORDBITS - 1) ;
 
-		size_t sk = s / WORDBITS ;
-		size_t ek = e / WORDBITS ;
-		if (sk < ek)
-		{
+    size_t sk = s / WORDBITS ;
+    size_t ek = e / WORDBITS ;
+    if (sk < ek)
+    {
       _W[sk] &= (MASK(s % WORDBITS)) ;
       _W[ek] &= (~MASK_WCHECK(e % WORDBITS + 1)) ;
-			if (sk + 1 < ek)
-				memset(_W + sk + 1, 0, (ek - sk - 1) * WORDBYTES) ;
-		}
-		else
-			_W[sk] &= (MASK(s % WORDBITS) | (~MASK_WCHECK(e % WORDBITS + 1))) ;
-	}
+      if (sk + 1 < ek)
+        memset(_W + sk + 1, 0, (ek - sk - 1) * WORDBYTES) ;
+    }
+    else
+      _W[sk] &= (MASK(s % WORDBITS) | (~MASK_WCHECK(e % WORDBITS + 1))) ;
+  }
 
   const WORD* GetData() const
   {
