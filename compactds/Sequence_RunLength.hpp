@@ -29,8 +29,11 @@ public:
   {
     if (_n > 0)
     {
-      _n = _rcnt = 0 ;
+      _rcnt = 0 ;
       delete[] _alphabetPartialSum  ;
+      _runChars.Free() ;
+      _runs.Free() ;
+      Sequence::Free() ;
     }
   }
 

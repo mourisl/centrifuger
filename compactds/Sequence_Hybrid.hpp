@@ -112,7 +112,10 @@ public:
       //for (i = 0 ; i < alphabetSize ; ++i) 
       //  free(_alphabetBlockPartialSum[i]) ;
       //free(_alphabetBlockPartialSum) ;
-      _n = 0 ;
+      _useRunLength.Free() ;
+      _waveletSeq.Free() ;
+      _runlengthSeq.Free() ;
+      Sequence::Free() ;
     }
   }
  

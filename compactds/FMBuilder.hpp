@@ -39,6 +39,12 @@ struct _FMBuilderParam
   WORD *semiLcpGreater ; // The LCP is between current suffix and its previous one
   WORD *semiLcpEqual ;
 
+  bool hasEndMarker ;
+  size_t endMarkerCnt ; // the first alphabet is to mark the end of a sequence/genome.
+                          // this record how many end markers (number of sequences) in the input
+                          // 0 if endMarker is not used.
+  size_t *endMarkerSA ;
+
   size_t adjustedSA0 ; // specialized sampled SA.
 
   FILE *dumpSaFp ; // dump SA to this file.
@@ -57,7 +63,11 @@ struct _FMBuilderParam
 
     maxLcp = 0 ;
     dumpSaFp = NULL ; 
-    
+  
+    hasEndMarker = false ;
+    endMarkerCnt = 0 ;
+    endMarkerSA = NULL ;
+
     // The memory for these arrays shall handled explicitly outside.
     sampledSA = NULL ;
     precomputedRange = NULL ;
@@ -79,6 +89,8 @@ struct _FMBuilderParam
       free(semiLcpGreater) ;
     if (semiLcpEqual != NULL)
       free(semiLcpEqual) ;
+    if (endMarkerSA != NULL)
+      free(endMarkerSA) ;
   }
 } ;
 
@@ -112,19 +124,19 @@ struct _FMBuilderSASortThreadArg
 
 struct _FMBuilderPostprocessThreadArg
 {
-	int tid ;
-	int threadCnt ;
+  int tid ;
+  int threadCnt ;
 
-	FixedSizeElemArray *T ;
+  FixedSizeElemArray *T ;
   FixedSizeElemArray *BWT ;
-	size_t n ;
+  size_t n ;
 
-	size_t *saChunk ;
-	size_t saSize ;
+  size_t *saChunk ;
+  size_t saSize ;
   size_t prevChunkLastSA ;
   size_t *pFirstISA ;
 
-	size_t accuChunkSize ; // The start for this chunk
+  size_t accuChunkSize ; // The start for this chunk
 
   int skippedBWT ; // The number of BWT entries that skipped becuase they overlap with the WORD from the previous chun/k
 
@@ -280,6 +292,13 @@ private:
         SetSemiLcpBit(T, n, saChunk[i], saChunk[i - 1], pArg->accuChunkSize + i, 
             param.maxLcp, param.semiLcpGreater, param.semiLcpEqual) ;
       }
+
+      if (param.hasEndMarker && bwtFilled < param.endMarkerCnt)
+      {
+        // The endmarkers are always in the first of the SA, so we can directly 
+        // use bwtFilled for endMarkerSA
+        param.endMarkerSA[bwtFilled] = saChunk[i] ;
+      }
     }
 
     if (param.maxLcp > 0 && pArg->accuChunkSize > 0) // ignore the very first SA in the whole array
@@ -291,7 +310,7 @@ private:
 public:
   // Allocate and init the memorys for auxiliary data arrays in FM index
   // chrbit: number of bits for each character
-  static void MallocAuxiliaryData(size_t chrbit, size_t n, struct _FMBuilderParam &param)
+  static void MallocAuxiliaryData(const FixedSizeElemArray &T, size_t chrbit, size_t n, struct _FMBuilderParam &param)
   {
     size_t i ;
     param.n = n ;
@@ -325,6 +344,15 @@ public:
       param.semiLcpGreater = Utils::MallocByBits(n) ;
       param.semiLcpEqual = Utils::MallocByBits(n) ;
     }
+
+    if (param.hasEndMarker)
+    {
+      param.endMarkerCnt = 0 ;
+      for (i = 0 ; i < n ; ++i)
+        if (T[i] == 0)
+          ++param.endMarkerCnt ;
+      param.endMarkerSA = (size_t *)malloc(sizeof(param.endMarkerSA[0]) * param.endMarkerCnt) ;
+    }
   }
 
   // Determine the parameters for block size and difference cover size
@@ -342,7 +370,11 @@ public:
     size_t bestDcv = 0 ;
 		
     if (2 * n * alphabetBits / 8 > memory) // The input text and the output BWT
+    {
+      if (param.printLog)
+        Utils::PrintLog("WARNING: memory is not enough for other block size and dcv values, will use the default.") ;
       return ;
+    }
     
     memory -= 2 * n * alphabetBits / 8 ;
     for (dcv = 512 ; dcv <= 8196 ; dcv *= 2)
@@ -391,6 +423,8 @@ public:
             param.saBlockSize, param.saDcv) ;
       }
     }
+    else if (param.printLog)
+        Utils::PrintLog("WARNING: memory is not enough for other block size and dcv values, will use the default.") ;
   }
 
   // T: text
@@ -403,15 +437,17 @@ public:
   {
     size_t i, j, k ;
     SuffixArrayGenerator saGenerator ;
-    size_t alphabetBits = Utils::Log2Ceil(alphabetSize) ;
-    MallocAuxiliaryData(alphabetBits, n, param) ; 
-    BWT.Malloc(alphabetBits, n) ;
+    
     if (param.printLog)
       Utils::PrintLog("Generate difference cover and chunks.") ;
     size_t cutCnt = saGenerator.Init(T, n, param.saBlockSize, param.saDcv, alphabetSize) ;
     if (param.printLog)
       Utils::PrintLog("Found %llu chunks.", cutCnt) ;
-   
+
+    size_t alphabetBits = Utils::Log2Ceil(alphabetSize) ;
+    MallocAuxiliaryData(T, alphabetBits, n, param) ; 
+    BWT.Malloc(alphabetBits, n) ;
+       
     pthread_t *threads = (pthread_t *)malloc(sizeof(*threads) * param.threadCnt) ;
     struct _FMBuilderChunkThreadArg *chunkThreadArgs ;
     struct _FMBuilderSASortThreadArg *saSortThreadArgs ; 
@@ -423,7 +459,22 @@ public:
     size_t **sa ; // suffix array chunks
     size_t *saChunkSize ; // actual size
     size_t *saChunkCapacity ; // the memory capacity
-    
+
+    size_t pthreadStackSize, estimatedStackSize ;
+    pthread_attr_getstacksize(&attr, &pthreadStackSize) ;
+    estimatedStackSize = param.saDcv * 500 ;
+    if (estimatedStackSize > pthreadStackSize) 
+    {
+      if (!pthread_attr_setstacksize(&attr, estimatedStackSize))
+      {
+        Utils::PrintLog("Increased the pthread stack size from %lu to %lu.", pthreadStackSize, estimatedStackSize) ;
+      }
+      else
+      {
+        Utils::PrintLog("WARNING: Could not set the pthread stack size with estimated stack size %lu. Please try a different difference cover and block size parameters if the program crashes later.", estimatedStackSize) ;
+      }
+    }
+
     chunkThreadArgs = new struct _FMBuilderChunkThreadArg[param.threadCnt] ;
     for (i = 0 ; i < param.threadCnt ; ++i)
     {

@@ -42,7 +42,12 @@ public:
   }
  
   virtual void Init(const FixedSizeElemArray &S, size_t sequenceLength, const ALPHABET *alphabetMap) = 0 ;
-  virtual void Free() = 0 ;
+  virtual void Free() 
+  {
+    _n = 0 ;
+    _space = 0 ;
+    _alphabets.Free() ;
+  }
   virtual size_t GetSpace() = 0 ; 
   virtual ALPHABET Access(size_t i) const = 0 ;
   virtual size_t Rank(ALPHABET c, size_t i, int inclusive = 1) const = 0 ;
