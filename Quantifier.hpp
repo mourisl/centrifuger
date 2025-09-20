@@ -165,6 +165,9 @@ private:
         ((excess - expandedChildSum) / csize + 
          (expandedChildSum == 0 ? 0 : treeEdgeWeight[children[i]] / expandedChildSum)) ;
     }
+    
+    if (weightedChildrenSum == 0) // excess == 0
+      weightedChildrenSum = 1 ;
 
     for (i = 0 ; i < csize ; ++i)
     {
@@ -247,10 +250,8 @@ private:
     double tmp = 0 ;
     for (i = 0 ; i < tree.GetSize() ; ++i)
       tmp += readCount[i] ;
-    
     GenerateTreeAbundance(tree.Root(), readCount, tree) ;
     RedistributeAbundToChildren(tree.Root(), readCount, tree, taxidLen, treeEdgeWeight);
-    
     size_t treeSize = tree.GetSize() ;
     double factor = readCount[tree.Root()] ;
     for (i = 0 ; i < treeSize ; ++i)
