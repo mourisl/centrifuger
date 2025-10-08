@@ -11,16 +11,16 @@
 // Difference cover is a set of numbers D={a_0, ... a_{m-1}} in range [0, v)
 //  such that every i in [0,1) there is some a_j, a_k in D s.t. i=(a_j-a_k)%v.
 //  So the name comes from the differences of a set can cover all the element.
-// This class also handles when query elements larger than v (cyclic difference cover)
+// This class also handles when query elements larger than _v (cyclic difference cover)
 namespace compactds {
 class DifferenceCover
 {
 private:
-  int v ; // period size  
-  int *dcs ; // DCs
-  int m ; // number of DCs 
-  std::map<int, int> dcMap ; // maybe replace this with a bit vector later 
-  int *precomputedD ; // precomputed information for Delta query
+  int _v ; // period size  
+  int *_dcs ; // DCs
+  int _m ; // number of DCs 
+  std::map<int, int> _dcMap ; // maybe replace this with a bit vector later 
+  int *_precomputedD ; // precomputed information for Delta query
 
   int GetB(int i, int r)
   {
@@ -42,17 +42,25 @@ private:
 public:
   DifferenceCover() 
   {
-    v = 4096 ;
-    dcs = NULL ;
-    m = 0 ;
+    _v = 4096 ;
+    _dcs = NULL ;
+    _m = 0 ;
   }
 
   ~DifferenceCover() 
   {
-    if (dcs)
+    Free() ;
+  }
+
+  void Free()
+  {
+    if (_dcs)
     {
-      free(dcs) ;
-      free(precomputedD) ;
+      free(_dcs) ;
+      free(_precomputedD) ;
+      _dcs = NULL ;
+      _precomputedD = NULL ;
+      _m = 0 ;
     }
   }
 
@@ -60,10 +68,10 @@ public:
   void Init(int v)
   {
     int i ;
-    if (v <= 13)
-      v = 14 ;
+    if (_v <= 13)
+      _v = 14 ;
 
-    this->v = v ;
+    this->_v = _v ;
     // Use the Colbourn, Ling method to find the cover 
     int r = CEIL((-36 + sqrt(1296 - 96*(13 - v)))/48.0) ;
     SimpleVector<int> rawdcs ; 
@@ -73,46 +81,46 @@ public:
       rawdcs.PushBack( rawdcs[i - 1] + GetB(i - 1, r)) ;
     
     // Put the finalized difference cover
-    m = 0 ;
+    _m = 0 ;
     for (i = 0 ; i < 6 * r + 4 ; ++i)
     {
-      int dc = rawdcs[i] % v ;
-      if (dcMap.find(dc) == dcMap.end())
+      int dc = rawdcs[i] % _v ;
+      if (_dcMap.find(dc) == _dcMap.end())
       {
-        dcMap[dc] = m ;
-        ++m ;
+        _dcMap[dc] = _m ;
+        ++_m ;
       }
     }
     
-    dcs = (int *)malloc(sizeof(dcs[0]) * m) ;
+    _dcs = (int *)malloc(sizeof(_dcs[0]) * _m) ;
     i = 0 ;
-    for (std::map<int, int>::iterator it = dcMap.begin() ; it != dcMap.end() ; ++it, ++i)
+    for (std::map<int, int>::iterator it = _dcMap.begin() ; it != _dcMap.end() ; ++it, ++i)
     {
-      dcs[i] = it->first ;
+      _dcs[i] = it->first ;
     }
     
     // Reorder them into increasing order
-    std::sort(dcs, dcs + m) ;
-    for (i = 0 ; i < m ; ++i)
+    std::sort(_dcs, _dcs + _m) ;
+    for (i = 0 ; i < _m ; ++i)
     {
-      dcMap[dcs[i]] = i ;
+      _dcMap[_dcs[i]] = i ;
     }
     
     // Precompute the look up table d for Delta query
     // Lemma 4 in Fast Lightweight Suffix Array Construction and Checking 
     // We can enumerate all the differences from D 
     int j ;
-    precomputedD = (int *)malloc(sizeof(precomputedD[0]) * v) ;
-    memset(precomputedD, -1, sizeof(precomputedD[0]) * v) ;
-    precomputedD[0] = 0 ;
-    for (i = 0 ; i < m ; ++i)
+    _precomputedD = (int *)malloc(sizeof(_precomputedD[0]) * _v) ;
+    memset(_precomputedD, -1, sizeof(_precomputedD[0]) * _v) ;
+    _precomputedD[0] = 0 ;
+    for (i = 0 ; i < _m ; ++i)
     {
-      for (j = 0 ; j < m ; ++j)
+      for (j = 0 ; j < _m ; ++j)
       {
-        int d = dcs[j] - dcs[i] ;
+        int d = _dcs[j] - _dcs[i] ;
         if (d < 0)
-          d += v ;
-        precomputedD[d] = dcs[i] ; 
+          d += _v ;
+        _precomputedD[d] = _dcs[i] ; 
       }
     }
   }
@@ -128,26 +136,26 @@ public:
   // Check whether an element is in diff-cover
   bool IsInDC(size_t i)
   {
-    if (dcMap.find(i%v) != dcMap.end())
+    if (_dcMap.find(i%_v) != _dcMap.end())
       return true ;
     return false ;
   }
 
   int GetV()
   {
-    return v ;
+    return _v ;
   }
 
   // Get the size of the DC that can cover [0, n)
   size_t GetSize(size_t n)
   {
     int i ;
-    for (i = 0 ; i < m ; ++i)
+    for (i = 0 ; i < _m ; ++i)
     {
-      if (dcs[i] >= (int)(n % v))
+      if (_dcs[i] >= (int)(n % _v))
         break ;
     }
-    return n / v * m + i ;
+    return n / _v * _m + i ;
   }
 
   // Return the difference cover in a list to cover [0, n)
@@ -155,13 +163,13 @@ public:
   {
     int i ;
     size_t c ;
-    size_t cycleCnt = DIV_CEIL(n, v) ;
+    size_t cycleCnt = DIV_CEIL(n, _v) ;
     size_t ret = 0 ;
     for (c = 0 ; c < cycleCnt ; ++c)
     {
-      for (i = 0 ; i < m ; ++i)
+      for (i = 0 ; i < _m ; ++i)
       {
-        size_t x = c * v + dcs[i] ;
+        size_t x = c * _v + _dcs[i] ;
         if (x >= n)
           break ;
         dcList[ret] = x ;
@@ -175,36 +183,62 @@ public:
   //  Assume i is in the difference cover.
   size_t CompactIndex(size_t i)
   {
-    return i / v * m + dcMap[i % v] ;
-    //int k = dcMap[i%v] ;
-    //return (n / v) * k + (k < coverCntInLastCycle ? k : coverCntInLastCycle) + i / v ; 
+    return i / _v * _m + _dcMap[i % _v] ;
+    //int k = _dcMap[i%v] ;
+    //return (n / v) * k + (k < coverCntInLastCycle ? k : coverCntInLastCycle) + i / _v ; 
   }
 
-  // Return the offset delta that (i+delta)%v and (j+delta)%v is in the difference cover
+  // Return the offset delta that (i+delta)%_v and (j+delta)%_v is in the difference cover
   // There are two such offset, depending on the order of i,j, and we select the smaller one. This also makes the selection symmetric
   int Delta(size_t i, size_t j)
   {
-    int ri = i % v ;
-    int rj = j % v ;
+    int ri = i % _v ;
+    int rj = j % _v ;
 
-    int d = (rj - ri)%v ;
+    int d = (rj - ri)%_v ;
     if (d < 0)
-      d += v ;
-    d = (precomputedD[d] - ri)%v ;
+      d += _v ;
+    d = (_precomputedD[d] - ri)%_v ;
     if (d < 0)
-      d += v ; 
+      d += _v ; 
 
-    int d2 = (ri - rj)%v ;
+    int d2 = (ri - rj)%_v ;
     if (d2 < 0)
-      d2 += v ;
-    d2 = (precomputedD[d2] - rj)%v ;
+      d2 += _v ;
+    d2 = (_precomputedD[d2] - rj)%_v ;
     if (d2 < 0)
-      d2 += v ; 
+      d2 += _v ; 
 
     if (d2 < d)
       return d2 ;
     else
       return d ;     
+  }
+
+  void Save(FILE *fp)
+  {
+    SAVE_VAR(fp, _v) ; 
+    SAVE_VAR(fp, _m) ; // number of DCs 
+    SAVE_ARR(fp, _dcs, _m) ; // DCs
+    SAVE_ARR(fp, _precomputedD, _v) ;
+  }
+
+  void Load(FILE *fp)
+  {
+    Free() ;
+    
+    LOAD_VAR(fp, _v) ; 
+    LOAD_VAR(fp, _m) ; // number of DCs 
+    _dcs = (int *)malloc(sizeof(_dcs[0]) * _m) ;
+    LOAD_ARR(fp, _dcs, _m) ; // DCs
+    _precomputedD = (int *)malloc(sizeof(_precomputedD[0]) * _v) ;
+    LOAD_ARR(fp, _precomputedD, _v) ;
+    
+    _dcMap.clear() ;
+    for (int i = 0 ; i < _m ; ++i)
+    {
+      _dcMap[_dcs[i]] = i ;
+    }
   }
 } ;
 }

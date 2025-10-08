@@ -49,6 +49,14 @@ struct _FMBuilderParam
 
   FILE *dumpSaFp ; // dump SA to this file.
 
+  bool hasCheckpointFile ; // Use checkpoint file, will resume the progress if the checkpoint exists 
+  // The prefix for the checkpoint file
+  //    .1: progress file. 1: difference cover finished; n+1: n-th chunk is finished
+  //    .2: difference cover SAs
+  //    .3: filled BWT. Since BWT is stored consecutively, we will update the remaining checkpoint files every 10% of chunks are processed.
+  //        followed by firstISA, sampledSA, precomputedRange, selectedISA, endMarkerSA, lastSA, accuChunkSizeForSort
+  std::string checkpointFilePrefix ; 
+
   _FMBuilderParam()
   {
     sampleStrategy = 0 ;
@@ -67,6 +75,8 @@ struct _FMBuilderParam
     hasEndMarker = false ;
     endMarkerCnt = 0 ;
     endMarkerSA = NULL ;
+
+    hasCheckpointFile = false ;
 
     // The memory for these arrays shall handled explicitly outside.
     sampledSA = NULL ;
@@ -437,12 +447,48 @@ public:
   {
     size_t i, j, k ;
     SuffixArrayGenerator saGenerator ;
-    
-    if (param.printLog)
-      Utils::PrintLog("Generate difference cover and chunks.") ;
-    size_t cutCnt = saGenerator.Init(T, n, param.saBlockSize, param.saDcv, alphabetSize) ;
-    if (param.printLog)
-      Utils::PrintLog("Found %llu chunks.", cutCnt) ;
+   
+    size_t checkpointStep = 0 ; // start from the beginning
+    if (param.hasCheckpointFile)
+    {
+      FILE *fp = fopen((param.checkpointFilePrefix + ".1").c_str(), "r") ;
+      if (fp != NULL)
+      {
+        fscanf(fp, "%lu", &checkpointStep) ;
+        fclose(fp) ;
+      }
+    }
+
+    size_t cutCnt = 0 ;
+    if (checkpointStep < 1)
+    {
+      if (param.printLog)
+        Utils::PrintLog("Generate difference cover and chunks.") ;
+      cutCnt = saGenerator.Init(T, n, param.saBlockSize, param.saDcv, alphabetSize) ;
+      if (param.printLog)
+        Utils::PrintLog("Found %lu chunks.", cutCnt) ;
+      
+      if (param.hasCheckpointFile)
+      {
+        FILE *fp = fopen((param.checkpointFilePrefix + ".2").c_str(), "w") ;
+        saGenerator.Save(fp) ;
+        fclose(fp);
+
+        fp = fopen((param.checkpointFilePrefix + ".1").c_str(), "w") ;
+        fprintf(fp, "1") ;
+        fclose(fp);
+      }
+    }
+    else // checkpointStep >= 1
+    {
+      FILE *fp = fopen((param.checkpointFilePrefix + ".2").c_str(), "r") ;
+      saGenerator.Load(fp) ;
+      fclose(fp);
+
+      cutCnt = saGenerator.GetChunkCount() ;
+      if (param.printLog)
+        Utils::PrintLog("Load %lu chunks from the checkpoint file.", cutCnt) ;
+    }
 
     size_t alphabetBits = Utils::Log2Ceil(alphabetSize) ;
     MallocAuxiliaryData(T, alphabetBits, n, param) ; 
@@ -521,8 +567,41 @@ public:
     if (param.dumpSaFp)
       fwrite(&n, sizeof(size_t), 1, param.dumpSaFp) ;
 
+    // Load from the check point
+    size_t chunkStart = 0 ;
+    if (checkpointStep > 1)
+    {
+      chunkStart = (checkpointStep - 1) ;
+      
+      // .3: filled BWT. firstISA. 
+      //  followed by sampledSA, precomputedRange, selectedISA, endMarkerSA, lastSA, accuChunkSizeForSort
+      FILE *fp = fopen((param.checkpointFilePrefix + ".3").c_str(), "r") ;
+      BWT.Load(fp) ;
+      LOAD_VAR(fp, firstISA) ;
+      
+      LOAD_ARR(fp, param.sampledSA, param.sampleSize) ;
+      LOAD_ARR(fp, param.precomputedRange, param.precomputeSize) ;
+      size_t size ;
+      LOAD_VAR(fp, size) ;
+      for (i = 0 ; i < size ; ++i)
+      {
+        size_t a, b ;
+        LOAD_VAR(fp, a) ;
+        LOAD_VAR(fp, b) ;
+        param.selectedISA[a] = b ;
+      }
+      if (param.hasEndMarker)
+        LOAD_ARR(fp, param.endMarkerSA, param.endMarkerCnt) ;
+      LOAD_VAR(fp, lastSA) ;
+      LOAD_VAR(fp, accuChunkSizeForSort) ;  
+
+      fclose(fp) ;
+      if (param.printLog)
+        Utils::PrintLog("Load processed data of the first %lu chunks from the checkpoint file.", chunkStart) ;
+    }
+
     // Start the core iterations
-    for (i = 0 ; i < cutCnt ; i += param.threadCnt)
+    for (i = chunkStart ; i < cutCnt ; i += param.threadCnt)
     {
       // Load positions for current batch
       if (param.printLog)
@@ -664,6 +743,46 @@ public:
 
         // TODO: Fill the lcp structure
       }
+
+      // i+param.threadCnt is the number of finished blocks at this point
+      if (param.hasCheckpointFile
+          && i > 0 && 
+          (i + param.threadCnt)/ (cutCnt / 10 + 1) > i / (cutCnt / 10 + 1))
+      {
+        // Reset the main checkpoint tracker to 1 just in case program crashes during the output
+        FILE *fp = fopen((param.checkpointFilePrefix + ".1").c_str(), "w") ;
+        fprintf(fp, "1") ;
+        fclose(fp);
+
+        // .3: filled BWT. firstISA 
+        //  followed by sampledSA, precomputedRange, selectedISA, endMarkerSA, firstISA, lastSA, accuChunkSizeForSort
+        fp = fopen((param.checkpointFilePrefix + ".3").c_str(), "w") ;
+        BWT.Save(fp) ;
+        SAVE_VAR(fp, firstISA) ;
+        
+        SAVE_ARR(fp, param.sampledSA, param.sampleSize) ;
+        SAVE_ARR(fp, param.precomputedRange, param.precomputeSize) ;
+        size_t size = param.selectedISA.size() ;
+        SAVE_VAR(fp, size) ;
+        for (std::map<size_t, size_t>::iterator iter = param.selectedISA.begin() ;
+            iter != param.selectedISA.end() ; ++iter)
+        {
+          size_t a, b ;
+          a = iter->first ;
+          b = iter->second ;
+          SAVE_VAR(fp, a) ;
+          SAVE_VAR(fp, b) ;
+        }
+        if (param.hasEndMarker > 0)
+          SAVE_ARR(fp, param.endMarkerSA, param.endMarkerCnt) ;
+        SAVE_VAR(fp, lastSA) ;
+        SAVE_VAR(fp, accuChunkSizeForSort) ;  
+        fclose(fp) ;
+        
+        fp = fopen((param.checkpointFilePrefix + ".1").c_str(), "w") ;
+        fprintf(fp, "%lu", 1 + (i + param.threadCnt > cutCnt ? cutCnt : i + param.threadCnt) ) ; // 1 + number_of_finished_chunks
+        fclose(fp);
+      } 
     } // end of the main while loop for populating BWTs
     
     // Fill in the selectedSA from selectedISA.
