@@ -5,6 +5,8 @@
 
 #include "FixedSizeElemArray.hpp"
 #include "DifferenceCover.hpp"
+#include "Bitvector_Plain.hpp"
+
 
 // The class handle the generation of suffix array by chunks
 // The chunk creation is based the sampled difference cover (Algorithm 11.9 from the textbook is commented out)
@@ -919,16 +921,21 @@ public:
     if (_cuts != NULL)
     {
       free(_cuts) ;
+      _cuts = NULL ;
       if (_cutLCP != NULL)
       {
         size_t i ;
         for (i = 0 ; i < _cutCnt ; ++i)
           free(_cutLCP[i]) ;
         free(_cutLCP) ;
+        _cutLCP = NULL ;
       }
     }
     if (_dcISA != NULL)
+    {
       free(_dcISA) ;
+      _dcISA = NULL ;
+    }
   }
 
   size_t GetSpace()
@@ -1099,6 +1106,65 @@ public:
 
     free(isa) ;
     return true ;
+  }
+
+  void Save(FILE *fp)
+  {
+    SAVE_VAR(fp, _n) ;
+    SAVE_VAR(fp, _space) ;
+    SAVE_VAR(fp, _alphabetSize) ;
+
+    // The variables relate to generate the boundaries/_cuts 
+    SAVE_VAR(fp, _b) ;
+    SAVE_VAR(fp, _cutCnt) ;
+    SAVE_ARR(fp, _cuts, _cutCnt + 1) ; // The index on T  
+    
+    size_t i ;
+    for (i = 0 ; i < _cutCnt ; ++i)
+    {
+      size_t jopenend = _n - _cuts[i] ;
+      if (jopenend > (size_t)_dc.GetV() )
+        jopenend = _dc.GetV() ;
+      SAVE_ARR(fp, _cutLCP[i], jopenend) ;
+    }
+
+    // The variables relate to the difference cover and its ISAs
+    _dc.Save(fp) ;
+    SAVE_VAR(fp, _dcSize) ;
+    SAVE_ARR(fp, _dcISA, _dcSize) ;
+  }
+
+  void Load(FILE *fp)
+  {
+    Free() ;
+
+    LOAD_VAR(fp, _n) ;
+    LOAD_VAR(fp, _space) ;
+    LOAD_VAR(fp, _alphabetSize) ;
+
+    // The variables relate to generate the boundaries/_cuts 
+    LOAD_VAR(fp, _b) ;
+    LOAD_VAR(fp, _cutCnt) ;
+
+    _cuts = (size_t *)malloc(sizeof(size_t) * (_cutCnt + 1)) ;
+    LOAD_ARR(fp, _cuts, _cutCnt + 1) ; // The index on T  
+    
+    size_t i ;
+    _cutLCP = (size_t **)malloc(sizeof(*_cutLCP) * _cutCnt) ;
+    for (i = 0 ; i < _cutCnt ; ++i)
+    {
+      size_t jopenend = _n - _cuts[i] ;
+      if (jopenend > (size_t)_dc.GetV() )
+        jopenend = _dc.GetV() ;
+      _cutLCP[i] = (size_t *)malloc(sizeof(_cutLCP[i][0]) * jopenend) ;
+      LOAD_ARR(fp, _cutLCP[i], jopenend) ;
+    }
+
+    // The variables relate to the difference cover and its ISAs
+    _dc.Load(fp) ;
+    LOAD_VAR(fp, _dcSize) ;
+    _dcISA = (size_t *)malloc(sizeof(*_dcISA) * _dcSize) ;
+    LOAD_ARR(fp, _dcISA, _dcSize) ;
   }
 } ;
 }

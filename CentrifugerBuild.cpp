@@ -26,6 +26,7 @@ char usage[] = "./centrifuger-build [OPTIONS]:\n"
   "\t--subset-tax INT: only consider the subset of input genomes under taxonomy node INT [0]\n"
   "\t--concat-tax-genome: concatenate the genomes with the same taxID and discard the seqID information [not used]\n"
   "\t--ignore-uncategorized-genome: ignore genomes whose seqID or taxID is missing or uncategorized. [include all]\n"
+  "\t--checkpoint: add checkpoint (files [output_prefix]_checkpoint.[123]) for resuming index construction. [not used]\n"
   ""
   ;
 
@@ -43,6 +44,7 @@ static struct option long_options[] = {
       { "subset-tax", required_argument, 0, ARGV_SUBSET_TAXONOMY},
       { "concat-tax-genome", no_argument, 0, ARGV_BUILD_CONCAT_SAME_TAXID_SEQS},
       { "igore-uncategorized-genome", no_argument, 0, ARGV_BUILD_IGNORE_UNCATEGORIZED },
+      { "checkpoint", no_argument, 0, ARGV_BUILD_USE_CHECKPOINT },
       { (char *)0, 0, 0, 0} 
 } ;
 
@@ -167,6 +169,10 @@ int main(int argc, char *argv[])
     {
       ignoreUncategorizedSeqs = true ;
     }
+    else if (c == ARGV_BUILD_USE_CHECKPOINT)
+    {
+      fmBuilderParam.hasCheckpointFile = true ;
+    }
     else
     {
       fprintf( stderr, "Unknown parameter found\n%s", usage ) ;
@@ -196,6 +202,13 @@ int main(int argc, char *argv[])
     {
       conversionTableAtFileLevel = true ;
     }
+  }
+
+  if (fmBuilderParam.hasCheckpointFile)
+  {
+    std::string tmp = outputPrefix ;
+    tmp += "_checkpoint" ;
+    fmBuilderParam.checkpointFilePrefix = tmp ;
   }
 
   const char alphabetList[] = "ACGT" ;

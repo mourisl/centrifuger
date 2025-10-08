@@ -236,7 +236,7 @@ elif [[ "$DL_PROG" == "wget" ]]; then
     DL_CMD="wget -N --reject=index.html -qO"
         DL_MODE="https"
 elif [[ "$DL_PROG" == "curl" ]]; then
-    DL_CMD="curl -s -o"
+    DL_CMD="curl --fail -s -o"
         DL_MODE="https"
 else
         echo "Unknown download program - please install one of rsync, wget or curl, and specify it with the -g option" >&2
