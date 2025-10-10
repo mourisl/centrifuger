@@ -56,6 +56,8 @@ Here is a list of pre-built indexes:
 | GTDB r226 + Refseq human, virus, fungi, and contaminant (UniVec,EmVec)| [Dropbox](https://www.dropbox.com/scl/fo/tkoge61zh199i9n2l7891/AL_8z4zzTm0tHvHJh8UrIdg?rlkey=3abt78pbbtn9v5w2ulz0nfjw2&st=m1ir66th&dl=0) | 166G | 2025/05/20 |
 | NCBI core nt | [Dropbox](https://www.dropbox.com/scl/fo/f1mbf7nf893pisoruanb4/AHS06LaJr9EN0Pg7hbifWn8?rlkey=7fgtj6pi53l2iwrjw1k6xq8o8&st=yn57lnkh&dl=0)  | 212G | 2025/06/11 |
 
+(For the files on the Dropbox, you can "copy link" for each individual file and use "wget" on that link to download the file through the command line.)
+
 #### Classification
 
     Usage: ./centrifuger [OPTIONS] > classification.tsv
