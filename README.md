@@ -44,6 +44,9 @@ Centrifuger is also available from [Bioconda](https://anaconda.org/bioconda/cent
         --dcv INT: difference cover period [4096]
         --offrate INT: SA/offset is sampled every (2^<int>) BWT chars [4]
         --subset-tax INT: only consider the subset of input genomes under taxonomy node <int> [0]
+        --concat-tax-genome: concatenate the genomes with the same taxID and discard the seqID information [not used]
+        --ignore-uncategorized-genome: ignore genomes whose seqID or taxID is missing or uncategorized. [include all]
+        --checkpoint: add checkpoint (files [output_prefix]_checkpoint.[123]) for resuming index construction. [not used]
 
 The default --bmax and --dcv option may be inefficient for building indexes for larger genome databases, please use --build-mem option to specify the rough estimation of the available memory.
 
