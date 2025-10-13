@@ -27,7 +27,23 @@ map_headers_to_taxid() {
 }
 export -f map_headers_to_taxid
 
+flock_echo_e() {
+    if [[ $LOCK_FILE != "" ]]; then
+      flock -x $LOCK_FILE -c "echo -e $1"
+    else # this handles the single-thread case
+      echo -e $1
+    fi
+}
+export -f flock_echo_e
 
+flock_echo() {
+    if [[ $LOCK_FILE != "" ]]; then
+      flock -x $LOCK_FILE -c "echo $1"
+    else # this handles the single-thread case
+      echo $1
+    fi
+}
+export -f flock_echo
 
 #########################################################
 ## Functions
@@ -79,10 +95,10 @@ function download_n_process() {
       ## Output sequenceID to taxonomy ID map to STDOUT
       gzip -cd < $RES_FILE | map_headers_to_taxid $TAXID
     else
-      echo -e "$PWD/$RES_FILE\t$TAXID"
+      flock_echo_e "$PWD/$RES_FILE\t$TAXID"
     fi
 
-    echo done
+    flock_echo "done"
 }
 export -f download_n_process
 
