@@ -68,10 +68,10 @@ public:
   void Init(int v)
   {
     int i ;
-    if (_v <= 13)
-      _v = 14 ;
+    if (v <= 13)
+      v = 14 ;
 
-    this->_v = _v ;
+    this->_v = v ;
     // Use the Colbourn, Ling method to find the cover 
     int r = CEIL((-36 + sqrt(1296 - 96*(13 - v)))/48.0) ;
     SimpleVector<int> rawdcs ; 
