@@ -362,6 +362,8 @@ public:
     _readCount = NULL ;
     _uniqReadCount = NULL ;
     _taxidLength = NULL ;
+
+    _hasExpandedTaxIds = false ;
   }
 
   ~Quantifier()
