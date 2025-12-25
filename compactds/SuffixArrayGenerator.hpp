@@ -1114,6 +1114,11 @@ public:
     SAVE_VAR(fp, _space) ;
     SAVE_VAR(fp, _alphabetSize) ;
 
+    // The variables relate to the difference cover and its ISAs
+    _dc.Save(fp) ;
+    SAVE_VAR(fp, _dcSize) ;
+    SAVE_ARR(fp, _dcISA, _dcSize) ;
+
     // The variables relate to generate the boundaries/_cuts 
     SAVE_VAR(fp, _b) ;
     SAVE_VAR(fp, _cutCnt) ;
@@ -1127,11 +1132,6 @@ public:
         jopenend = _dc.GetV() ;
       SAVE_ARR(fp, _cutLCP[i], jopenend) ;
     }
-
-    // The variables relate to the difference cover and its ISAs
-    _dc.Save(fp) ;
-    SAVE_VAR(fp, _dcSize) ;
-    SAVE_ARR(fp, _dcISA, _dcSize) ;
   }
 
   void Load(FILE *fp)
@@ -1141,6 +1141,12 @@ public:
     LOAD_VAR(fp, _n) ;
     LOAD_VAR(fp, _space) ;
     LOAD_VAR(fp, _alphabetSize) ;
+
+    // The variables relate to the difference cover and its ISAs
+    _dc.Load(fp) ;
+    LOAD_VAR(fp, _dcSize) ;
+    _dcISA = (size_t *)malloc(sizeof(*_dcISA) * _dcSize) ;
+    LOAD_ARR(fp, _dcISA, _dcSize) ;
 
     // The variables relate to generate the boundaries/_cuts 
     LOAD_VAR(fp, _b) ;
@@ -1159,12 +1165,6 @@ public:
       _cutLCP[i] = (size_t *)malloc(sizeof(_cutLCP[i][0]) * jopenend) ;
       LOAD_ARR(fp, _cutLCP[i], jopenend) ;
     }
-
-    // The variables relate to the difference cover and its ISAs
-    _dc.Load(fp) ;
-    LOAD_VAR(fp, _dcSize) ;
-    _dcISA = (size_t *)malloc(sizeof(*_dcISA) * _dcSize) ;
-    LOAD_ARR(fp, _dcISA, _dcSize) ;
   }
 } ;
 }
