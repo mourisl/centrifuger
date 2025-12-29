@@ -21,12 +21,13 @@ private:
 
   // Variables and functions related to automatic block size estimation
   size_t _blockSizeInferLength ; // use this amount of numbers to infer block size
-  size_t EstimateSpace(const FixedSizeElemArray &S, size_t n, size_t b, int alphabetBit)
+
+  // Get the total run block compressible length for S[s..e] (inclusive) with block size b
+  size_t GetRunBlockLength(const FixedSizeElemArray &S, size_t n, size_t s, size_t e, size_t b)
   {
     size_t i, j ;
-    size_t runBlockCnt = 0 ;
     size_t runBlockLen = 0 ;
-    for (i = 0 ; i < n ; i += b)
+    for (i = s ; i <= e && i < n ; i += b)
     {
       uint64_t c = S.Read(i) ;
       bool runBlockFlag = true ;
@@ -40,11 +41,94 @@ private:
       }
       if (runBlockFlag)
       {
-        ++runBlockCnt ;
         runBlockLen += (j - i) ;
       }
     }
-    return DIV_CEIL(n, b) + alphabetBit * (runBlockCnt + n - runBlockLen) ; 
+
+    return runBlockLen ;
+  }
+
+  size_t EstimateSpace(const FixedSizeElemArray &S, size_t n, size_t b, int alphabetBit)
+  {
+    size_t runBlockLen = 0 ;
+    size_t len = _blockSizeInferLength ; 
+    size_t testCases = 1024 ; 
+    size_t m = 0 ; // Actual number of bases used for estimate space
+    
+    if (len * testCases >= n)
+    {
+      runBlockLen = GetRunBlockLength(S, n, 0, n - 1, b) ;
+      m = n ;
+    }
+    else
+    {
+      size_t i ;
+      m = 0 ;
+      for (i = 0 ; i < n ; i += n / DIV_CEIL(n, testCases))
+      {
+        size_t e = i + len - 1 ;
+        if (e >= n)
+          e = n - 1 ;
+        runBlockLen += GetRunBlockLength(S, n, i, i + len - 1, b) ;
+        m += e - i + 1 ;
+      }
+    }
+    size_t runBlockCnt = DIV_CEIL(runBlockLen, b) ;
+    if (b > 1)
+      return DIV_CEIL(m, b) + alphabetBit * (runBlockCnt + m - runBlockLen) ; 
+    else
+      return alphabetBit * m ; // b==1 will be handled specially, which will be set to _n 
+  }
+
+  // Use the same chunks for estimating space to estimate the average run length 
+  double EstimateAverageRunLength(const FixedSizeElemArray &S, size_t n)
+  {
+    size_t len = _blockSizeInferLength ; 
+    size_t testCases = 1024 ; 
+    size_t m = 0 ; // Actual number of bases used for estimate space
+
+    size_t r = 0 ;
+    if (len * testCases >= n)
+    {
+      size_t i ;
+      size_t c = S.Read(0) ;
+      for (i = 1 ; i < n ; ++i)
+      {
+        size_t tmp = S.Read(i) ;
+        if (tmp != c)
+        {
+          ++r ;
+          c = tmp ;
+        }
+      }
+      ++r ;
+      m = n ;
+    }
+    else
+    {
+      size_t i, j ;
+      m = 0 ;
+      for (i = 0 ; i < n ; i += n / DIV_CEIL(n, testCases))
+      {
+        size_t e = i + len - 1 ;
+        if (e >= n)
+          e = n - 1 ;
+        
+        size_t c = S.Read(i) ;
+        for (j = i + 1 ; j <= e ; ++j)
+        {
+          size_t tmp = S.Read(j) ;
+          if (tmp != c)
+          {
+            ++r ;
+            c = tmp ;
+          }
+        }
+        ++r ;
+        m += e - i + 1 ;
+      }
+    }
+    return (double)m / (double)r ;
   }
 
   // Use the first m characters from S to determine block size
@@ -56,7 +140,7 @@ private:
     size_t bestSpace = 0 ;
     size_t bestTag = 0 ;
     size_t m = (n < _blockSizeInferLength ? n : _blockSizeInferLength) ;
-    for (i = 2 ; i <= m ; i *= 2)
+    for (i = 1 ; i <= m ; i *= 2)
     {
       size_t space = EstimateSpace(S, m, i, alphabetBit) ;
       if (bestSpace == 0 || space < bestSpace)
@@ -68,25 +152,18 @@ private:
 
     if (bestTag <= m)
     {
-      size_t space = EstimateSpace(S, m, bestTag / 2 * 3, alphabetBit) ;
-      if (space < bestSpace)
+      size_t space = 0 ;
+      if (bestTag >= 2)
       {
-        bestSpace = space ;
-        bestTag = bestTag / 2 * 3 ;
-      }
-      
-      size_t r = 0 ;
-      size_t c = S.Read(0) ;
-      for (i = 1 ; i < m ; ++i)
-      {
-        size_t tmp = S.Read(i) ;
-        if (tmp != c)
+        space = EstimateSpace(S, m, bestTag / 2 * 3, alphabetBit) ;
+        if (space < bestSpace)
         {
-          ++r ;
-          c = tmp ;
+          bestSpace = space ;
+          bestTag = bestTag / 2 * 3 ;
         }
       }
-      size_t testSize = CEIL(sqrt((double)m/(double)r)) ;
+
+      size_t testSize = CEIL(sqrt(EstimateAverageRunLength(S, n))) ;
       if (testSize > 2)
       {
         space = EstimateSpace(S, m, testSize, alphabetBit) ;
