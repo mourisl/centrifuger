@@ -7,6 +7,7 @@
 #include "compactds/FMIndex.hpp"
 #include "compactds/Sequence_Hybrid.hpp"
 #include "compactds/Sequence_RunBlock.hpp"
+#include "compactds/Sequence_RunBlockOneTree.hpp"
 #include "compactds/SimpleVector.hpp"
 
 using namespace compactds ;
@@ -75,15 +76,17 @@ struct _BWTHit
   }
 } ;
 
+template <class FMseqclass>
 class Classifier
 {
 private:
-  FMIndex<Sequence_RunBlock> _fm ;
+  FMIndex<FMseqclass> _fm ;
   Taxonomy _taxonomy ;
   std::map<size_t, size_t> _seqLength ;
   _classifierParam _param ;
   int _scoreHitLenAdjust ;
   char _compChar[256] ;
+  bool _protein ;
   
   void ReverseComplement(char *r, int len)
   {
@@ -102,6 +105,9 @@ private:
   void InferMinHitLen()
   {
     int mhl = 23 ; // Though centrifuge uses 22, but internally it filter length <= 22, so in our implementation, it should corresponds to 23.
+    if (_protein)
+      mhl /= 3 ;
+
     int alphabetSize = _fm.GetAlphabetSize() ; 
     uint64_t kmerspace = Utils::PowerInt(alphabetSize, mhl)/ 2 ;
     uint64_t n = _fm.GetSize() ;
@@ -112,6 +118,117 @@ private:
       kmerspace *= alphabetSize ;
     }
     _param.minHitLen = mhl ;
+  }
+
+  char DnaToAa( char a, char b, char c )
+  {
+    if ( a == 'N' || b == 'N' || c == 'N' )
+      return '?' ;
+
+    if ( a == 'A' )
+    {
+      if ( b == 'A' )
+      {
+        if ( c == 'A' || c == 'G' )
+          return 'K' ;
+        else
+          return 'N' ;
+      }
+      else if ( b == 'C' )
+      {
+        return 'T' ;
+      }
+      else if ( b == 'G' )
+      {
+        if ( c == 'A' || c == 'G' )
+          return 'R' ;
+        else
+          return 'S' ;
+      }
+      else
+      {
+        if ( c == 'G' )
+          return 'M' ;
+        else 
+          return 'I' ;
+      }
+    }
+    else if ( a == 'C' )
+    {
+      if ( b == 'A' )
+      {
+        if ( c == 'A' || c == 'G' )
+          return 'Q' ;
+        else
+          return 'H' ;
+
+      }
+      else if ( b == 'C' )
+      {
+        return 'P' ;
+      }
+      else if ( b == 'G' )
+      {
+        return 'R' ;
+      }
+      else
+      {
+        return 'L' ;
+      }
+    }
+    else if ( a == 'G' )
+    {
+      if ( b == 'A' )
+      {
+        if ( c == 'A' || c == 'G' )
+          return 'E' ;
+        else
+          return 'D' ;
+      }
+      else if ( b == 'C' )
+      {
+        return 'A' ;
+      }
+      else if ( b == 'G' )
+      {
+        return 'G' ;
+      }
+      else
+      {
+        return 'V' ;
+      }
+    }
+    else
+    {
+      if ( b == 'A' )
+      {
+        if ( c == 'A' || c == 'G' )
+          return '_' ;
+        else
+          return 'Y' ;
+      }
+      else if ( b == 'C' )
+      {
+        return 'S' ;
+      }
+      else if ( b == 'G' )
+      {
+        if ( c == 'A' )
+          return '_' ;
+        else if ( c == 'G' )
+          return 'W' ;
+        else
+          return 'C' ;
+
+      }
+      else
+      {
+        if ( c == 'A' || c == 'G' )
+          return 'L' ;
+        else
+          return 'F' ;
+      }
+    }
   }
 
   //l: hit length
@@ -271,7 +388,7 @@ private:
     } // for k
   }
 
-  // It seems the performance for not synchronize mate pair direction works better
+  // It seems the performance for synchronize mate pair direction works better
   size_t SearchForwardAndReverseWithWeakMateDirection(char *r1, char *r2, SimpleVector<struct _BWTHit> &hits)
   {
     int i, k, ridx ;
@@ -331,6 +448,50 @@ private:
     return hits.Size() ;
   }
 
+  size_t TranslatedSearch(char *r, int rlen, SimpleVector<struct _BWTHit> &hits)
+  {
+    int i, k ;
+    int frame ; 
+    char *aa = strdup(r) ; // amino acid sequence
+    SimpleVector<struct _BWTHit> frameHits[3] ;
+    for (frame = 0 ; frame < 3 ; ++frame)
+    {
+      k = 0 ;
+      for (i = frame ; i + 2 < rlen ; i += 3)      
+      {
+        aa[k] = DnaToAa(r[i], r[i + 1], r[i + 2]) ;
+        if (aa[k] == '?' || aa[k] == '_')
+          aa[k] = 'A' ;
+        ++k ;
+      }
+      aa[k] = '\0' ;
+      GetHitsFromRead(aa, k, frameHits[frame]) ;
+    }
+
+    // Use the frame with the highest score
+    size_t maxScore = 0 ;
+    size_t maxTag = 0 ;
+    size_t ret ;
+    for (frame = 0 ; frame < 3 ; ++frame)
+    {
+      int size = frameHits[frame].Size() ;
+      size_t score = 0 ;
+      for (i = 0 ; i < size ; ++i)
+        score += CalculateHitsScore(frameHits[frame]) ;
+      if (score > maxScore)
+      {
+        maxScore = score ;
+        maxTag = frame ;
+      }
+    }
+
+    ret = frameHits[maxTag].Size() ;
+    hits.PushBack( frameHits[maxTag] ) ;
+
+    free(aa) ;
+    return ret ;
+  }
+
   //@return: the size of the hits after selecting the strand 
   size_t SearchForwardAndReverse(char *r1, char *r2, SimpleVector<struct _BWTHit> &hits)
   {
@@ -342,10 +503,19 @@ private:
     ReverseComplement(rcR1, r1len) ;
     
     SimpleVector<struct _BWTHit> strandHits[2] ; // 0: minus strand, 1: postive strand
-    
-    GetHitsFromRead(r1, r1len, strandHits[1]) ;
-    GetHitsFromRead(rcR1, r1len, strandHits[0]) ;
-    AdjustHitBoundaryFromStrandHits(r1, rcR1, r1len, strandHits) ;
+   
+    if (!_protein)
+    {
+      GetHitsFromRead(r1, r1len, strandHits[1]) ;
+      GetHitsFromRead(rcR1, r1len, strandHits[0]) ;
+      AdjustHitBoundaryFromStrandHits(r1, rcR1, r1len, strandHits) ;
+    }
+    else
+    {
+      TranslatedSearch(r1, r1len, strandHits[1]) ;
+      TranslatedSearch(rcR1, r1len, strandHits[0]) ;
+    }
+
     if (r2)
     {
       rcR2 = strdup(r2) ;
@@ -353,9 +523,18 @@ private:
       ReverseComplement(rcR2, r2len) ;
       SimpleVector<struct _BWTHit> r2StrandHits[2] ; // 0: minus strand, 1: postive strand
       
-      GetHitsFromRead(r2, r2len, r2StrandHits[1]) ;
-      GetHitsFromRead(rcR2, r2len, r2StrandHits[0]) ;
-      AdjustHitBoundaryFromStrandHits(r2, rcR2, r2len, r2StrandHits) ;
+      if (!_protein)
+      {
+        GetHitsFromRead(r2, r2len, r2StrandHits[1]) ;
+        GetHitsFromRead(rcR2, r2len, r2StrandHits[0]) ;
+        AdjustHitBoundaryFromStrandHits(r2, rcR2, r2len, r2StrandHits) ;
+      }
+      else
+      {
+        TranslatedSearch(r2, r2len, r2StrandHits[1]) ;
+        TranslatedSearch(rcR2, r2len, r2StrandHits[0]) ;
+      }
+
       for (i = 0 ; i <= 1 ; ++i)
         strandHits[i].PushBack(r2StrandHits[1 - i]) ;
     }
@@ -642,6 +821,35 @@ public:
     _seqLength.clear() ;
   }
 
+  bool IsProteinDatabase(char *idxPrefix)
+  {
+    bool ret = false ;
+
+    // .4.cfr file for some plain text index descrition. We can get the sequence type there
+    char key[128] ;
+    char val[128] ;
+    char *nameBuffer = (char *)malloc(sizeof(char) * (strlen(idxPrefix) + 17))  ;  
+    sprintf(nameBuffer, "%s.4.cfr", idxPrefix) ;
+    FILE *fp = fopen(nameBuffer, "r") ;
+    while (fscanf(fp, "%s %s", key, val) != EOF)
+    {
+      if (!strcmp(key, "sequence_type"))
+      {
+        if (!strcmp(val, "amino_acid"))
+          ret = true ;
+      }
+    }
+    fclose(fp) ;
+    
+    free(nameBuffer) ;
+    return ret ;
+  }
+
+  bool IsProteinDatabase()
+  {
+    return _protein ;
+  }
+
   void Init(char *idxPrefix, struct _classifierParam param)
   {
     FILE *fp ;
@@ -668,6 +876,13 @@ public:
       _seqLength[tmp[0]] = tmp[1] ;
     }
     fclose(fp) ;
+
+    _protein = IsProteinDatabase(idxPrefix) ;
+    if (_protein)
+    {
+      _scoreHitLenAdjust /= 3 ;
+      Utils::PrintLog("This is a protein database and will use translated search.") ;
+    }
     
     Utils::PrintLog("Finishes loading index.") ;
     
@@ -700,5 +915,4 @@ public:
     return _taxonomy ;
   }
 } ;
-
 #endif 

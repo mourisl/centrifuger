@@ -254,6 +254,8 @@ public:
   
   size_t Query(size_t i, const WORD *B, const size_t &n, int inclusive = 1) const
   {
+    //if (n == 0). Should be handle externally to make sure no empty array is accessed (for now)
+    //  return 0 ;
     if (i >= n)
       return Query(n - 1, B, n, inclusive) ;
     

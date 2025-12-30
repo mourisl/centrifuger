@@ -35,6 +35,9 @@ struct _FMIndexAuxData
   WORD *selectedSAFilter ; // Quick test whether a SA could be selectedSA 
   int selectedSAFilterSampleRate ;
 
+  bool hasEndMarker ; // the first alphabet is to mark the end of a sequence/genome
+  FixedSizeElemArray endMarkerSA ;  
+
   bool printLog ;
 
   _FMIndexAuxData()
@@ -53,6 +56,8 @@ struct _FMIndexAuxData
     adjustedSA0 = 0 ;
     selectedSAFilter = NULL ;
     selectedSAFilterSampleRate = 1024 ;
+
+    hasEndMarker = false ;
 
     printLog = true ;
   }
@@ -84,6 +89,11 @@ struct _FMIndexAuxData
     {
       selectedSA.clear() ;
       free(selectedSAFilter) ;
+    }
+
+    if (hasEndMarker)
+    {
+      endMarkerSA.Free() ;
     }
   }
 
@@ -117,6 +127,10 @@ struct _FMIndexAuxData
       size_t pair[2] = {iter->first, iter->second} ;
       fwrite(pair, sizeof(size_t), 2, fp) ;
     }
+
+    SAVE_VAR(fp, hasEndMarker) ;
+    if (hasEndMarker)
+      endMarkerSA.Save(fp) ;
   }
 
   void Load(FILE *fp)
@@ -160,6 +174,14 @@ struct _FMIndexAuxData
         Utils::BitSet(selectedSAFilter, pair[0] / selectedSAFilterSampleRate) ;
       }
     }
+
+    if (LOAD_VAR(fp, hasEndMarker) == 0) // This is mainly for backward compatbility of Centrifuger index
+    {
+      hasEndMarker = false ;
+    }
+
+    if (hasEndMarker)
+      endMarkerSA.Load(fp) ;
   }
 } ;
 
@@ -199,6 +221,11 @@ private:
         return true ;
       }
     }
+    else if (_auxData.hasEndMarker && i < _auxData.endMarkerSA.GetSize())
+    {
+      sa = _auxData.endMarkerSA[i] ; 
+      return true ;
+    }
 
     return false ;
   }
@@ -220,9 +247,15 @@ public:
     _alphabets = a ;  
   }
 
+  // This function might be too generic..
   void SetSequenceExtraParameter(void *p)
   {
     _BWT.SetExtraParameter(p) ;
+  }
+
+  SeqClass *GetBWT()
+  {
+    return &_BWT ;
   }
 
   void Free()
@@ -246,6 +279,13 @@ public:
     _auxData.sampledSA.InitFromArray(0, builderParam.sampledSA, _auxData.sampleSize) ;
     free(builderParam.sampledSA) ;
     
+    if (builderParam.hasEndMarker)
+    {
+      _auxData.hasEndMarker = true ;
+      _auxData.endMarkerSA.InitFromArray(0, builderParam.endMarkerSA, builderParam.endMarkerCnt) ;
+      free(builderParam.endMarkerSA) ;
+    }
+
     _auxData.precomputeWidth = builderParam.precomputeWidth ;
     _auxData.precomputeSize = builderParam.precomputeSize ;
     _auxData.precomputedRange = builderParam.precomputedRange ;
@@ -273,7 +313,7 @@ public:
 
   void Init(FixedSizeElemArray &BWT, size_t n,
     size_t firstISA, struct _FMBuilderParam& builderParam, 
-    const ALPHABET *alphabetMapping, int alphabetSize) 
+    const ALPHABET *alphabetMapping, int alphabetSize)
   {
     size_t i ;
     
@@ -345,14 +385,9 @@ public:
     return offset + Rank(c, p) - 1 ;
   }
 
-  // m - length of s
-  // Return the [sp, ep] through the option, and the length of matched prefix in size_t
-  size_t BackwardSearch(char *s, size_t m, size_t &sp, size_t &ep)
+  size_t GetBackwardSearchInitialRange(char *s, size_t m, size_t &sp, size_t &ep)
   {
     size_t i ;
-    if (m < _auxData.precomputeWidth)
-      return 0 ;
-
     if (_auxData.precomputeWidth > 0)
     {
       WORD initW = 0 ;
@@ -373,16 +408,91 @@ public:
         ep = 0 ;
         return _auxData.precomputeWidth - 1 ;
       }
+
       sp = _auxData.precomputedRange[initW].first ;
       ep = sp + _auxData.precomputedRange[initW].second - 1 ;
+      return _auxData.precomputeWidth ;
     }
     else
     {
       sp = 0 ;
       ep = _n - 1 ;
+      return 0 ;    
+    }
+  }
+
+  // The function to search super maximal exact matches (defined in Heng Li, 2012) 
+  //  on the read with just BWT. 
+  // minL: minimum MEM to consider
+  // readRange: the coordinate [x, y] on s correspond to an MEM
+  // bwtRange: the bwt range [sp, ep] correspond to an MEM
+  // The order is sorted by read end, 
+  // @return: number of MEM found
+  size_t SearchSuperMEM(char *s, size_t m, size_t minL, std::vector<std::pair<size_t, size_t> > &readRange, std::vector<std::pair<size_t, size_t> > &bwtRange)
+  {
+    size_t i ;
+    if (minL < _auxData.precomputeWidth)
+      minL = _auxData.precomputeWidth ;
+
+    readRange.clear() ;
+    bwtRange.clear() ;
+
+    size_t *readEnd = (size_t *)malloc(sizeof(*readEnd) * m);
+    size_t *length = (size_t *)malloc(sizeof(*length) * m);
+    size_t *sp = (size_t *)malloc(sizeof(*sp) * m) ;
+    size_t *ep = (size_t *)malloc(sizeof(*ep) * m) ;
+    size_t cnt ;
+
+    cnt = 0 ;
+    for (i = m - 1 ; i >= minL - 1 && i < m ; --i)
+    {
+      readEnd[cnt] = i ;
+      
+      size_t l, localSp, localEp ;
+      l = BackwardSearch(s, i + 1, localSp, localEp) ;
+      if (l < minL)
+        continue ;
+      
+      if (cnt == 0 || l + (readEnd[cnt - 1] - i) > length[cnt - 1]) 
+      {
+        length[cnt] = l ;
+        sp[cnt] = localSp ;
+        ep[cnt] = localEp ;
+        ++cnt ;
+      }
+    }
+    
+    for (i = 0 ; i < cnt ; ++i)
+    {
+      std::pair<size_t, size_t> np ;
+      np.first = readEnd[i] ;
+      np.second = readEnd[i] + 1 - length[i] ;
+      readRange.push_back(np) ;
+
+      np.first = sp[i] ;
+      np.second = ep[i] ;
+      bwtRange.push_back(np) ;
     }
 
-    size_t l = _auxData.precomputeWidth ; 
+    free(readEnd) ;
+    free(length) ;
+    free(sp) ;
+    free(ep) ;
+
+    return readRange.size() ;
+  }
+
+  // m: length of s
+  // Return the [sp, ep] through the option, and the length of matched suffix in size_t
+  size_t BackwardSearch(char *s, size_t m, size_t &sp, size_t &ep)
+  {
+    if (m < _auxData.precomputeWidth)
+      return 0 ;
+
+    size_t l = GetBackwardSearchInitialRange(s, m, sp, ep) ;
+    if (l < _auxData.precomputeWidth)
+      return l ;
+
     size_t nextSp = sp ;
     size_t nextEp = ep ;
     while (l < m)
@@ -445,6 +555,11 @@ public:
     return _alphabets.GetSize() ;
   }
 
+  // 
+  void ReprocessBWT()
+  {
+  }
+
   void PrintSpace()
   {
     Utils::PrintLog("FM-index space usage (bytes):") ;
@@ -480,7 +595,6 @@ public:
     LOAD_VAR(fp, _lastChr) ;
 
     _BWT.Load(fp) ;
-
     _alphabets.Load(fp) ;
     _plainAlphabetCoder.Load(fp) ;
     size_t alphabetSize = _plainAlphabetCoder.GetSize() ;

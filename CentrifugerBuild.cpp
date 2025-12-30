@@ -26,7 +26,6 @@ char usage[] = "./centrifuger-build [OPTIONS]:\n"
   "\t--subset-tax INT: only consider the subset of input genomes under taxonomy node INT [0]\n"
   "\t--concat-tax-genome: concatenate the genomes with the same taxID and discard the seqID information [not used]\n"
   "\t--ignore-uncategorized-genome: ignore genomes whose seqID or taxID is missing or uncategorized. [include all]\n"
-  "\t--checkpoint: add checkpoint (files [output_prefix]_checkpoint.[123]) for resuming index construction. [not used]\n"
   ""
   ;
 
@@ -43,12 +42,14 @@ static struct option long_options[] = {
       { "name-table", required_argument, 0, ARGV_NAME_TABLE},
       { "subset-tax", required_argument, 0, ARGV_SUBSET_TAXONOMY},
       { "concat-tax-genome", no_argument, 0, ARGV_BUILD_CONCAT_SAME_TAXID_SEQS},
-      { "igore-uncategorized-genome", no_argument, 0, ARGV_BUILD_IGNORE_UNCATEGORIZED },
       { "checkpoint", no_argument, 0, ARGV_BUILD_USE_CHECKPOINT },
+      { "protein", no_argument, 0, ARGV_BUILD_PROTEIN},
+      { "igore-uncategorized-genome", no_argument, 0, ARGV_BUILD_IGNORE_UNCATEGORIZED },
       { (char *)0, 0, 0, 0} 
 } ;
 
-int main(int argc, char *argv[])
+template <class FMseqclass>
+int CentrifugerBuild_main(int argc, char *argv[])
 {
   if ( argc <= 1 )
   {
@@ -70,12 +71,12 @@ int main(int argc, char *argv[])
   bool conversionTableAtFileLevel = false ;
   bool concatSameTaxIdSeqs = false ;
   bool ignoreUncategorizedSeqs = false ;
+  bool protein = false ;
 
-  Builder builder ;
+  Builder<FMseqclass> builder ;
   
   struct _FMBuilderParam fmBuilderParam ;
   fmBuilderParam.sampleRate = 16 ;
-
   while (1)
   {
     c = getopt_long( argc, argv, short_options, long_options, &option_index ) ;
@@ -173,6 +174,10 @@ int main(int argc, char *argv[])
     {
       fmBuilderParam.hasCheckpointFile = true ;
     }
+    else if (c == ARGV_BUILD_PROTEIN)
+    {
+      protein = true ;
+    }
     else
     {
       fprintf( stderr, "Unknown parameter found\n%s", usage ) ;
@@ -211,7 +216,13 @@ int main(int argc, char *argv[])
     fmBuilderParam.checkpointFilePrefix = tmp ;
   }
 
-  const char alphabetList[] = "ACGT" ;
+  char alphabetList[31] = "ACGT" ;
+  if (protein)
+  {
+    strcpy(alphabetList, "$ARNDCEQGHILKMFPSTWYV") ;
+    if (fmBuilderParam.precomputeWidth == 10) // default value
+      fmBuilderParam.precomputeWidth = 4 ;
+  }
 
   Utils::PrintLog("Start to read in the genome files.") ; 
   builder.Build(refGenomeFile, taxonomyFile, nameTable, 
@@ -229,3 +240,28 @@ int main(int argc, char *argv[])
 
   return 0 ;
 }
+
+int main(int argc, char *argv[])
+{
+  bool protein = false ;  
+  
+  int c, option_index ;
+  option_index = 0 ;
+  while (1)
+  {
+    c = getopt_long( argc, argv, short_options, long_options, &option_index ) ;
+
+    if (c == -1)
+      break ;
+    
+    if (c == ARGV_BUILD_PROTEIN)
+      protein = true ;
+  }
+  optind = 1 ;
+
+  if (!protein)
+    return CentrifugerBuild_main<Sequence_RunBlock>(argc, argv) ;
+  else
+    return CentrifugerBuild_main<Sequence_RunBlockOneTree>(argc, argv) ;
+}
+
