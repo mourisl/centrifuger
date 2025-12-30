@@ -333,8 +333,8 @@ private:
             if (pathA[i] != pathB[j])
               break ;
           }
-
-          if (i == sizeA - 1 || pathA[i + 1] != pathB[i + 1])
+                    
+          if (i == sizeA - 1 || pathA[i + 1] != pathB[j + 1])
             rawSeqNameMap[seqIdStr] = GetOrigTaxId(_rootCTaxId) ;
           else
             rawSeqNameMap[seqIdStr] = GetOrigTaxId(pathA[i + 1]) ; 
@@ -788,7 +788,6 @@ public:
     for (std::map<size_t, int>::iterator iter = taxIdsInRankNum[ri].begin() ;
         iter != taxIdsInRankNum[ri].end() ; ++iter)
       promotedTaxIds.PushBack(iter->first) ;
-
     if (promotedTaxIds.Size() == 0)
       promotedTaxIds.PushBack(_rootCTaxId) ;
     else if (promotedChildTaxIds != NULL && ri > 0) 
