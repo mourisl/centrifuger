@@ -64,7 +64,7 @@ private:
     {
       size_t i ;
       m = 0 ;
-      for (i = 0 ; i < n ; i += n / DIV_CEIL(n, testCases))
+      for (i = 0 ; i < n ; i += DIV_CEIL(n, testCases))
       {
         size_t e = i + len - 1 ;
         if (e >= n)
@@ -108,7 +108,7 @@ private:
     {
       size_t i, j ;
       m = 0 ;
-      for (i = 0 ; i < n ; i += n / DIV_CEIL(n, testCases))
+      for (i = 0 ; i < n ; i += DIV_CEIL(n, testCases))
       {
         size_t e = i + len - 1 ;
         if (e >= n)
@@ -131,7 +131,7 @@ private:
     return (double)m / (double)r ;
   }
 
-  // Use the first m characters from S to determine block size
+  // Use the characters from dispersed chunks of size m of S to determine block size
   size_t ComputeBlockSize(const FixedSizeElemArray &S, size_t n, size_t alphabetSize)
   {
     size_t i ;
@@ -139,34 +139,33 @@ private:
 
     size_t bestSpace = 0 ;
     size_t bestTag = 0 ;
-    size_t m = (n < _blockSizeInferLength ? n : _blockSizeInferLength) ;
+    size_t m = _blockSizeInferLength ;
     for (i = 1 ; i <= m ; i *= 2)
     {
-      size_t space = EstimateSpace(S, m, i, alphabetBit) ;
+      size_t space = EstimateSpace(S, n, i, alphabetBit) ;
       if (bestSpace == 0 || space < bestSpace)
       {
         bestSpace = space ;
         bestTag = i ;
       }
     }
-
+    
     if (bestTag <= m)
     {
       size_t space = 0 ;
       if (bestTag >= 2)
       {
-        space = EstimateSpace(S, m, bestTag / 2 * 3, alphabetBit) ;
+        space = EstimateSpace(S, n, bestTag / 2 * 3, alphabetBit) ;
         if (space < bestSpace)
         {
           bestSpace = space ;
           bestTag = bestTag / 2 * 3 ;
         }
       }
-
       size_t testSize = CEIL(sqrt(EstimateAverageRunLength(S, n))) ;
       if (testSize > 2)
       {
-        space = EstimateSpace(S, m, testSize, alphabetBit) ;
+        space = EstimateSpace(S, n, testSize, alphabetBit) ;
         if (space < bestSpace)
         {
           bestSpace = space ;
@@ -181,7 +180,7 @@ public:
   Sequence_RunBlock() 
   {
     _b = 0 ;
-    _blockSizeInferLength = (1<<20) ;
+    _blockSizeInferLength = 1024 ;
   }
 
   ~Sequence_RunBlock() 
@@ -241,7 +240,6 @@ public:
       alphabetSize = _alphabets.GetSize() ;
     }
     size_t alphabetBits = Utils::Log2Ceil(alphabetSize) ;
-    
     if (_b == 0)
       _b = ComputeBlockSize(S, sequenceLength, alphabetSize) ;
     if (_b == 1)
