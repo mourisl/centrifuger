@@ -65,7 +65,7 @@ private:
     {
       size_t i ;
       m = 0 ;
-      for (i = 0 ; i < n ; i += n / DIV_CEIL(n, testCases))
+      for (i = 0 ; i < n ; i += DIV_CEIL(n, testCases))
       {
         size_t e = i + len - 1 ;
         if (e >= n)
@@ -109,7 +109,7 @@ private:
     {
       size_t i, j ;
       m = 0 ;
-      for (i = 0 ; i < n ; i += n / DIV_CEIL(n, testCases))
+      for (i = 0 ; i < n ; i += DIV_CEIL(n, testCases))
       {
         size_t e = i + len - 1 ;
         if (e >= n)
