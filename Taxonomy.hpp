@@ -667,6 +667,12 @@ public:
     }
   }
 
+  // Should be used before init or load.
+  void SetNeedSeqNameToId(bool v)
+  {
+    _seqStrNameMap.SetNeedToNumId(v) ;
+  }
+
   size_t SeqNameToId(std::string &s)
   {
     if (!_seqStrNameMap.IsIn(s))

@@ -13,9 +13,18 @@ class MapID
 private:
   std::map<T, size_t> _toNumId ; 
   std::vector<T> _toOrigElem ;
+  bool _needToNumId ; // In many application, we don't need to the toNumId, so we can save the memory-consuming map structure 
 public:
-  MapID() {}
+  MapID() 
+  {
+    _needToNumId = true ;
+  }
   ~MapID() {}
+
+  void SetNeedToNumId(bool v)
+  {
+    _needToNumId = v ;
+  }
 
   // @return: mapped id. Return the 
   size_t Add(const T &elem)
@@ -23,7 +32,8 @@ public:
     if (_toNumId.find(elem) == _toNumId.end()) 
     {
       uint64_t id = _toNumId.size() ;
-      _toNumId[elem] = id ;
+      if (_needToNumId)
+        _toNumId[elem] = id ;
       _toOrigElem.push_back(elem) ;
       return id ;
     }
@@ -82,8 +92,9 @@ public:
     _toOrigElem.insert(_toOrigElem.end(), list, list + n) ;
     
     _toNumId.clear() ;
-    for (size_t i = 0 ; i < n ; ++i)
-      _toNumId[ _toOrigElem[i] ] = i ;
+    if (_needToNumId)
+			for (size_t i = 0 ; i < n ; ++i)
+				_toNumId[ _toOrigElem[i] ] = i ;
     delete[] list ;
   }
 } ;

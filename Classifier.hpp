@@ -864,18 +864,19 @@ public:
     // .2.cfr file is for taxonomy structure
     sprintf(nameBuffer, "%s.2.cfr", idxPrefix) ;
     fp = fopen(nameBuffer, "r") ;
+    _taxonomy.SetNeedSeqNameToId(false) ;
     _taxonomy.Load(fp) ;
     fclose(fp) ;
 
-    // .3.cfr file is for sequence length
-    sprintf(nameBuffer, "%s.3.cfr", idxPrefix) ;
+    // .3.cfr file is for sequence length. It's not used for now
+    /*sprintf(nameBuffer, "%s.3.cfr", idxPrefix) ;
     fp = fopen(nameBuffer, "r") ;
     size_t tmp[2] ;
     while (fread(tmp, sizeof(tmp[0]), 2, fp))
     {
       _seqLength[tmp[0]] = tmp[1] ;
     }
-    fclose(fp) ;
+    fclose(fp) ;*/
 
     _protein = IsProteinDatabase(idxPrefix) ;
     if (_protein)

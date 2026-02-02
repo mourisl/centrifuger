@@ -44,7 +44,7 @@ static struct option long_options[] = {
       { "concat-tax-genome", no_argument, 0, ARGV_BUILD_CONCAT_SAME_TAXID_SEQS},
       { "checkpoint", no_argument, 0, ARGV_BUILD_USE_CHECKPOINT },
       { "protein", no_argument, 0, ARGV_BUILD_PROTEIN},
-      { "igore-uncategorized-genome", no_argument, 0, ARGV_BUILD_IGNORE_UNCATEGORIZED },
+      { "ignore-uncategorized-genome", no_argument, 0, ARGV_BUILD_IGNORE_UNCATEGORIZED },
       { (char *)0, 0, 0, 0} 
 } ;
 
