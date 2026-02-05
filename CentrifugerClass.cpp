@@ -84,7 +84,8 @@ struct _threadArg
 
   ReadPairMerger *readPairMerger ;
 
-  Classifier *classifier ;
+  bool protein ; // is the classifier for protein or not
+  void *classifier ; // cast to runblock and runblockonetree depending on the protein
   struct _classifierResult *results ;
 
   int tid ;
@@ -259,11 +260,18 @@ void *ClassifyReads_Thread(void *pArg)
 
     if (mergeResult == 0)
     {
-      arg.classifier->Query(r1, r2, arg.results[i]) ;
+      if (!arg.protein)
+        ((Classifier<Sequence_RunBlock> *)arg.classifier)->Query(r1, r2, arg.results[i]) ;
+      else
+        ((Classifier<Sequence_RunBlockOneTree> *)arg.classifier)->Query(r1, r2, arg.results[i]) ;
     }
     else
     {
-      arg.classifier->Query(rm, NULL, arg.results[i]) ;
+      if (!arg.protein)
+        ((Classifier<Sequence_RunBlock> *)arg.classifier)->Query(rm, NULL, arg.results[i]) ;
+      else
+        ((Classifier<Sequence_RunBlockOneTree> *)arg.classifier)->Query(rm, NULL, arg.results[i]) ;
+      
       free(rm) ;
       if (qm)
         free(qm) ;
@@ -274,7 +282,8 @@ void *ClassifyReads_Thread(void *pArg)
   pthread_exit(NULL) ;
 }
 
-int main(int argc, char *argv[])
+template <class FMseqclass>
+int CentrifugerClass_main(int argc, char *argv[])
 {
   int i ;
 
@@ -290,7 +299,7 @@ int main(int argc, char *argv[])
   char outputPrefix[1024] = "centrifuger" ;
   char *idxPrefix = NULL ;
   int threadCnt = 1 ;
-  Classifier classifier ;
+  Classifier<FMseqclass> classifier ;
   struct _classifierParam classifierParam ;
   ReadFiles reads ;
   ReadFiles mateReads ;
@@ -298,6 +307,8 @@ int main(int argc, char *argv[])
   ResultWriter resWriter ;
   ReadPairMerger readPairMerger ;
   bool mergeReadPair = false ;
+  
+  bool protein = false ;
 
   char unclassifiedOutputPrefix[1024] = "";
   char classifiedOutputPrefix[1024] = "";
@@ -510,8 +521,9 @@ int main(int argc, char *argv[])
 
   if (threadCnt > 1 && readFormatter.GetSegmentCount(FORMAT_CATEGORY_COUNT) > 0)
     readFormatter.AllocateBuffers(4 * threadCnt) ;
-
+  
   classifier.Init(idxPrefix, classifierParam) ;
+  protein = classifier.IsProteinDatabase() ;
   
 	if (classifierParam.outputExpandedResult)
 		resWriter.SetOutputExpandedTaxIds(true) ;
@@ -560,6 +572,7 @@ int main(int argc, char *argv[])
   {
     args[i].threadCnt = classificationThreadCnt ;
     args[i].tid = i ;
+    args[i].protein = protein ;
     args[i].classifier = &classifier ;
     args[i].readPairMerger = mergeReadPair ? &readPairMerger : NULL ;
   }
@@ -882,3 +895,31 @@ int main(int argc, char *argv[])
   Utils::PrintLog("Centrifuger finishes." ) ;
   return 0 ;
 }
+
+int main(int argc, char *argv[])
+{
+  bool protein = false ;  
+  
+  int c, option_index ;
+  option_index = 0 ;
+  while (1)
+  {
+    c = getopt_long( argc, argv, short_options, long_options, &option_index ) ;
+
+    if (c == -1)
+      break ;
+    
+    if (c == 'x' )
+    {
+      Classifier<Sequence_RunBlock> tmp ;
+      protein = tmp.IsProteinDatabase(optarg) ;
+    }
+  }
+  optind = 1 ;
+
+  if (!protein)
+    return CentrifugerClass_main<Sequence_RunBlock>(argc, argv) ;
+  else
+    return CentrifugerClass_main<Sequence_RunBlockOneTree>(argc, argv) ;
+}
+

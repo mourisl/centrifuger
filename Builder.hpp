@@ -4,6 +4,7 @@
 #include "ReadFiles.hpp"
 #include "compactds/Sequence_Hybrid.hpp"
 #include "compactds/Sequence_RunBlock.hpp"
+#include "compactds/Sequence_RunBlockOneTree.hpp"
 #include "compactds/FMBuilder.hpp"
 #include "compactds/FMIndex.hpp"
 #include "compactds/Alphabet.hpp"
@@ -13,12 +14,14 @@
 // Holds various method regarding building index
 using namespace compactds ; 
 
+template <class FMseqclass>
 class Builder
 {
 private:
-  FMIndex<Sequence_RunBlock> _fmIndex ;
+  FMIndex<FMseqclass> _fmIndex ;
   Taxonomy _taxonomy ;
   std::map<size_t, size_t> _seqLength ; // we use map here is for the case that a seq show up in the conversion table but not in the actual genome file.
+  bool _protein ;
 
   // SampledSA need to be processed before FMIndex.Init() because the sampledSA is represented by FixedElemLengthArray, which requires the largest element size
   void TransformSampledSAToSeqId(struct _FMBuilderParam &fmBuilderParam, std::vector<size_t> genomeSeqIds,
@@ -27,27 +30,48 @@ private:
     size_t i ;
     PartialSum lenPsum ;
     lenPsum.Init(genomeLens.data(), genomeLens.size()) ;
-    for (i = 0 ; i < fmBuilderParam.sampleSize ; ++i)
+    if (!fmBuilderParam.hasEndMarker)
     {
-      // The precomputeWidth + 1 here to handle the fuzzy boundary
-      if (fmBuilderParam.sampledSA[i] + fmBuilderParam.precomputeWidth + 1 < n)
-        fmBuilderParam.sampledSA[i] = genomeSeqIds[lenPsum.Search(
-            fmBuilderParam.sampledSA[i] + fmBuilderParam.precomputeWidth + 1)] ;  
-      else
+      for (i = 0 ; i < fmBuilderParam.sampleSize ; ++i)
+      {
+        // The precomputeWidth + 1 here to handle the fuzzy boundary
+        if (fmBuilderParam.sampledSA[i] + fmBuilderParam.precomputeWidth + 1 < n)
+          fmBuilderParam.sampledSA[i] = genomeSeqIds[lenPsum.Search(
+              fmBuilderParam.sampledSA[i] + fmBuilderParam.precomputeWidth + 1)] ;  
+        else
+          fmBuilderParam.sampledSA[i] = genomeSeqIds[lenPsum.Search(
+              fmBuilderParam.sampledSA[i])] ;
+      }
+      fmBuilderParam.adjustedSA0 = genomeSeqIds[0] ;
+
+      for (std::map<size_t, size_t>::iterator iter = fmBuilderParam.selectedSA.begin() ;
+          iter != fmBuilderParam.selectedSA.end() ; ++iter)
+      {
+        iter->second = genomeSeqIds[lenPsum.Search(iter->second + fmBuilderParam.precomputeWidth + 1)] ; // the selected SA stores the fuzzy start position for the next genome, so we need to plus the adjusted boundary.
+      }
+    }
+    else
+    {
+      for (i = 0 ; i < fmBuilderParam.sampleSize ; ++i)
+      {
+        // No need for the fuzzy boundary if the boundary is accurately stored
         fmBuilderParam.sampledSA[i] = genomeSeqIds[lenPsum.Search(
             fmBuilderParam.sampledSA[i])] ;
-    }
-    fmBuilderParam.adjustedSA0 = genomeSeqIds[0] ;
+      }
 
-    for (std::map<size_t, size_t>::iterator iter = fmBuilderParam.selectedSA.begin() ;
-        iter != fmBuilderParam.selectedSA.end() ; ++iter)
-    {
-      iter->second = genomeSeqIds[lenPsum.Search(iter->second + fmBuilderParam.precomputeWidth + 1)] ; // the selected SA stores the fuzzy start position for the next genome, so we need to plus the adjusted boundary.
+      // Though $ represents the end of a sequence, its corresponding SA will be assigned to the next seqID, kind of representing the start of the next sequence 
+      for (i = 0 ; i < fmBuilderParam.endMarkerCnt ; ++i)
+      {
+        size_t k = lenPsum.Search(fmBuilderParam.endMarkerSA[i] + 1) ; // This function handles the overflow case
+        if (k >= genomeSeqIds.size()) 
+          k = genomeSeqIds.size() - 1 ;
+        fmBuilderParam.endMarkerSA[i] = genomeSeqIds[k] ;
+      }
     }
   }
 
 public: 
-  Builder() {}
+  Builder() {_protein = false;}
   ~Builder() 
   {
     _fmIndex.Free() ;
@@ -69,6 +93,12 @@ public:
     FixedSizeElemArray genomes ;
     std::map<size_t, FixedSizeElemArray *> taxIdGenomes ; // the genomes from each tax ID. For the concatSameTaxIdSeqs option.
     SequenceCompactor seqCompactor ;
+    if (alphabetList[0] == '$')
+    {
+      seqCompactor.SetEndingAlphabet('$') ;
+      fmBuilderParam.hasEndMarker = true ;
+      _protein = true ; // Assume only use $ symbol when indexing protein database
+    }
     seqCompactor.Init(alphabetList, genomes, 1000000) ;
     
     std::map<size_t, int> selectedTaxIds ;
@@ -96,6 +126,9 @@ public:
           continue ;
       }
 
+      if (_seqLength.find(seqid) != _seqLength.end()) // Assume there is no duplicated seqid. Thought this happens a lot in the protein database...we handle that by promoting the seqid's corresponidng taxID to LCA, so we only need to store that sequence once.
+        continue ;
+
       if (seqid >= _taxonomy.GetSeqCount())
       {
         fprintf(stderr, "WARNING: taxonomy id doesn't exist for %s!\n", 
@@ -117,17 +150,9 @@ public:
           continue ;
         }
 
-        if (_seqLength.find(seqid) == _seqLength.end()) // Assume there is no duplicated seqid
-        {
-          _seqLength[seqid] = len ;
-          genomeSeqIds.push_back(seqid) ;
-          genomeLens.push_back(len) ;
-        }
-        else
-        {
-          _seqLength[seqid] += len ;
-          genomeLens[ genomeLens.size() - 1 ] += len ;
-        }
+        _seqLength[seqid] = len ;
+        genomeSeqIds.push_back(seqid) ;
+        genomeLens.push_back(len) ;
       }
       else // concatenate seuqences with the same tax ID
       {
@@ -148,13 +173,15 @@ public:
           a->SetSize(size - len) ;
           continue ;
         }
+        _seqLength[seqid] = len ;
       }
     }
 
     if (concatSameTaxIdSeqs)
     {
       genomes.SetSize(0) ;
-      
+      _seqLength.clear() ;
+
       // In this case, seqId essentially is taxId
       _taxonomy.SetTaxIdAsSeqId() ;
 
@@ -185,13 +212,17 @@ public:
       fprintf(stderr, "ERROR: found 0 genomes in the input or after filtering.\n") ;
       exit(EXIT_FAILURE) ;
     }
-    size_t psum = 0 ; // genome length partial sum
-    for (i = 0 ; i < genomeCnt - 1 ; ++i)
+
+    if (!fmBuilderParam.hasEndMarker)
     {
-      psum += genomeLens[i] ;
-      if (psum < (size_t)fmBuilderParam.precomputeWidth + 1ull) // default: 12bp fuzzy boundary
-        continue ;
-      fmBuilderParam.selectedISA[psum - fmBuilderParam.precomputeWidth - 1] ;
+      size_t psum = 0 ; // genome length partial sum
+      for (i = 0 ; i < genomeCnt - 1 ; ++i)
+      {
+        psum += genomeLens[i] ;
+        if (psum < (size_t)fmBuilderParam.precomputeWidth + 1ull) // default: 12bp fuzzy boundary
+          continue ;
+        fmBuilderParam.selectedISA[psum - fmBuilderParam.precomputeWidth - 1] ;
+      }
     }
     
     size_t totalGenomeSize = genomes.GetSize() ;
@@ -215,6 +246,7 @@ public:
     }*/
 
     FMBuilder::Build(genomes, totalGenomeSize, alphabetSize, BWT, firstISA, fmBuilderParam) ;
+
     genomes.Free() ;
     Utils::PrintLog("Start to transform sampled SA to sequence ID.") ;
     TransformSampledSAToSeqId(fmBuilderParam, genomeSeqIds, genomeLens, totalGenomeSize) ;
@@ -224,10 +256,11 @@ public:
     Utils::PrintLog("centrifuger-build finishes.") ;
   }
 
-  void OutputBuilderMeta(FILE *fp, const FMIndex<Sequence_RunBlock> &fm) 
+  void OutputBuilderMeta(FILE *fp, const FMIndex<FMseqclass> &fm) 
   {
     fprintf(fp, "version\t" CENTRIFUGER_VERSION "\n") ;
     fprintf(fp, "SA_sample_rate\t%d\n", fm._auxData.sampleRate) ;
+    fprintf(fp, "sequence_type\t%s\n", _protein ? "amino_acid" : "nucleotide") ;
 
     time_t mytime = time(NULL) ;
     struct tm *localT = localtime( &mytime ) ;

@@ -13,15 +13,25 @@ class SequenceCompactor
 private:
   bool _capitalize ;
   ALPHABET _missingReplace ; 
+  ALPHABET _endingAlphabet ; // the alphabet represent the end of a text, this alphaet needs to be in the alphabetList!
   Alphabet _alphabets ;
+  bool _setEndingAlphabet ;
 public: 
   SequenceCompactor() 
   {
     _capitalize = false ;
     _missingReplace = '\0' ;  
+    _endingAlphabet = '\0' ;
+    _setEndingAlphabet = false ;
   };
 
   ~SequenceCompactor() {} ;
+
+  void SetEndingAlphabet(ALPHABET c)
+  {
+    _setEndingAlphabet = true ;
+    _endingAlphabet = c ;
+  }
   
   void Init(const char *alphabetList)
   {
@@ -68,7 +78,8 @@ public:
       }
       seq.PushBack( _alphabets.Encode(c) ) ;
     }
-
+    if (_setEndingAlphabet)
+      seq.PushBack( _alphabets.Encode(_endingAlphabet) ) ;
     return seq.GetSize() - origLen ;
   }
 } ;
