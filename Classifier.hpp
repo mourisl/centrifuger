@@ -605,7 +605,8 @@ private:
 #endif
       const size_t maxEntries = _param.maxResult * _param.maxResultPerHitFactor ;
       if (hits[i].ep - hits[i].sp + 1 <= maxEntries 
-          || _param.maxResultPerHitFactor <= 0)
+          || _param.maxResultPerHitFactor <= 0
+          || _param.maxResult <= 0)
       {
         for (j = hits[i].sp ; j <= hits[i].ep ; ++j)
         {
@@ -739,7 +740,8 @@ private:
     if (bestSeqIds.Size() > 1)
       result.secondaryScore = bestScore ;
 
-    if (bestSeqIds.Size() <= _param.maxResult)
+    if (bestSeqIds.Size() <= _param.maxResult
+        || _param.maxResult <= 0)
     {
       int size = bestSeqIds.Size() ;
       for (i = 0 ; i < size ; ++i)
