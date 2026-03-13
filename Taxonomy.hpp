@@ -357,8 +357,8 @@ private:
   }
 
 
-  // Whether b is next to a in accession id
-  bool IsNextSeqName(const char *a, const char *b)
+  // Whether b is next to a in accession id and from the same genome
+  bool IsNextSeqNameFromTheSameGenome(const char *a, const char *b)
   {
     int i, j ;
     uint64_t id[2] ;
@@ -384,6 +384,9 @@ private:
         else
           break ;
       }
+
+      if (j < 3 || s[2] != '_' ) // The prefix should look something like ab_ 
+        return false ;
     }
     if (id[1] == id[0] + 1)
       return true ;
@@ -991,7 +994,7 @@ public:
       {
         size_t nextSeqId = SeqNameToId(seqNames[j]) ;
         if (SeqIdToTaxId(nextSeqId) != taxid
-            || !IsNextSeqName(seqNames[j - 1].c_str(),
+            || !IsNextSeqNameFromTheSameGenome(seqNames[j - 1].c_str(),
               seqNames[j].c_str()))  
           break ;
         len += seqLength[nextSeqId] ;

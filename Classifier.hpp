@@ -106,10 +106,10 @@ private:
   {
     int mhl = 23 ; // Though centrifuge uses 22, but internally it filter length <= 22, so in our implementation, it should corresponds to 23.
     if (_protein)
-      mhl /= 3 ;
+      mhl = 11 ; // Default in kaiju
 
     int alphabetSize = _fm.GetAlphabetSize() ; 
-    uint64_t kmerspace = Utils::PowerInt(alphabetSize, mhl)/ 2 ;
+    uint64_t kmerspace = Utils::PowerInt(alphabetSize, mhl) / 2 ;
     uint64_t n = _fm.GetSize() ;
     for ( ; mhl <= 32 ; ++mhl)
     {
