@@ -354,7 +354,7 @@ private:
   {
     size_t i ;
     char r[25] ; // rank symbol
-    if (_readCount[ctid] == 0) 
+    if (_readCount[ctid] < 1e-6) 
       return ;
 
     if (_taxonomy.IsInCanonicalRank(ctid)
@@ -378,9 +378,15 @@ private:
       else
         sprintf(r, "%c%d", prevCanonicalRankSymbol, distanceToPrevCanonicalRank) ;
     }
-
+    
+    double childrenReadCount = 0 ; // The read count from children
+    std::vector<size_t> children = tree.GetChildren(ctid) ;
+    size_t childrenCnt = children.size() ;
+    for (i = 0 ; i < childrenCnt ; ++i)
+      childrenReadCount += _readCount[children[i]] ;
+    
     fprintf(fp, "%.2lf\t%.0lf\t%.0lf\t%s\t%lu\t", _abund[ctid] * 100, _readCount[ctid],
-        _uniqReadCount[ctid], r, _taxonomy.GetOrigTaxId(ctid)) ;
+        _readCount[ctid] - childrenReadCount, r, _taxonomy.GetOrigTaxId(ctid)) ;
 
     for (i = 0 ; i < (size_t)depth ; ++i)
     {
@@ -388,8 +394,6 @@ private:
     }
     fprintf(fp, "%s\n", _taxonomy.GetTaxIdName(ctid).c_str()) ;
 
-    std::vector<size_t> children = tree.GetChildren(ctid) ;
-    size_t childrenCnt = children.size() ;
     for (i = 0 ; i < childrenCnt ; ++i)
       OutputKreportDFS(tree, children[i], depth + 1, distanceToPrevCanonicalRank + 1, r[0], fp) ;
   }
