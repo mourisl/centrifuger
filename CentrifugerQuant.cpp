@@ -7,7 +7,7 @@
 #include "Quantifier.hpp"
 
 char usage[] = "./centrifuger-quant [OPTIONS]:\n"
-	"Required:\n"
+  "Required:\n"
   "\t-c FILE: classification result file\n"
   "\t-x FILE: index prefix\n"
   "\tWhen not giving -x\n"
@@ -17,9 +17,9 @@ char usage[] = "./centrifuger-quant [OPTIONS]:\n"
   "Optional:\n"
   "\t--min-score INT: only consider reads with score at least <int> \n"
   "\t--min-length INT: only consider reads with classified length at least <int>\n"
-  "\t--output-format INT: output format. (0:centrifuge,default, 1:metaphlan, 2:CAMI)\n"
+  "\t--output-format INT: output format. (0:centrifuge,default, 1:metaphlan, 2:CAMI, 3:kraken-report)\n"
   ""
-	;
+  ;
 
 static const char *short_options = "x:c:" ;
 static struct option long_options[] = {
@@ -45,7 +45,7 @@ int main(int argc, char *argv[])
 
   char *idxPrefix = NULL ; 
   char *classificationFile = NULL ;
-	size_t classificationMinScore = 0 ;
+  size_t classificationMinScore = 0 ;
   int classificationMinLength = 0 ;
   
   char *taxonomyFile = NULL ; // taxonomy tree file
@@ -99,7 +99,7 @@ int main(int argc, char *argv[])
     }
   }
   
-	Utils::PrintLog("Centrifuger-quant v" CENTRIFUGER_VERSION " starts." ) ;
+  Utils::PrintLog("Centrifuger-quant v" CENTRIFUGER_VERSION " starts." ) ;
   if (idxPrefix == NULL && 
       (taxonomyFile == NULL || nameTable == NULL))
   {
@@ -130,6 +130,6 @@ int main(int argc, char *argv[])
     free(sizeTable) ;
   }
 
-	Utils::PrintLog("Centrifuger-quant finishes." ) ;
+  Utils::PrintLog("Centrifuger-quant finishes." ) ;
   return 0 ;
 }

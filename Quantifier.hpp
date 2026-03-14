@@ -18,7 +18,8 @@ enum
 {
   QUANTIFIER_OUTPUT_FORMAT_CENTRIFUGER,
   QUANTIFIER_OUTPUT_FORMAT_METAPHLAN,
-  QUANTIFIER_OUTPUT_FORMAT_CAMI
+  QUANTIFIER_OUTPUT_FORMAT_CAMI,
+  QUANTIFIER_OUTPUT_FORMAT_KREPORT
 } ;
 
 struct _readAssignment
@@ -91,7 +92,7 @@ private:
   double *_abund ;
   double *_readCount ; // number of reads assigned to this tax ID and its subtree, taking the probability distribution into account.
   double *_uniqReadCount ; // number of reads uniquely assigned to this tax ID. Unique is at the strain/sequence level in its subtree.
-  size_t uncountedReadCount ; // number of reads 
+  size_t _unclassifiedReadCount ; // number of unclassified reads or filtered due to other reasons.  
 
   bool _hasExpandedTaxIds ;
   std::map< std::pair<size_t, size_t>, double > _childReadCount ; // pair<a,b>: a: parent ctid, b: child ctid. double: count sum (each count is fractioned by the expanded tax id size)
@@ -348,6 +349,55 @@ private:
     return pathSize ;
   }
 
+  // Use Depth-first search to print Kraken-report 
+  void OutputKreportDFS(const Tree_Plain &tree, size_t ctid, int depth, int distanceToPrevCanonicalRank, const char prevCanonicalRankSymbol, FILE *fp)
+  {
+    size_t i ;
+    char r[25] ; // rank symbol
+    if (_readCount[ctid] < 1e-6) 
+      return ;
+
+    if (_taxonomy.IsInCanonicalRank(ctid)
+        && _taxonomy.GetTaxIdRank(ctid) != RANK_STRAIN)
+    {
+      if (_taxonomy.GetTaxIdRank(ctid) == RANK_SUPER_KINGDOM || _taxonomy.GetTaxIdRank(ctid) == RANK_ACELLULAR_ROOT)
+        r[0] = 'D' ;
+      else
+        r[0] = _taxonomy.GetTaxRankString( _taxonomy.GetTaxIdRank(ctid))[0] - 'a' + 'A' ;
+      r[1] = '\0' ;
+      distanceToPrevCanonicalRank = 0 ;
+    }
+    else
+    {
+      //root
+      if (prevCanonicalRankSymbol == '\0')
+      {
+        r[0] = 'R' ;
+        r[1] = '\0' ;
+      }
+      else
+        sprintf(r, "%c%d", prevCanonicalRankSymbol, distanceToPrevCanonicalRank) ;
+    }
+    
+    double childrenReadCount = 0 ; // The read count from children
+    std::vector<size_t> children = tree.GetChildren(ctid) ;
+    size_t childrenCnt = children.size() ;
+    for (i = 0 ; i < childrenCnt ; ++i)
+      childrenReadCount += _readCount[children[i]] ;
+    
+    fprintf(fp, "%.2lf\t%.0lf\t%.0lf\t%s\t%lu\t", _abund[ctid] * 100, _readCount[ctid],
+        _readCount[ctid] - childrenReadCount, r, _taxonomy.GetOrigTaxId(ctid)) ;
+
+    for (i = 0 ; i < (size_t)depth ; ++i)
+    {
+      fprintf(fp, "  ") ;
+    }
+    fprintf(fp, "%s\n", _taxonomy.GetTaxIdName(ctid).c_str()) ;
+
+    for (i = 0 ; i < childrenCnt ; ++i)
+      OutputKreportDFS(tree, children[i], depth + 1, distanceToPrevCanonicalRank + 1, r[0], fp) ;
+  }
+
 public:
   Quantifier()
   {
@@ -478,6 +528,7 @@ public:
     prevReadId[0] = '\0' ;
     bool hasExpandedTaxIds = false ;
     std::vector<uint64_t> expandedTaxIds ;
+    _unclassifiedReadCount = 0 ;
 
     while (gzgets(gzfp, line, sizeof(char) * _buffers.GetBufferSize(0)))
     {
@@ -493,7 +544,10 @@ public:
       uint64_t taxid, score, secondScore, hitLength, readLength ;
       sscanf(line, "%s\t%[^\t]\t%lu\t%lu\t%lu\t%lu\t%lu", readId, buffer, &taxid, &score, &secondScore, &hitLength, &readLength) ;
       if (hitLength < minHitLength || score < minScore || taxid == 0)
+      {
+        ++_unclassifiedReadCount ;
         continue ;
+      }
 
       if (hasExpandedTaxIds) // It is not set. The feature is disabled for now.
       {
@@ -735,6 +789,12 @@ public:
         
         fprintf(fp, "%lu\t%s\t%s\t%s\t%.5lf\n", _taxonomy.GetOrigTaxId(i), _taxonomy.GetTaxRankString(_taxonomy.GetTaxIdRank(i)), taxIdPathString.c_str(), taxNamePathString.c_str(), _abund[i] * 100.0 ) ; 
       }
+    }
+    else if (format == QUANTIFIER_OUTPUT_FORMAT_KREPORT)
+    {
+      Tree_Plain tree ;
+      _taxonomy.ConvertToGeneralTree(tree) ;
+      OutputKreportDFS(tree, tree.Root(), 0, 0, '\0', fp) ; 
     }
     else
     {
