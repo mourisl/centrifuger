@@ -55,7 +55,8 @@ function download_n_process() {
     GZIPPED_FILE="$LIBDIR/$DOMAIN/$NAME.gz"
     UNZIPPED_FILE="$LIBDIR/$DOMAIN/$NAME"
     DUSTMASKED_FILE="$LIBDIR/$DOMAIN/${NAME%.fna}_dustmasked.fna.gz"
-    [[ "$DO_DUST" == "1" ]] && RES_FILE=$DUSTMASKED_FILE || RES_FILE=$GZIPPED_FILE
+    # DO_DUST not equal to "0" means dustmasking is on, so the result file is the dustmasked file, otherwise it's the gzipped file
+    [[ "$DO_DUST" != "0" ]] && RES_FILE=$DUSTMASKED_FILE || RES_FILE=$GZIPPED_FILE
 
     if [[ ! -s "$RES_FILE" || -n `gzip -t "$RES_FILE" 2>&1 >/dev/null` ]]; then
         if [ $DL_MODE = "rsync" ]; then
@@ -83,10 +84,10 @@ function download_n_process() {
             ##sed -n '1,/^>.*unplaced/p; /'
         fi
     
-        if [[ "$DO_DUST" == "1" ]]; then
+        if [[ "$DO_DUST" != "0" ]]; then
           ## TODO: Consider hard-masking only low-complexity stretches with 10 or more bps
           gunzip -f "$GZIPPED_FILE" ||{ printf "\nError gunzipping $LIBDIR/$DOMAIN/$NAME.gz [ downloaded from $FILEPATH ]!\n" >&2 &&  exit 255; }
-          dustmasker -infmt fasta -in $UNZIPPED_FILE -level 20 -outfmt fasta | gzip -c > $DUSTMASKED_FILE
+          $DO_DUST -infmt fasta -in $UNZIPPED_FILE -level 20 -outfmt fasta | gzip -c > $DUSTMASKED_FILE
           rm $UNZIPPED_FILE
         fi
     fi
@@ -190,10 +191,11 @@ USAGE="
 `basename $0` [<options>] <database>
 
 ARGUMENT
- <database>        One of refseq, genbank, contaminants or taxonomy:
+ <database>        One of refseq, genbank, contaminants, taxonomy, or string:
                      - use refseq or genbank for genomic sequences,
                      - contaminants gets contaminant sequences from UniVec and EmVec,
-                     - taxonomy for taxonomy mappings.
+                     - taxonomy for taxonomy mappings,
+                     - pre-built indices with the prefix "cfr".
 
 COMMON OPTIONS
  -o <directory>         Folder to which the files are downloaded. Default: '$BASE_DIR'.
@@ -205,17 +207,17 @@ WHEN USING database refseq OR genbank:
  -c <refseq category>   Only download genomes in the specified refseq category. Default: any.
  -t <taxids>            Only download the specified taxonomy IDs, comma separated. Default: any.
  -g <program>           Download using program. Options: rsync, curl, wget. Default $DL_PROG (auto-detected).
+ -m <dustmasker_path>   Mask low-complexity regions using dustmasker. Default: off.
  -p                     Download protein sequences.  
  -r                     Download RNA sequences, too.
  -u                     Filter unplaced sequences.
- -m                     Mask low-complexity regions using dustmasker. Default: off.
  -l                     Modify header to include taxonomy ID. Default: off.
  -f                     Output file path to tax id mapping. Default: off (seqid to taxid map).
  -v                     Verbose mode
 "
 
 # arguments: $OPTFIND (current index), $OPTARG (argument for option), $OPTERR (bash-specific)
-while getopts "o:P:d:a:c:t:g:uprlmvf" OPT "$@"; do
+while getopts "o:P:d:a:c:t:g:m:uprlvf" OPT "$@"; do
     case $OPT in
         o) BASE_DIR="$OPTARG" ;;
         P) N_PROC="$OPTARG" ;;
@@ -227,7 +229,7 @@ while getopts "o:P:d:a:c:t:g:uprlmvf" OPT "$@"; do
         p) DOWNLOAD_PROTEIN=1 ;;
         r) DOWNLOAD_RNA=1 ;;
         u) FILTER_UNPLACED=1 ;;
-        m) DO_DUST=1 ;;
+        m) DO_DUST="$OPTARG" ;;
         v) VERBOSE=1 ;;
         l) CHANGE_HEADER=1 ;;
         f) FILE_TAXID_MAP=1 ;;
@@ -244,6 +246,9 @@ shift $((OPTIND-1))
 [[ $# -eq 1 ]] || { printf "$USAGE" >&2 && exit 1; };
 DATABASE=$1
 
+if [[ "$DATABASE" == "cfr"* ]] ; then
+  DL_PROG="wget"
+fi
 
 if [[ "$DL_PROG" == "rsync" ]]; then
     DL_CMD="rsync --no-motd"
@@ -335,6 +340,50 @@ if [[ "$DATABASE" == "contaminants" ]]; then
   fi
 fi
 
+#### PREBUILT INDEX DOWNLOAD
+# The prebuilt index name should start with cfr_
+if [[ "$DATABASE" == "cfr"* ]] ; then
+  DL_PREFIX=${BASE_DIR}/${DATABASE}
+  LINK_LIST=()
+  case $DATABASE in
+    cfr_hpv+gbsarscov2)
+      LINK_LIST=("https://zenodo.org/records/10023239/files/cfr_hpv+gbsarscov2.1.cfr?download=1", \
+          "https://zenodo.org/records/10023239/files/cfr_hpv+gbsarscov2.2.cfr?download=1", \
+          "https://zenodo.org/records/10023239/files/cfr_hpv+gbsarscov2.3.cfr?download=1"
+        )
+      ;;
+    cfr_gtdb_r226)
+      LINK_LIST=("https://www.dropbox.com/scl/fi/g1c7obzhwbuoq6yngeu8z/cfr_gtdb_r226.1.cfr?rlkey=1f8b6abs46dil6m4ganrj56rx&st=5kvx0ga0&dl=1", \
+        "https://www.dropbox.com/scl/fi/6efgktjv82cq7vd98k15t/cfr_gtdb_r226.2.cfr?rlkey=dp2t1ah0iof5uqk556propmur&st=9exqm2al&dl=1", \
+        "https://www.dropbox.com/scl/fi/ngffuycwroimz70h16dsr/cfr_gtdb_r226.3.cfr?rlkey=xlrxflxxeqz63mrboebkl4gbr&st=01wlltu1&dl=1", \
+        "https://www.dropbox.com/scl/fi/jh0ftr1lbu9yb54sik2e2/cfr_gtdb_r226.4.cfr?rlkey=nmiftf7uru5pbxtiq1lnh58v3&st=qdpe8pz3&dl=1"
+        )
+      ;;
+    cfr_gtdb_r226+refseq_hvfc)
+      LINK_LIST=("https://www.dropbox.com/scl/fi/mn3hc7wjeazaz82ibnrr9/cfr_gtdb_r226-refseq_hvfc.1.cfr?rlkey=km0sj9122bwi00f2lggledc7p&st=69kc9537&dl=1", \
+        "https://www.dropbox.com/scl/fi/o56mvufc2dacp3wkrktar/cfr_gtdb_r226-refseq_hvfc.2.cfr?rlkey=ht29vxq0cjfug3tqsrr1afo0a&st=fwri11r3&dl=1", \
+        "https://www.dropbox.com/scl/fi/wij1if17opb4tmfavsu5y/cfr_gtdb_r226-refseq_hvfc.3.cfr?rlkey=q5mtpkmogia5w6rqw6h0j9u1b&st=dysg6zhe&dl=1", \
+        "https://www.dropbox.com/scl/fi/izj3jy75ssejv9j8wp9b8/cfr_gtdb_r226-refseq_hvfc.4.cfr?rlkey=rvj2dtfawoilbvxm4fy1bi76p&st=3kyuj1q7&dl=0"
+      )
+      ;;
+    cfr_core_nt)
+      LINK_LIST=("https://www.dropbox.com/scl/fi/uua9a2qhucwe0wdpkd8ya/cfr_core_nt.1.cfr?rlkey=d6lpjcsa0ywk6eg16kfp9rmfp&st=l40x6ob1&dl=1", \
+        "https://www.dropbox.com/scl/fi/u0u4g0ries5sfuh07mgg2/cfr_core_nt.2.cfr?rlkey=skoslcae13iire804n1calxmg&st=rlwv0sqw&dl=1", \
+        "https://www.dropbox.com/scl/fi/1n317aqikt8z9pc6blhhs/cfr_core_nt.3.cfr?rlkey=0mofp4u3g8zrlt9lyot6s97un&st=6406bvhj&dl=1", \
+        "https://www.dropbox.com/scl/fi/mdvdgkojqvvkuw21omq3k/cfr_core_nt.4.cfr?rlkey=vf5km6mmvcgljd8ndopxhmv7f&st=rugp4fcu&dl=1"
+      )
+      ;;
+    *)
+      echo "Unknown prebuilt index $DATABASE. Please check the README for available index names."
+      exit
+      ;;
+  esac
+
+  for i in "${!LINK_LIST[@]}"; do
+    echo "Download ${DL_PREFIX}_$((i+1)).cfr"
+    $DL_CMD ${DL_PREFIX}.$((i+1)).cfr ${LINK_LIST[i]} 
+  done
+fi
 
 
 #### REFSEQ/GENBANK DOWNLOAD
@@ -438,18 +487,19 @@ for DOMAIN in $DOMAINS; do
       #   tr '\n' '\0' | xargs -0 -n1 -P $N_PROC bash -c 'download_n_process_nofail "$@"' _ | count $N_EXPECTED
       cut -f "$TAXID_FIELD,$FTP_PATH_FIELD,$FTP_PATH_FIELD2" "$ASSEMBLY_SUMMARY_FILE" | \
         awk -F "\t" '{if ($2~/ftp/) print $1"\t"$2; if ($3~/ftp/) print $1"\t"$3}' | \
+        sed 's#/$##' | \
         sed 's#\([^/]*\)$#\1/\1_'"${FILE_EXTENSION}"'#' |\
         tr '\n' '\0' | xargs -0 -n1 -P $N_PROC bash -c 'download_n_process_nofail "$@"' _ | count $N_EXPECTED
 
     else
-      cut -f "$TAXID_FIELD,$FTP_PATH_FIELD" "$ASSEMBLY_SUMMARY_FILE" | sed 's#\([^/]*\)$#\1/\1_'"${FILE_EXTENSION}"'#' |\
+      cut -f "$TAXID_FIELD,$FTP_PATH_FIELD" "$ASSEMBLY_SUMMARY_FILE" | sed 's#/$##' | sed 's#\([^/]*\)$#\1/\1_'"${FILE_EXTENSION}"'#' |\
          tr '\n' '\0' | xargs -0 -n1 -P $N_PROC bash -c 'download_n_process_nofail "$@"' _ | count $N_EXPECTED
     fi
     echo >&2
 
     if [[ "$DOWNLOAD_RNA" == "1" && ! `echo $DOMAIN | egrep 'bacteria|viral|archaea'` ]]; then
         echo "Downloadinging rna sequence files" >&2
-        cut -f $TAXID_FIELD,$FTP_PATH_FIELD  "$ASSEMBLY_SUMMARY_FILE"| sed 's#\([^/]*\)$#\1/\1_rna.fna.gz#' |\
+        cut -f $TAXID_FIELD,$FTP_PATH_FIELD  "$ASSEMBLY_SUMMARY_FILE"| sed 's#/$##' | sed 's#\([^/]*\)$#\1/\1_rna.fna.gz#' |\
             tr '\n' '\0' | xargs -0 -n1 -P $N_PROC bash -c 'download_n_process_nofail "$@"' _ | count $N_EXPECTED
         echo >&2
     fi
