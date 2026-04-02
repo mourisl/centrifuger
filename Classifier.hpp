@@ -833,6 +833,12 @@ public:
     char *nameBuffer = (char *)malloc(sizeof(char) * (strlen(idxPrefix) + 17))  ;  
     sprintf(nameBuffer, "%s.4.cfr", idxPrefix) ;
     FILE *fp = fopen(nameBuffer, "r") ;
+    if (fp == NULL) // no .4 file exist
+    {
+      free(nameBuffer) ;
+      return ret ;
+    }
+
     while (fscanf(fp, "%s %s", key, val) != EOF)
     {
       if (!strcmp(key, "sequence_type"))
