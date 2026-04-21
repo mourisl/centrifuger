@@ -53,7 +53,7 @@ The default --bmax and --dcv option may be inefficient for building indexes for 
 Here is a list of pre-built indexes:
 
 | Title | Description | Link | Size/~Memory | Date |
-|-------|------|------|------|
+|-------|-------|------|------|------|
 | cfr_hpv+gbsarscov2 | Refseq human, bacteria, archea, virus + SARS-CoV2-variants from GenBank | [Zenodo](https://zenodo.org/records/10023239) | 41G | 2023/10/01 |
 |  cfr_gtdb_r226 | [GTDB r226](https://gtdb.ecogenomic.org/) | [Dropbox](https://www.dropbox.com/scl/fo/xjp5r81jxkzxest9ijxul/ADfYFKoxIyl0hrICeEI63QM?rlkey=5lij0ocrbre165pa52mavux5z&st=4ol28yv2&dl=0) | 164G | 2025/05/20 |
 |  cfr_gtdb_r226+refseq_hvfc | GTDB r226 + Refseq human, virus, fungi, and contaminant (UniVec,EmVec)| [Dropbox](https://www.dropbox.com/scl/fo/tkoge61zh199i9n2l7891/AL_8z4zzTm0tHvHJh8UrIdg?rlkey=3abt78pbbtn9v5w2ulz0nfjw2&st=m1ir66th&dl=0) | 166G | 2025/05/20 |
