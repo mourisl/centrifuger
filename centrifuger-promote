@@ -24,6 +24,7 @@ open FP1, "-|", "$CWD/centrifuger-inspect --taxonomy-tree -x $centrifuger_index"
 while ( <FP1> )
 {
 	chomp ;
+	s/\t+\|$// ; # Remove the last | 
 	my @cols = split /\t\|\t/;
 	$taxParent{ $cols[0] } = $cols[1] ;
 	$taxLevel{ $cols[0] } = $cols[2] ;

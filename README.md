@@ -91,6 +91,10 @@ Here is a list of pre-built indexes:
       Required:
         -x FILE: index prefix
         -c FILE: classification file
+        When not giving -x
+            --taxonomy-tree FILE: taxonomy tree, i.e., nodes.dmp file
+            --name-table FILE: name table, i.e., names.dmp file
+            --size-table FILE: size table (optional), table of contig (or genome) sizes.
       optional:
         --min-score INT: only consider reads with score at least <int> 
         --min-length INT: only consider reads with classified length at least <int>
