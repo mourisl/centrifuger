@@ -126,7 +126,7 @@ public:
           continue ;
       }
 
-      if (_seqLength.find(seqid) != _seqLength.end()) // Assume there is no duplicated seqid. Thought this happens a lot in the protein database...we handle that by promoting the seqid's corresponidng taxID to LCA, so we only need to store that sequence once.
+      if (!conversionTableAtFileLevel && _seqLength.find(seqid) != _seqLength.end()) // Assume there is no duplicated seqid. Though this happens a lot in the protein database...we handle that by promoting the seqid's corresponding taxID to LCA, so we only need to store that sequence once.
         continue ;
 
       if (seqid >= _taxonomy.GetSeqCount())
@@ -150,9 +150,17 @@ public:
           continue ;
         }
 
-        _seqLength[seqid] = len ;
-        genomeSeqIds.push_back(seqid) ;
-        genomeLens.push_back(len) ;
+        if (_seqLength.find(seqid) == _seqLength.end() )
+        {
+          _seqLength[seqid] = len ;
+          genomeSeqIds.push_back(seqid) ;
+          genomeLens.push_back(len) ;
+        }
+        else // This should only happen when conversionTableAtFileLevel is true, and seqid is esstentially filename, so genomeLens can be safely added together.
+        {
+          _seqLength[seqid] += len ;
+          genomeLens[ genomeLens.size() - 1 ] += len ;
+        }
       }
       else // concatenate seuqences with the same tax ID
       {
