@@ -157,7 +157,7 @@ command -v parallel >/dev/null 2>&1 && PARALLEL=1 || PARALLEL=0
 
 ALL_GENOMES="bacteria viral archaea fungi protozoa invertebrate plant vertebrate_mammalian vertebrate_other"
 ALL_DATABASES="refseq genbank taxonomy contaminants"
-ALL_ASSEMBLY_LEVELS="Complete\ Genome Chromosome Scaffold Contig"
+ALL_ASSEMBLY_LEVELS="Complete Genome,Chromosome,Scaffold,Contig"
 
 ## Option parsing
 DATABASE="refseq"
@@ -195,7 +195,7 @@ ARGUMENT
                      - use refseq or genbank for genomic sequences,
                      - contaminants gets contaminant sequences from UniVec and EmVec,
                      - taxonomy for taxonomy mappings,
-                     - pre-built indices with the prefix "cfr".
+                     - pre-built indices with the prefix \"cfr\".
 
 COMMON OPTIONS
  -o <directory>         Folder to which the files are downloaded. Default: '$BASE_DIR'.
@@ -203,7 +203,7 @@ COMMON OPTIONS
 
 WHEN USING database refseq OR genbank:
  -d <domain>            What domain to download. One or more of ${ALL_GENOMES// /, } (comma separated).
- -a <assembly level>    Only download genomes with the specified assembly level. Default: '$ASSEMBLY_LEVEL'. Use 'Any' for any assembly level.
+ -a <assembly levels>   Only download genomes with the specified assembly level(s), One or more of ${ALL_ASSEMBLY_LEVELS} (comma separated). Default: '$ASSEMBLY_LEVEL'. Use 'Any' for any assembly level.
  -c <refseq category>   Only download genomes in the specified refseq category. Default: any.
  -t <taxids>            Only download the specified taxonomy IDs, comma separated. Default: any.
  -g <program>           Download using program. Options: rsync, curl, wget. Default $DL_PROG (auto-detected).
@@ -415,7 +415,10 @@ FTP_PATH_FIELD=20
 FTP_PATH_FIELD2=21  ## Needed for wrongly formatted virus files - hopefully just a temporary fix
 
 AWK_QUERY="\$$VERSION_STATUS_FIELD==\"latest\""
-[[ "$ASSEMBLY_LEVEL" != "Any" ]] && AWK_QUERY="$AWK_QUERY && \$$ASSEMBLY_LEVEL_FIELD==\"$ASSEMBLY_LEVEL\""
+
+ASSEMBLY_LEVEL_REGEX=${ASSEMBLY_LEVEL//,/|}
+[[ "$ASSEMBLY_LEVEL" != "Any" ]] && AWK_QUERY="$AWK_QUERY && match(\$$ASSEMBLY_LEVEL_FIELD,\"^($ASSEMBLY_LEVEL_REGEX)\$\")"
+
 [[ "$REFSEQ_CATEGORY" != "" ]] && AWK_QUERY="$AWK_QUERY && \$$REFSEQ_CAT_FIELD==\"$REFSEQ_CATEGORY\""
 
 TAXID=${TAXID//,/|}
