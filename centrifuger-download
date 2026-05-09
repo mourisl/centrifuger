@@ -203,7 +203,7 @@ COMMON OPTIONS
 
 WHEN USING database refseq OR genbank:
  -d <domain>            What domain to download. One or more of ${ALL_GENOMES// /, } (comma separated).
- -a <assembly levels>   Only download genomes with the specified assembly level(s), One or more of ${ALL_ASSEMBLY_LEVELS} (comma separated). Default: '$ASSEMBLY_LEVEL'. Use 'Any' for any assembly level.
+ -a <assembly levels>   Only download genomes with the specified assembly level(s). One or more of ${ALL_ASSEMBLY_LEVELS} (comma separated). Default: '$ASSEMBLY_LEVEL'. Use 'Any' for any assembly level.
  -c <refseq category>   Only download genomes in the specified refseq category. Default: any.
  -t <taxids>            Only download the specified taxonomy IDs, comma separated. Default: any.
  -g <program>           Download using program. Options: rsync, curl, wget. Default $DL_PROG (auto-detected).
