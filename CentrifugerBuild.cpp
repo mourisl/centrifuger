@@ -26,6 +26,7 @@ char usage[] = "./centrifuger-build [OPTIONS]:\n"
   "\t--subset-tax INT: only consider the subset of input genomes under taxonomy node INT [0]\n"
   "\t--concat-tax-genome: concatenate the genomes with the same taxID and discard the seqID information [not used]\n"
   "\t--ignore-uncategorized-genome: ignore genomes whose seqID or taxID is missing or uncategorized. [include all]\n"
+  "\t--checkpoint: add checkpoint (files [output_prefix]_checkpoint.[123]) for resuming index construction. [not used]\n"
   ""
   ;
 
