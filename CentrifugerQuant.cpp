@@ -18,10 +18,11 @@ char usage[] = "./centrifuger-quant [OPTIONS]:\n"
   "\t--min-score INT: only consider reads with score at least <int> \n"
   "\t--min-length INT: only consider reads with classified length at least <int>\n"
   "\t--output-format INT: output format. (0:centrifuge,default, 1:metaphlan, 2:CAMI, 3:kraken-report)\n"
+  "\t-h: print this usage message\n"
   ""
   ;
 
-static const char *short_options = "x:c:" ;
+static const char *short_options = "x:c:h" ;
 static struct option long_options[] = {
   { "taxonomy-tree", required_argument, 0, ARGV_TAXONOMY_TREE},
   { "name-table", required_argument, 0, ARGV_NAME_TABLE},
@@ -91,6 +92,11 @@ int main(int argc, char *argv[])
     else if (c == ARGV_QUANT_OUTPUT_FORMAT)
     {
       outputFormat = atoi(optarg) ;
+    }
+    else if (c == 'h')
+    {
+      fprintf( stdout, "%s", usage ) ;
+      return 0 ;
     }
     else
     {

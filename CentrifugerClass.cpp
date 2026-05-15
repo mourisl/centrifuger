@@ -39,13 +39,14 @@ char usage[] = "./centrifuger [OPTIONS] > output.tsv:\n"
   "\t--min-hitlen INT: minimum length of partial hits [auto]\n"
   "\t--hitk-factor INT: resolve at most <int>*k entries for each hit [40; use 0 for no restriction]\n"
   "\t--merge-readpair: merge overlapped paired-end reads and trim adapters [no merge]\n"
-	"\t--expand-taxid: output the tax IDs that are promoted to the final report tax ID [no]\n"
-  "\t--barcode-whitelist STR: path to the barcode whitelist file.\n"
-  "\t--barcode-translate STR: path to the barcode translation file.\n"
+  "\t--expand-taxid: output the tax IDs that are promoted to the final report tax ID [no]\n"
+  "\t--barcode-whitelist STR: path to the barcode whitelist file\n"
+  "\t--barcode-translate STR: path to the barcode translation file\n"
+  "\t-h: print this usage message\n"
   "\t-v: print the version information and quit\n"
   ;
 
-static const char *short_options = "x:1:2:u:i:o:t:k:v" ;
+static const char *short_options = "x:1:2:u:i:o:t:k:hv" ;
 static struct option long_options[] = {
   { "sample-sheet", required_argument, 0, ARGV_SAMPLE_SHEET},
   { "un", required_argument, 0, ARGV_OUTPUT_UNCLASSIFIED},
@@ -53,7 +54,7 @@ static struct option long_options[] = {
   { "min-hitlen", required_argument, 0, ARGV_MIN_HITLEN},
   { "hitk-factor", required_argument, 0, ARGV_MAX_RESULT_PER_HIT_FACTOR},
   { "merge-readpair", no_argument, 0, ARGV_MERGE_READ_PAIR },
-	{ "expand-taxid", no_argument, 0, ARGV_OUTPUT_EXPANDED_TAXIDS},
+  { "expand-taxid", no_argument, 0, ARGV_OUTPUT_EXPANDED_TAXIDS},
   { "read-format", required_argument, 0, ARGV_READFORMAT},
   { "barcode", required_argument, 0, ARGV_BARCODE},
   { "UMI", required_argument, 0, ARGV_UMI},
@@ -388,10 +389,10 @@ int CentrifugerClass_main(int argc, char *argv[])
     {
       mergeReadPair = true ;
     }
-		else if (c == ARGV_OUTPUT_EXPANDED_TAXIDS)
-		{
-			classifierParam.outputExpandedResult = true ;
-		}
+    else if (c == ARGV_OUTPUT_EXPANDED_TAXIDS)
+    {
+      classifierParam.outputExpandedResult = true ;
+    }
     else if (c == ARGV_BARCODE)
     {
       hasBarcode = true ;
@@ -485,7 +486,7 @@ int CentrifugerClass_main(int argc, char *argv[])
     Utils::PrintLog("Need to use -x to specify index prefix.") ;
     return EXIT_FAILURE ;
   }
-	
+
 
   if (!hasBarcode && readFormatter.GetSegmentCount(FORMAT_BARCODE) > 0)
       hasBarcode = true ;
@@ -525,8 +526,8 @@ int CentrifugerClass_main(int argc, char *argv[])
   classifier.Init(idxPrefix, classifierParam) ;
   protein = classifier.IsProteinDatabase() ;
   
-	if (classifierParam.outputExpandedResult)
-		resWriter.SetOutputExpandedTaxIds(true) ;
+  if (classifierParam.outputExpandedResult)
+    resWriter.SetOutputExpandedTaxIds(true) ;
   resWriter.SetHasBarcode(hasBarcode) ;
   resWriter.SetHasUmi(hasUmi) ;
   if (unclassifiedOutputPrefix[0] != '\0')
@@ -913,6 +914,11 @@ int main(int argc, char *argv[])
     {
       Classifier<Sequence_RunBlock> tmp ;
       protein = tmp.IsProteinDatabase(optarg) ;
+    }
+    else if (c == 'h')
+    {
+      fprintf( stdout, "%s", usage ) ;
+      return 0 ;
     }
   }
   optind = 1 ;
