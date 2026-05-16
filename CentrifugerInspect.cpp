@@ -61,6 +61,11 @@ int main(int argc, char *argv[])
       fprintf(stdout, "%s", usage) ;
       return 0 ;
     }
+    else if (c == '?')
+    {
+      fprintf(stderr, "%s", usage) ;
+      return EXIT_FAILURE ;
+    }
     else
       inspectItem = c ; 
   }

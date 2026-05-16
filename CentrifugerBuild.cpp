@@ -182,7 +182,7 @@ int CentrifugerBuild_main(int argc, char *argv[])
     }
     else
     {
-      fprintf( stderr, "Unknown parameter found\n%s", usage ) ;
+      fprintf( stderr, "%s", usage ) ;
       return EXIT_FAILURE ;
     }
   }
@@ -262,6 +262,11 @@ int main(int argc, char *argv[])
     {
       fprintf( stdout, "%s", usage ) ;
       return 0 ;
+    }
+    else if (c == '?')
+    {
+      fprintf(stderr, "%s", usage ) ;
+      return EXIT_FAILURE ;
     }
   }
   optind = 1 ;
