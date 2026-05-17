@@ -18,10 +18,11 @@ char usage[] = "./centrifuger-inspect [OPTIONS]:\n"
   "\t--name-table: print the scientific name for each strain in the database\n"
   "\t--size-table: print the lengths of the sequences belonging to the same taxonomic ID\n"
   "\t--index-size: print the index information\n"
+  "\t-h: print this usage message\n"
   ""
   ;
 
-static const char *short_options = "x:" ;
+static const char *short_options = "x:h" ;
 static struct option long_options[] = {
   {"summary", no_argument, 0, ARGV_INSPECT_SUMMARY},
   {"seq-name", no_argument, 0, ARGV_INSPECT_SEQNAME},
@@ -54,6 +55,16 @@ int main(int argc, char *argv[])
     if (c == 'x') // reference genome file
     {
       idxPrefix = strdup(optarg) ;
+    }
+    else if (c == 'h')
+    {
+      fprintf(stdout, "%s", usage) ;
+      return 0 ;
+    }
+    else if (c == '?')
+    {
+      fprintf(stderr, "%s", usage) ;
+      return EXIT_FAILURE ;
     }
     else
       inspectItem = c ; 

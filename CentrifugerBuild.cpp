@@ -27,10 +27,11 @@ char usage[] = "./centrifuger-build [OPTIONS]:\n"
   "\t--concat-tax-genome: concatenate the genomes with the same taxID and discard the seqID information [not used]\n"
   "\t--ignore-uncategorized-genome: ignore genomes whose seqID or taxID is missing or uncategorized. [include all]\n"
   "\t--checkpoint: add checkpoint (files [output_prefix]_checkpoint.[123]) for resuming index construction. [not used]\n"
+  "\t-h: print this usage message\n"
   ""
   ;
 
-static const char *short_options = "r:l:o:t:" ;
+static const char *short_options = "r:l:o:t:h" ;
 static struct option long_options[] = {
       { "bmax", required_argument, 0, ARGV_BMAX},
       { "dcv", required_argument, 0, ARGV_DCV},
@@ -181,7 +182,7 @@ int CentrifugerBuild_main(int argc, char *argv[])
     }
     else
     {
-      fprintf( stderr, "Unknown parameter found\n%s", usage ) ;
+      fprintf( stderr, "%s", usage ) ;
       return EXIT_FAILURE ;
     }
   }
@@ -257,6 +258,16 @@ int main(int argc, char *argv[])
     
     if (c == ARGV_BUILD_PROTEIN)
       protein = true ;
+    else if (c == 'h')
+    {
+      fprintf( stdout, "%s", usage ) ;
+      return 0 ;
+    }
+    else if (c == '?')
+    {
+      fprintf(stderr, "%s", usage ) ;
+      return EXIT_FAILURE ;
+    }
   }
   optind = 1 ;
 
