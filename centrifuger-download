@@ -363,7 +363,7 @@ if [[ "$DATABASE" == "cfr"* ]] ; then
       LINK_LIST=("https://www.dropbox.com/scl/fi/mn3hc7wjeazaz82ibnrr9/cfr_gtdb_r226-refseq_hvfc.1.cfr?rlkey=km0sj9122bwi00f2lggledc7p&st=69kc9537&dl=1", \
         "https://www.dropbox.com/scl/fi/o56mvufc2dacp3wkrktar/cfr_gtdb_r226-refseq_hvfc.2.cfr?rlkey=ht29vxq0cjfug3tqsrr1afo0a&st=fwri11r3&dl=1", \
         "https://www.dropbox.com/scl/fi/wij1if17opb4tmfavsu5y/cfr_gtdb_r226-refseq_hvfc.3.cfr?rlkey=q5mtpkmogia5w6rqw6h0j9u1b&st=dysg6zhe&dl=1", \
-        "https://www.dropbox.com/scl/fi/izj3jy75ssejv9j8wp9b8/cfr_gtdb_r226-refseq_hvfc.4.cfr?rlkey=rvj2dtfawoilbvxm4fy1bi76p&st=3kyuj1q7&dl=0"
+        "https://www.dropbox.com/scl/fi/izj3jy75ssejv9j8wp9b8/cfr_gtdb_r226-refseq_hvfc.4.cfr?rlkey=rvj2dtfawoilbvxm4fy1bi76p&st=3kyuj1q7&dl=1"
       )
       ;;
     cfr_core_nt)
@@ -372,6 +372,20 @@ if [[ "$DATABASE" == "cfr"* ]] ; then
         "https://www.dropbox.com/scl/fi/1n317aqikt8z9pc6blhhs/cfr_core_nt.3.cfr?rlkey=0mofp4u3g8zrlt9lyot6s97un&st=6406bvhj&dl=1", \
         "https://www.dropbox.com/scl/fi/mdvdgkojqvvkuw21omq3k/cfr_core_nt.4.cfr?rlkey=vf5km6mmvcgljd8ndopxhmv7f&st=rugp4fcu&dl=1"
       )
+      ;;
+    cfr_gtdb_r232)
+      LINK_LIST=("https://www.dropbox.com/scl/fi/4hchiyep1xcq0x10ddaua/cfr_gtdb_r232.1.cfr?rlkey=097skn90om46ie4av8m1grsmo&st=zm6mcmds&dl=1", \
+        "https://www.dropbox.com/scl/fi/meb2d46821ctbqs24aps7/cfr_gtdb_r232.2.cfr?rlkey=z1kx2u04hxgtvmixrze78bjim&st=ek18ggav&dl=1", \
+        "https://www.dropbox.com/scl/fi/vqqybugozqn6prytsi4h2/cfr_gtdb_r232.3.cfr?rlkey=ykab70q9pmskk0onevofgjphq&st=of0x1oek&dl=1", \
+        "https://www.dropbox.com/scl/fi/kb06uskt94xm8zfdte6p9/cfr_gtdb_r232.4.cfr?rlkey=05771vj6wizkm41fnay1ej7bt&st=oylr3nte&dl=1"
+        )
+      ;;
+    cfr_gtdb_r232+refseq_hvfpc)
+      LINK_LIST=("https://www.dropbox.com/scl/fi/apgchaujymcdfssd90dcl/cfr_gtdb_r232-refseq_hvfpc.1.cfr?rlkey=pytxvi3afcn2aot97sclcsb3s&st=5z35bh06&dl=1", \
+        "https://www.dropbox.com/scl/fi/sgkvfhq66736g9zxl8jws/cfr_gtdb_r232-refseq_hvfpc.2.cfr?rlkey=22yv9zhg8lj3d0t5d8a2vk1a2&st=f7f0kujp&dl=1", \
+        "https://www.dropbox.com/scl/fi/xonrrlwo44jcchf5vesg3/cfr_gtdb_r232-refseq_hvfpc.3.cfr?rlkey=x4nh942kbfw828ta3e3piorje&st=vcfepjlh&dl=1", \
+        "https://www.dropbox.com/scl/fi/5tp9uj5eaj2do8m9s216e/cfr_gtdb_r232-refseq_hvfpc.4.cfr?rlkey=y7dy7dybgp108nksm9i1cwbo6&st=4ppjs00c&dl=1"
+        )
       ;;
     *)
       echo "Unknown prebuilt index $DATABASE. Please check the README for available index names."
