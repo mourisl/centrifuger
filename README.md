@@ -59,7 +59,7 @@ Here is a list of pre-built indexes:
 |  cfr_gtdb_r232+refseq_hvfpc | GTDB r232 + Refseq human, virus, fungi, protozoa, and contaminant (UniVec,EmVec)| [Dropbox](https://www.dropbox.com/scl/fo/6sf1k7iwnckdca2opl1ir/AK8X0gPn90TF7Ox0XxK8kjI?rlkey=y7787xqylcfssvwjn1w66rmqz&st=ck0sa631&dl=0) | 232G | 2026/05/15 |
 | cfr_core_nt | NCBI core nt | [Dropbox](https://www.dropbox.com/scl/fo/f1mbf7nf893pisoruanb4/AHS06LaJr9EN0Pg7hbifWn8?rlkey=7fgtj6pi53l2iwrjw1k6xq8o8&st=yn57lnkh&dl=0)  | 212G | 2025/06/11 |
 
-(You can use the command "./centrifuger-download [Title]" to download the corresponding pre-built index. For the files on the Dropbox, you can right-click and "copy link" for each individual file and use "wget" on that link to download the file through the command line. Other history index are available at [Dropbox](https://www.dropbox.com/scl/fo/08horwj8mdzarlk2ocyky/AJIUqBg4ZU4qXdaTBnl64xM?rlkey=y7vk78c3o1pd2fq20f258vuyf&st=57xyuyjl&dl=0))
+(You can use the command "./centrifuger-download [Title]" to download the corresponding pre-built index. For the files on the Dropbox, you can right-click and "copy link" for each individual file and use "wget" on that link to download the file through the command line. Other old indexes are available at [Dropbox](https://www.dropbox.com/scl/fo/08horwj8mdzarlk2ocyky/AJIUqBg4ZU4qXdaTBnl64xM?rlkey=y7vk78c3o1pd2fq20f258vuyf&st=57xyuyjl&dl=0))
 
 #### Classification
 
