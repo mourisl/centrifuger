@@ -98,7 +98,7 @@ Here is a list of pre-built indexes:
       optional:
         --min-score INT: only consider reads with score at least <int> 
         --min-length INT: only consider reads with classified length at least <int>
-        --output-format INT: output format. (0:centrifuge,default, 1:Metaphlan, 2:CAMI)        
+        --output-format INT: output format. (0:centrifuge,default, 1:Metaphlan, 2:CAMI, 3:kraken-report)        
 
 The quantification results will be affected by the "-k" option from the classification program "centrifuger". Increasing "-k" will provide ambiguous but more specific classification result, potentially can improve the quantification result.  
 
