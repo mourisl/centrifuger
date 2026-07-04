@@ -195,6 +195,7 @@ ARGUMENT
                      - use refseq or genbank for genomic sequences,
                      - contaminants gets contaminant sequences from UniVec and EmVec,
                      - taxonomy for taxonomy mappings,
+                     - file name with extension \".txt\" for a custom assembly_summary.txt file, will override the domain option,
                      - pre-built indices with the prefix \"cfr\".
 
 COMMON OPTIONS
@@ -441,10 +442,12 @@ TAXID=${TAXID//,/|}
 #echo "$AWK_QUERY" >&2
 
 #echo "Downloading genomes for $DOMAINS at assembly level $ASSEMBLY_LEVEL" >&2
-if exists wget; then
+if [[ "$DATABASE" != *".txt" ]] ; then
+  if exists wget; then
     wget -qO- --no-remove-listing https://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/ > /dev/null
-else
+  else
     curl --disable-epsv -s https://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/ > .listing
+  fi
 fi
 
 if [[ "$CHANGE_HEADER" == "1" ]]; then
@@ -454,6 +457,10 @@ fi
 FILE_EXTENSION="genomic.fna.gz"
 if [[ "$DOWNLOAD_PROTEIN" == "1" ]]; then
   FILE_EXTENSION="protein.faa.gz"
+fi
+
+if [[ "$DATABASE" == *".txt" ]] ; then
+  DOMAINS="."
 fi
 
 for DOMAIN in $DOMAINS; do
@@ -476,18 +483,23 @@ for DOMAIN in $DOMAINS; do
 
     FULL_ASSEMBLY_SUMMARY_FILE="$LIBDIR/$DOMAIN/assembly_summary.txt"
     ASSEMBLY_SUMMARY_FILE="$LIBDIR/$DOMAIN/assembly_summary_filtered.txt"
-
-    echo "Downloading https://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/$DOMAIN/assembly_summary.txt ..." >&2
-    if [ $DL_MODE = "rsync" ]; then
+  
+    if [[ "$DATABASE" != *".txt" ]] ; then
+      echo "Downloading https://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/$DOMAIN/assembly_summary.txt ..." >&2
+      if [ $DL_MODE = "rsync" ]; then
         $DL_CMD rsync://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/$DOMAIN/assembly_summary.txt "$FULL_ASSEMBLY_SUMMARY_FILE" || {
-            c_echo "rsync Download failed! Have a look at valid domains at https://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE ." >&2
-            exit 1;
+          c_echo "rsync Download failed! Have a look at valid domains at https://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE ." >&2
+                  exit 1;
         }
     else
-        $DL_CMD "$FULL_ASSEMBLY_SUMMARY_FILE" https://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/$DOMAIN/assembly_summary.txt > /dev/null || {
-            c_echo "Download failed! Have a look at valid domains at https://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE ." >&2
-            exit 1;
-        }
+      $DL_CMD "$FULL_ASSEMBLY_SUMMARY_FILE" https://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE/$DOMAIN/assembly_summary.txt > /dev/null || {
+        c_echo "Download failed! Have a look at valid domains at https://ftp.ncbi.nlm.nih.gov/genomes/$DATABASE ." >&2
+              exit 1;
+      }
+      fi
+    else
+      echo "Using custom assembly_summary.txt file at $DATABASE" >&2
+      cp "$DATABASE" "$FULL_ASSEMBLY_SUMMARY_FILE"
     fi
 
     awk -F "\t" "BEGIN {OFS=\"\t\"} $AWK_QUERY" "$FULL_ASSEMBLY_SUMMARY_FILE" > "$ASSEMBLY_SUMMARY_FILE"

@@ -63,11 +63,22 @@ struct TaxonomyNode
     uint64_t parentTid;
     uint8_t  rank;
     uint8_t  leaf;
+    uint8_t  padding[6] ; // for memory alignment, should be 6 bytes in total, considering rank and leaf
 
     TaxonomyNode(uint64_t _parent_tid, uint8_t  _rank, uint8_t _leaf):
-      parentTid(_parent_tid), rank(_rank), leaf(_leaf) {};
+      parentTid(_parent_tid), rank(_rank), leaf(_leaf) 
+    {
+      int i ;
+      for (i = 0 ; i < 6 ; ++i)
+        padding[i] = 0 ;
+    };
 
-    TaxonomyNode(): parentTid(0), rank(RANK_UNKNOWN), leaf(false) {};
+    TaxonomyNode(): parentTid(0), rank(RANK_UNKNOWN), leaf(false) 
+    {
+      int i ;
+      for (i = 0 ; i < 6 ; ++i)
+        padding[i] = 0 ;
+    }
 };
 
 
