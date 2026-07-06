@@ -499,7 +499,8 @@ for DOMAIN in $DOMAINS; do
       fi
     else
       echo "Using custom assembly_summary.txt file at $DATABASE" >&2
-      cp "$DATABASE" "$FULL_ASSEMBLY_SUMMARY_FILE"
+      [[ -s "$DATABASE" ]] || { echo "ERROR: custom assembly_summary file not found or empty: $DATABASE" >&2; exit 1; }
+      [[ "$DATABASE" -ef "$FULL_ASSEMBLY_SUMMARY_FILE" ]] || cp "$DATABASE" "$FULL_ASSEMBLY_SUMMARY_FILE"
     fi
 
     awk -F "\t" "BEGIN {OFS=\"\t\"} $AWK_QUERY" "$FULL_ASSEMBLY_SUMMARY_FILE" > "$ASSEMBLY_SUMMARY_FILE"
