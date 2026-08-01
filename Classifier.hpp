@@ -236,7 +236,11 @@ private:
   {
     if (l < _param.minHitLen)
       return 0 ;
-    return (l - _scoreHitLenAdjust) * (l - _scoreHitLenAdjust) ;
+    int64_t adjustedHitLen = (int64_t)l - _scoreHitLenAdjust ;
+    if (adjustedHitLen <= 0)
+      return 0 ;
+    size_t scoreBase = (size_t)adjustedHitLen ;
+    return scoreBase * scoreBase ;
   }
 
   // one hit
