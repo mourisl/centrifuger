@@ -374,6 +374,20 @@ if [[ "$DATABASE" == "cfr"* ]] ; then
         "https://www.dropbox.com/scl/fi/mdvdgkojqvvkuw21omq3k/cfr_core_nt.4.cfr?rlkey=vf5km6mmvcgljd8ndopxhmv7f&st=rugp4fcu&dl=1"
       )
       ;;
+    cfr_llnl_core_nt_202603)
+      LINK_LIST=("https://www.dropbox.com/scl/fi/ub8s1x450pdokdlpt2kwu/cfr_llnl_core_nt_202603.1.cfr?rlkey=gare0xz1rxwmofacg9vig6o5m&st=3dji3923&dl=0", \
+        "https://www.dropbox.com/scl/fi/hpmmeysr8rd1sow7xxh6q/cfr_llnl_core_nt_202603.2.cfr?rlkey=iqadmgb4bgsmb4tj23pdmachu&st=xfyjusq1&dl=0", \
+        "https://www.dropbox.com/scl/fi/spuo7htsptzs0wyc69080/cfr_llnl_core_nt_202603.3.cfr?rlkey=5qkm3jqddx1hiw2lanqwfr0vm&st=7tae9ius&dl=0", \
+        "https://www.dropbox.com/scl/fi/rmj4loo8ruwmdl6z0aovy/cfr_llnl_core_nt_202603.4.cfr?rlkey=amo7ujfbjohmycg6inhgcs59q&st=ikelzekk&dl=0"
+        )
+        ;;
+    cfr_llnl_core_nt_wseqid_202512)
+      LINK_LIST=("https://www.dropbox.com/scl/fi/b6chnv80xp3ykm0pwtt7c/cfr_llnl_core_nt_wseqid_202512.1.cfr?rlkey=wt53oh7l4qsqs7e0hwodrnsfk&st=waq8eu4x&dl=0", \
+        "https://www.dropbox.com/scl/fi/4wtmzmtbl6y1qf4htpnu1/cfr_llnl_core_nt_wseqid_202512.2.cfr?rlkey=aq72znrcmab4gir45kpziygl6&st=6ifmhiqg&dl=0", \
+        "https://www.dropbox.com/scl/fi/lbdjrt6fwbnstp3cju4dd/cfr_llnl_core_nt_wseqid_202512.3.cfr?rlkey=zjzic4y7625f1tzzvs5hopq4i&st=oce4z3y7&dl=0", \
+        "https://www.dropbox.com/scl/fi/kd13j3mpglb67044ajhug/cfr_llnl_core_nt_wseqid_202512.4.cfr?rlkey=t5r7za9jech3du6c9rg4hsvqc&st=elvbe43e&dl=0"
+        )
+        ;;
     cfr_gtdb_r232)
       LINK_LIST=("https://www.dropbox.com/scl/fi/4hchiyep1xcq0x10ddaua/cfr_gtdb_r232.1.cfr?rlkey=097skn90om46ie4av8m1grsmo&st=zm6mcmds&dl=1", \
         "https://www.dropbox.com/scl/fi/meb2d46821ctbqs24aps7/cfr_gtdb_r232.2.cfr?rlkey=z1kx2u04hxgtvmixrze78bjim&st=ek18ggav&dl=1", \
