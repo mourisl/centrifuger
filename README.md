@@ -58,6 +58,8 @@ Here is a list of pre-built indexes:
 |  cfr_gtdb_r232 | [GTDB r232](https://gtdb.ecogenomic.org/) | [Dropbox](https://www.dropbox.com/scl/fo/wilot7fzf8bzyfsco81wi/AFzwZhSgE9N1r7uai8DeUec?rlkey=yazr6e4b71pxbz4o4bu7dqft5&st=ekr030j8&dl=0) | 230G | 2026/05/15 |
 |  cfr_gtdb_r232+refseq_hvfpc | GTDB r232 + Refseq human, virus, fungi, protozoa, and contaminant (UniVec,EmVec)| [Dropbox](https://www.dropbox.com/scl/fo/6sf1k7iwnckdca2opl1ir/AK8X0gPn90TF7Ox0XxK8kjI?rlkey=y7787xqylcfssvwjn1w66rmqz&st=ck0sa631&dl=0) | 232G | 2026/05/15 |
 | cfr_core_nt | NCBI core nt | [Dropbox](https://www.dropbox.com/scl/fo/f1mbf7nf893pisoruanb4/AHS06LaJr9EN0Pg7hbifWn8?rlkey=7fgtj6pi53l2iwrjw1k6xq8o8&st=yn57lnkh&dl=0)  | 212G | 2025/06/11 |
+| cfr_llnl_core_nt_202603 | LLNL-curated NCBI core_nt (PMID:40111052) | [Dropbox](https://www.dropbox.com/scl/fo/zkjoh4luk5e3kvzs9hvir/APWYWaOHu-7RVxELTi41_rI?rlkey=soavq4el3od1nch7op99n5mz5&st=o1ckosy7&dl=0) | 242G | 2026/03/01 |
+|  cfr_llnl_core_nt_wseqid_202512 | LLNL-curated NCBI core_nt with sequence ID info but less synchronized taxdmp | [Dropbox](https://www.dropbox.com/scl/fo/zkjoh4luk5e3kvzs9hvir/APWYWaOHu-7RVxELTi41_rI?rlkey=soavq4el3od1nch7op99n5mz5&st=o1ckosy7&dl=0) | 301G | 2025/12/01 |
 
 (You can use the command "./centrifuger-download [Title]" to download the corresponding pre-built index. For the files on the Dropbox, you can right-click and "copy link" for each individual file and use "wget" on that link to download the file through the command line. Other old indexes are available at [Dropbox](https://www.dropbox.com/scl/fo/08horwj8mdzarlk2ocyky/AJIUqBg4ZU4qXdaTBnl64xM?rlkey=y7vk78c3o1pd2fq20f258vuyf&st=57xyuyjl&dl=0))
 
