@@ -236,7 +236,7 @@ private:
   {
     if (l < _param.minHitLen)
       return 0 ;
-    return (l - _scoreHitLenAdjust) * (l - _scoreHitLenAdjust) ;
+    return (size_t)(l - _scoreHitLenAdjust) * (size_t)(l - _scoreHitLenAdjust) ;
   }
 
   // one hit
