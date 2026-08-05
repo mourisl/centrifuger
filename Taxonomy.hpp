@@ -729,6 +729,112 @@ public:
     _seqStrNameMap.GetElemList(seqNames) ;
   }
 
+  // Lowest common ancestor. This is a faster implementation than the general ReduceTaxIds, and can nicely handle the "no rank" internal nodes.
+  size_t LCA(const SimpleVector<size_t> &taxIds, std::vector<size_t> *lcaChildTaxIds)
+  {
+    int i, j, k ;
+    int taxCnt = taxIds.Size() ;
+    size_t t ;
+    size_t ret ;
+
+    // Find the path for the first taxId, use it to guide the LCA selection
+    // The element pair: a: the compact tax id, b: the number of input taxIds that share the taxid
+    std::vector< std::pair<size_t, int> > path ; // backbone path
+    //for (i = 0 ; i < taxCnt ; ++i)
+    //  printf("%d: %lu %lu. %u\n", i, taxIds[i], GetOrigTaxId(taxIds[i]), GetTaxIdRank(taxIds[i])) ;
+
+    for (i = 0 ; i < taxCnt ; ++i)
+    {
+      if (taxIds[i] != _rootCTaxId)
+        break ;
+    }
+    if (i < taxCnt)
+      k = i ;
+    else
+      return _rootCTaxId ; // All are root, return root
+
+    t = taxIds[k] ;
+    do
+    {
+      path.push_back( std::pair<size_t, int>(t, 1) ) ;
+      t = _taxonomyTree[t].parentTid ;
+    } while ( t != _taxonomyTree[t].parentTid ) ;
+    path.push_back(std::pair<size_t, int>(_rootCTaxId, 1)) ; // Add the root
+    int backbonePathLen = path.size() ;
+
+    std::vector< std::map<size_t, int> > backboneChildTaxIds ;
+    if (lcaChildTaxIds != NULL)
+    {
+      backboneChildTaxIds.resize(backbonePathLen) ;
+      for (j = 1 ; j < backbonePathLen ; ++j)
+        backboneChildTaxIds[j][path[j-1].first] = 1 ;
+    }
+
+    SimpleVector<size_t> tmpPath ;
+    int rootCount = 0 ;
+    for (i = 0 ; i < taxCnt ; ++i)
+    {
+      if (i == k) // The backbone is already processed 
+        continue ;
+
+      tmpPath.Clear() ;
+      t = taxIds[i] ;
+      
+      if (t == _taxonomyTree[t].parentTid) // The root, no need to process
+      {
+        ++rootCount ;
+        continue ;
+      }
+
+      do
+      {
+        tmpPath.PushBack(t) ;
+        t = _taxonomyTree[t].parentTid ;
+      } while ( t != _taxonomyTree[t].parentTid ) ;
+      tmpPath.PushBack(_rootCTaxId) ; // Add the root
+
+      int tmpPathLen = tmpPath.Size() ;
+      int iBackbone, iTmp ;
+      for (iBackbone = backbonePathLen - 1, iTmp = tmpPathLen - 1 ; iBackbone >= 0 && iTmp >= 0 ; --iBackbone, --iTmp)
+      {
+        if (tmpPath[iTmp] != path[iBackbone].first)
+          break ;
+        else
+          path[iBackbone].second += 1 ;
+      }
+
+      if (lcaChildTaxIds != NULL)
+      {
+        /*for (j = 1 ; j < backbonePathLen ; ++j)
+        {
+          backboneChildTaxIds[j][path[j-1].first] = 1 ; // Just set 1 is sufficient
+        }*/
+      
+        // Since we are returning at the LCA, only store the moment the two paths diverge is sufficient
+        if (iTmp > 0 && iBackbone + 1 < backbonePathLen)
+          backboneChildTaxIds[iBackbone + 1][ tmpPath[iTmp] ] = 1 ;
+      }
+    }
+    for (j = 0 ; j < backbonePathLen ; ++j)
+      if (path[j].second == taxCnt - rootCount)
+        break ;
+    if (j >= backbonePathLen)
+      ret = _rootCTaxId ;
+    else
+    {
+      ret = path[j].first ;
+      if (lcaChildTaxIds != NULL)
+      {
+        lcaChildTaxIds->clear() ;
+        for (std::map<size_t, int>::iterator iter = backboneChildTaxIds[j].begin() ;
+            iter != backboneChildTaxIds[j].end() ; ++iter)
+          lcaChildTaxIds->push_back(iter->first) ;
+      }
+    }
+
+    return ret ;
+  }
+
   // Promote the tax id to higher level until number of taxids <= k, or reach LCA 
   void ReduceTaxIds(const SimpleVector<size_t> &taxIds, SimpleVector<size_t> &promotedTaxIds, int k,
       std::vector< std::vector<size_t> > *promotedChildTaxIds)
@@ -771,6 +877,25 @@ public:
         return ;
       }
     }
+
+    if (k == 1) // More efficient reducing for LCA case
+    {
+      size_t lca = _rootCTaxId ;
+      if (promotedChildTaxIds == NULL)
+      {
+        lca = LCA(taxIds, NULL) ;
+      }
+      else 
+      {
+        std::vector<size_t> lcaChildTaxIds ;
+        lca = LCA(taxIds, &lcaChildTaxIds) ;
+        promotedChildTaxIds->push_back(lcaChildTaxIds) ;
+      }
+      promotedTaxIds.PushBack(lca) ;
+      
+      return ;
+    }
+
     // For each tax level, collect the found tax id on this level 
     std::map<size_t, int> taxIdsInRankNum[RANK_MAX] ;
     for (i = 0 ; i < taxCnt ; ++i)
@@ -779,7 +904,7 @@ public:
       uint8_t prevRankNum = 0 ;
       uint8_t ri ;// rank index
 
-      taxIdsInRankNum[prevRankNum][t] = 1 ; // the input is at the base level
+      taxIdsInRankNum[prevRankNum][t] = 1 ; // the input is at the base level. This also implicitly handles the case where a tax id is at the root.
       do
       {
         uint8_t rankNum = _taxRankNum[_taxonomyTree[t].rank] ;
@@ -804,7 +929,6 @@ public:
     for (ri = 0 ; ri < _taxRankNum[RANK_UNKNOWN] ; ++ri)
       if ((int)taxIdsInRankNum[ri].size() <= k)
         break ;
-    
     for (std::map<size_t, int>::iterator iter = taxIdsInRankNum[ri].begin() ;
         iter != taxIdsInRankNum[ri].end() ; ++iter)
       promotedTaxIds.PushBack(iter->first) ;
