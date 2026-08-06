@@ -729,7 +729,7 @@ public:
     _seqStrNameMap.GetElemList(seqNames) ;
   }
 
-  // Lowest common ancestor. This is a faster implementation than the general ReduceTaxIds, and can nicely handle the "no rank" internal nodes.
+  // Lowest common ancestor. This is a faster implementation than the general ReduceTaxIds, and can nicely handle the "no rank" internal nodes. Note that there are some taxIds directly at the root level, which could corresponds to issues of the taxonomy tree or out of synch seqId2TaxId mapping, so we can ignore those taxIds if there is one valid taxIds.
   size_t LCA(const SimpleVector<size_t> &taxIds, std::vector<size_t> *lcaChildTaxIds)
   {
     int i, j, k ;
@@ -811,7 +811,7 @@ public:
         }*/
       
         // Since we are returning at the LCA, only store the moment the two paths diverge is sufficient
-        if (iTmp > 0 && iBackbone + 1 < backbonePathLen)
+        if (iTmp >= 0 && iBackbone + 1 < backbonePathLen)
           backboneChildTaxIds[iBackbone + 1][ tmpPath[iTmp] ] = 1 ;
       }
     }
