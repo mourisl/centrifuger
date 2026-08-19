@@ -4,9 +4,9 @@
 // SDust algorithm
 // Mask the low-complexity regions in the input sequence. Return the low-complexity intervals (0-based, inclusive on both end) 
 // The algorithm is based on the DUST algorithm described in Morgulis et al. "A Fast and Symmetric DUST Implementation to Mask Low-Complexity DNA Sequences". J Comput Biol. 2006 Apr;13(5):1028-40. doi: 10.1089/cmb.2006.13.1028. PMID: 16646928.
+#include <stdlib.h>
 
 #include <vector>
-
 #include <algorithm>
 
 struct _dustmasker_perfect_interval
@@ -138,7 +138,7 @@ private:
   // We are processing the window from windowStart, so the perfect intervals that start before windowStart need to be saved to he result.
   void SaveMaskedRegions(std::vector<struct _dustmasker_perfect_interval> &result, std::vector<struct _dustmasker_perfect_interval> &P, size_t windowStart)
   {
-    // P is mainteined in sorted order, where it is sorted first by descending order of start and then by ascending order of end. 
+    // P is maintained in sorted order, where it is sorted first by descending order of start and then by ascending order of end. 
     // Based on how we maintain P, the last P is the one from windowStart - 1, and is the longest one including all the other perfect intervals starting before windowStart.
     if (P.size() > 0 && P.back().start < windowStart) 
     {
@@ -245,7 +245,7 @@ public:
   Dustmasker() 
   {
     _w = 64 ; // default window size
-    _T = 20 ; // Based on the paper, the default threshold is 2, but the dustmasker program multipied the _T and S(a) by 10.
+    _T = 20 ; // Based on the paper, the default threshold is 2, but the dustmasker program multiplied the _T and S(a) by 10.
     _l = 1 ;
     _alphabetMap = new int[256] ;
     for (int i = 0 ; i < 256 ; ++i)
@@ -318,8 +318,6 @@ public:
 
     int triplet = 0 ;
     int tripletMask = (1<<(3 * _alphabetBit)) - 1 ; // mask for the triplet code 
-    if (n < 3)
-      return ;
     
     int *countV = (int *)calloc(tripletMask + 1, sizeof(int) ); // cv: count for the suffix v that satisfy max{c(v)}<=2T
     int *countW = (int *)calloc(tripletMask + 1, sizeof(int) ); // cw: count for the current window 

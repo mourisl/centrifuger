@@ -37,7 +37,7 @@ char usage[] = "./centrifuger [OPTIONS] > output.tsv:\n"
   "\t--barcode STR: path to the barcode file\n"
   "\t--UMI STR: path to the UMI file\n"
   "\t--read-format STR: format for read, barcode and UMI files, e.g. r1:0:-1,r2:0:-1,bc:0:15,um:16:-1 for paired-end files with barcode and UMI\n"
-  "\t--no-dust: do not DUST-masking low-complexity regions of reads [mask]\n"
+  "\t--no-dust: do not DUST-mask low-complexity regions of reads [mask]\n"
   "\t--min-hitlen INT: minimum length of partial hits [auto]\n"
   "\t--hitk-factor INT: resolve at most <int>*k entries for each hit [40; use 0 for no restriction]\n"
   "\t--consider-secondary STR: in the format INT,FLOAT consider the secondary hit if its hitlen>=INT,score>=FLOAT*best_score [2000,0.995]\n"
@@ -54,7 +54,7 @@ static struct option long_options[] = {
   { "sample-sheet", required_argument, 0, ARGV_SAMPLE_SHEET},
   { "un", required_argument, 0, ARGV_OUTPUT_UNCLASSIFIED},
   { "cl", required_argument, 0, ARGV_OUTPUT_CLASSIFIED},
-  { "no-dust", required_argument, 0, ARGV_NO_DUST},
+  { "no-dust", no_argument, 0, ARGV_NO_DUST},
   { "min-hitlen", required_argument, 0, ARGV_MIN_HITLEN},
   { "hitk-factor", required_argument, 0, ARGV_MAX_RESULT_PER_HIT_FACTOR},
   { "consider-secondary", required_argument, 0, ARGV_CONSIDER_SECONDARY_HITS},
@@ -275,26 +275,42 @@ void *ClassifyReads_Thread(void *pArg)
     // Dustmasking the reads
     if (!arg.protein && arg.dust)
     {
-      dustmasker.MaskWithBuffer(r1, strlen(r1), dustmaskerWindowIntervals, dustmaskerIntervals) ;
-      int maskeRegionSize = dustmaskerIntervals.size() ;
-      for (j = 0 ; j < maskeRegionSize ; ++j)
+      int maskRegionSize ;
+      if (mergeResult == 0)
       {
-        int start = dustmaskerIntervals[j].start ;
-        int end = dustmaskerIntervals[j].end ;
-        for (int k = start ; k <= end ; ++k)
-          r1[k] = 'N' ;
-      }
-
-      if (arg.readBatch2)
-      {
-        dustmasker.MaskWithBuffer(r2, strlen(r2), dustmaskerWindowIntervals, dustmaskerIntervals) ;
-        maskeRegionSize = dustmaskerIntervals.size() ;
-        for (j = 0 ; j < maskeRegionSize ; ++j)
+        dustmasker.MaskWithBuffer(r1, strlen(r1), dustmaskerWindowIntervals, dustmaskerIntervals) ;
+        maskRegionSize = dustmaskerIntervals.size() ;
+        for (j = 0 ; j < maskRegionSize ; ++j)
         {
           int start = dustmaskerIntervals[j].start ;
           int end = dustmaskerIntervals[j].end ;
           for (int k = start ; k <= end ; ++k)
-            r2[k] = 'N' ;
+            r1[k] = 'N' ;
+        }
+
+        if (arg.readBatch2)
+        {
+          dustmasker.MaskWithBuffer(r2, strlen(r2), dustmaskerWindowIntervals, dustmaskerIntervals) ;
+          maskRegionSize = dustmaskerIntervals.size() ;
+          for (j = 0 ; j < maskRegionSize ; ++j)
+          {
+            int start = dustmaskerIntervals[j].start ;
+            int end = dustmaskerIntervals[j].end ;
+            for (int k = start ; k <= end ; ++k)
+              r2[k] = 'N' ;
+          }
+        }
+      }
+      else
+      {
+        dustmasker.MaskWithBuffer(rm, strlen(rm), dustmaskerWindowIntervals, dustmaskerIntervals) ;
+        maskRegionSize = dustmaskerIntervals.size() ;
+        for (j = 0 ; j < maskRegionSize ; ++j)
+        {
+          int start = dustmaskerIntervals[j].start ;
+          int end = dustmaskerIntervals[j].end ;
+          for (int k = start ; k <= end ; ++k)
+            rm[k] = 'N' ;
         }
       }
     }

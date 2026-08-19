@@ -21,7 +21,7 @@ struct _classifierParam
   int maxResultPerHitFactor ; // Get the SA/tax id for at most maxResultPerHitsFactor * maxResult entries for each hit 
   bool outputExpandedResult ; // for each entry in the result, whether to output the children tax information. Might be useful for quantification
 
-  // Force merge parameter: there are cases like best and secondary result are extremely close, and their difference could be caused by the underlying variant distributions that force the quadratic function in favor of one sequence. This affects longer matches more, so we only consider when the match length 
+  // Force merge parameter: there are cases like best and secondary result are extremely close, and their difference could be caused by the underlying variant distributions that force the quadratic function in favor of one sequence. This affects longer matches more, so we only consider when the match length is long. 
   size_t considerSecondaryHitLen ; 
   double considerSecondaryScoreFactor ; // Consider the secondary hit if the score is x*primary score. Default is 0.995
 
@@ -472,8 +472,9 @@ private:
       for (i = frame ; i + 2 < rlen ; i += 3)      
       {
         aa[k] = DnaToAa(r[i], r[i + 1], r[i + 2]) ;
-        if (aa[k] == '?' || aa[k] == '_')
-          aa[k] = 'A' ;
+        // The backward search will handle these unknown characters.
+        //if (aa[k] == '?' || aa[k] == '_')
+        //  aa[k] = '?' ;
         ++k ;
       }
       aa[k] = '\0' ;
