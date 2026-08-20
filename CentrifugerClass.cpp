@@ -16,6 +16,7 @@
 #include "ReadFormatter.hpp"
 #include "BarcodeCorrector.hpp"
 #include "BarcodeTranslator.hpp"
+#include "Dustmasker.hpp"
 
 char usage[] = "./centrifuger [OPTIONS] > output.tsv:\n"
   "Required:\n"
@@ -36,8 +37,10 @@ char usage[] = "./centrifuger [OPTIONS] > output.tsv:\n"
   "\t--barcode STR: path to the barcode file\n"
   "\t--UMI STR: path to the UMI file\n"
   "\t--read-format STR: format for read, barcode and UMI files, e.g. r1:0:-1,r2:0:-1,bc:0:15,um:16:-1 for paired-end files with barcode and UMI\n"
+  "\t--no-dust: do not DUST-mask low-complexity regions of reads [mask]\n"
   "\t--min-hitlen INT: minimum length of partial hits [auto]\n"
   "\t--hitk-factor INT: resolve at most <int>*k entries for each hit [40; use 0 for no restriction]\n"
+  "\t--consider-secondary STR: in the format INT,FLOAT consider the secondary hit if its hitlen>=INT,score>=FLOAT*best_score [2000,0.995]\n"
   "\t--merge-readpair: merge overlapped paired-end reads and trim adapters [no merge]\n"
   "\t--expand-taxid: output the tax IDs that are promoted to the final report tax ID [no]\n"
   "\t--barcode-whitelist STR: path to the barcode whitelist file\n"
@@ -51,8 +54,10 @@ static struct option long_options[] = {
   { "sample-sheet", required_argument, 0, ARGV_SAMPLE_SHEET},
   { "un", required_argument, 0, ARGV_OUTPUT_UNCLASSIFIED},
   { "cl", required_argument, 0, ARGV_OUTPUT_CLASSIFIED},
+  { "no-dust", no_argument, 0, ARGV_NO_DUST},
   { "min-hitlen", required_argument, 0, ARGV_MIN_HITLEN},
   { "hitk-factor", required_argument, 0, ARGV_MAX_RESULT_PER_HIT_FACTOR},
+  { "consider-secondary", required_argument, 0, ARGV_CONSIDER_SECONDARY_HITS},
   { "merge-readpair", no_argument, 0, ARGV_MERGE_READ_PAIR },
   { "expand-taxid", no_argument, 0, ARGV_OUTPUT_EXPANDED_TAXIDS},
   { "read-format", required_argument, 0, ARGV_READFORMAT},
@@ -88,6 +93,7 @@ struct _threadArg
   bool protein ; // is the classifier for protein or not
   void *classifier ; // cast to runblock and runblockonetree depending on the protein
   struct _classifierResult *results ;
+  bool dust ; // dustmasking the read or not
 
   int tid ;
 } ;
@@ -233,8 +239,15 @@ void *LoadReads_Thread(void *pArg)
 
 void *ClassifyReads_Thread(void *pArg)
 {
-  int i ;
+  int i, j ;
   struct _threadArg &arg = *((struct _threadArg *)pArg);
+
+  Dustmasker dustmasker ;
+  std::vector<struct _dustmasker_perfect_interval> dustmaskerIntervals ;
+  std::vector<struct _dustmasker_perfect_interval> dustmaskerWindowIntervals ; 
+  if (!arg.protein && arg.dust)
+    dustmasker.Init("ACGT") ;
+
   for (i = 0 ; i < arg.batchSize ; ++i)
   {
     if (i % arg.threadCnt != arg.tid)
@@ -258,6 +271,49 @@ void *ClassifyReads_Thread(void *pArg)
     int mergeResult = 0 ;
     if (arg.readPairMerger != NULL)
       mergeResult = arg.readPairMerger->Merge(r1, q1, r2, q2, &rm, &qm) ;
+
+    // Dustmasking the reads
+    if (!arg.protein && arg.dust)
+    {
+      int maskRegionSize ;
+      if (mergeResult == 0)
+      {
+        dustmasker.MaskWithBuffer(r1, strlen(r1), dustmaskerWindowIntervals, dustmaskerIntervals) ;
+        maskRegionSize = dustmaskerIntervals.size() ;
+        for (j = 0 ; j < maskRegionSize ; ++j)
+        {
+          int start = dustmaskerIntervals[j].start ;
+          int end = dustmaskerIntervals[j].end ;
+          for (int k = start ; k <= end ; ++k)
+            r1[k] = 'N' ;
+        }
+
+        if (arg.readBatch2)
+        {
+          dustmasker.MaskWithBuffer(r2, strlen(r2), dustmaskerWindowIntervals, dustmaskerIntervals) ;
+          maskRegionSize = dustmaskerIntervals.size() ;
+          for (j = 0 ; j < maskRegionSize ; ++j)
+          {
+            int start = dustmaskerIntervals[j].start ;
+            int end = dustmaskerIntervals[j].end ;
+            for (int k = start ; k <= end ; ++k)
+              r2[k] = 'N' ;
+          }
+        }
+      }
+      else
+      {
+        dustmasker.MaskWithBuffer(rm, strlen(rm), dustmaskerWindowIntervals, dustmaskerIntervals) ;
+        maskRegionSize = dustmaskerIntervals.size() ;
+        for (j = 0 ; j < maskRegionSize ; ++j)
+        {
+          int start = dustmaskerIntervals[j].start ;
+          int end = dustmaskerIntervals[j].end ;
+          for (int k = start ; k <= end ; ++k)
+            rm[k] = 'N' ;
+        }
+      }
+    }
 
     if (mergeResult == 0)
     {
@@ -308,7 +364,8 @@ int CentrifugerClass_main(int argc, char *argv[])
   ResultWriter resWriter ;
   ReadPairMerger readPairMerger ;
   bool mergeReadPair = false ;
-  
+  bool dust = true ;
+
   bool protein = false ;
 
   char unclassifiedOutputPrefix[1024] = "";
@@ -384,6 +441,10 @@ int CentrifugerClass_main(int argc, char *argv[])
     else if (c == ARGV_MAX_RESULT_PER_HIT_FACTOR)
     {
       classifierParam.maxResultPerHitFactor = atoi(optarg) ;
+    }
+    else if (c == ARGV_NO_DUST)
+    {
+      dust = false ;
     }
     else if (c == ARGV_MERGE_READ_PAIR)
     {
@@ -472,6 +533,14 @@ int CentrifugerClass_main(int argc, char *argv[])
     else if (c == ARGV_OUTPUT_CLASSIFIED)
     {
       strcpy(classifiedOutputPrefix, optarg) ;
+    }
+    else if (c == ARGV_CONSIDER_SECONDARY_HITS)
+    {
+      if (sscanf(optarg, "%lu,%lf", &classifierParam.considerSecondaryHitLen, &classifierParam.considerSecondaryScoreFactor) != 2)
+      {
+        Utils::PrintLog("Invalid format for --consider-secondary option. It should be in the format of INT,FLOAT") ;
+        return EXIT_FAILURE ;
+      }
     }
     else
     {
@@ -574,6 +643,7 @@ int CentrifugerClass_main(int argc, char *argv[])
     args[i].threadCnt = classificationThreadCnt ;
     args[i].tid = i ;
     args[i].protein = protein ;
+    args[i].dust = dust ;
     args[i].classifier = &classifier ;
     args[i].readPairMerger = mergeReadPair ? &readPairMerger : NULL ;
   }

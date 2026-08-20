@@ -19,13 +19,21 @@ struct _classifierParam
   int maxResult ; // the number of entries in the results    
   int minHitLen ;
   int maxResultPerHitFactor ; // Get the SA/tax id for at most maxResultPerHitsFactor * maxResult entries for each hit 
-  bool outputExpandedResult ; // for each entry in the result, whether to output the children tax information. Might be useful for quantification 
+  bool outputExpandedResult ; // for each entry in the result, whether to output the children tax information. Might be useful for quantification
+
+  // Force merge parameter: there are cases like best and secondary result are extremely close, and their difference could be caused by the underlying variant distributions that force the quadratic function in favor of one sequence. This affects longer matches more, so we only consider when the match length is long. 
+  size_t considerSecondaryHitLen ; 
+  double considerSecondaryScoreFactor ; // Consider the secondary hit if the score is x*primary score. Default is 0.995
+
   _classifierParam()
   {
     maxResult = 1 ;
     minHitLen = 0 ;
     maxResultPerHitFactor = 40 ;
     outputExpandedResult = false ;
+
+    considerSecondaryHitLen = 2000 ;
+    considerSecondaryScoreFactor = 0.995 ;
   }
 } ;
 
@@ -236,7 +244,11 @@ private:
   {
     if (l < _param.minHitLen)
       return 0 ;
+    //const int quadMaxL = 1000000000 ;
+    //if (l <= quadMaxL)
     return (size_t)(l - _scoreHitLenAdjust) * (size_t)(l - _scoreHitLenAdjust) ;
+    //else
+    //  return (size_t)(quadMaxL - _scoreHitLenAdjust) * (size_t)(quadMaxL - _scoreHitLenAdjust) + l - quadMaxL ;
   }
 
   // one hit
@@ -460,8 +472,9 @@ private:
       for (i = frame ; i + 2 < rlen ; i += 3)      
       {
         aa[k] = DnaToAa(r[i], r[i + 1], r[i + 2]) ;
-        if (aa[k] == '?' || aa[k] == '_')
-          aa[k] = 'A' ;
+        // The backward search will handle these unknown characters.
+        //if (aa[k] == '?' || aa[k] == '_')
+        //  aa[k] = '?' ;
         ++k ;
       }
       aa[k] = '\0' ;
@@ -550,10 +563,11 @@ private:
 #ifdef LI_DEBUG
     printf("%s %lu %lu\n", __func__, strandScore[0], strandScore[1]) ;    
 #endif
-   
-    if (strandScore[1] > strandScore[0])
+  
+
+    if (strandScore[1] > strandScore[0] + strandScore[0] / 100)
       hits = strandHits[1] ;
-    else if (strandScore[0] > strandScore[1])
+    else if (strandScore[0] > strandScore[1] + strandScore[1] / 100)
       hits = strandHits[0] ;
     else
     {
@@ -601,7 +615,7 @@ private:
       std::map<size_t, int> localSeqIdHit ;
       k = (hits[i].strand + 1) / 2 ;
 #ifdef LI_DEBUG
-      printf("hit: %d sp-ep: %lu %lu %lu offset_l: %d %d\n", i, hits[i].sp, hits[i].ep, hits[i].ep - hits[i].sp + 1, hits[i].offset, hits[i].l) ;
+      printf("hit: %d %d sp-ep: %lu %lu %lu offset_l: %d %d\n", i, k, hits[i].sp, hits[i].ep, hits[i].ep - hits[i].sp + 1, hits[i].offset, hits[i].l) ;
 #endif
       const size_t maxEntries = _param.maxResult * _param.maxResultPerHitFactor ;
       if (hits[i].ep - hits[i].sp + 1 <= maxEntries 
@@ -613,7 +627,7 @@ private:
           size_t backsearchL = 0 ;
           size_t seqId = _fm.BackwardToSampledSA(j, backsearchL) ;
 #ifdef LI_DEBUG
-          printf("%lu\n", _taxonomy.GetOrigTaxId( _taxonomy.SeqIdToTaxId(seqId) )) ;
+          printf("taxId: %lu seqId: %lu\n", _taxonomy.GetOrigTaxId( _taxonomy.SeqIdToTaxId(seqId) ), seqId) ;
 #endif
           localSeqIdHit[seqId] = 1 ;
         }
@@ -697,22 +711,27 @@ private:
     size_t bestScore = 0 ;
     size_t secondBestScore = 0 ;
     size_t bestScoreHitLength = 0 ;
+    size_t secondBestScoreHitLength = 0 ;
     for (k = 0 ; k <= 1 ; ++k)
     {
       for (std::map<size_t, struct _seqHitRecord>::iterator iter = seqIdStrandHitRecord[k].begin() ; 
           iter != seqIdStrandHitRecord[k].end() ; ++iter)
       {
 #ifdef LI_DEBUG
-        printf("score: %lu %lu %d\n", _taxonomy.GetOrigTaxId( _taxonomy.SeqIdToTaxId(iter->first)), iter->second.score, iter->second.hitLength) ;
+        printf("score: %lu %s(%lu) %lu %d\n", _taxonomy.GetOrigTaxId( _taxonomy.SeqIdToTaxId(iter->first)), _taxonomy.SeqIdToName(iter->first).c_str(), iter->first, iter->second.score, iter->second.hitLength) ;
 #endif
         if (iter->second.score > bestScore)
         {
           secondBestScore = bestScore ;
+          secondBestScoreHitLength = bestScoreHitLength ;
           bestScore = iter->second.score ;
           bestScoreHitLength = iter->second.hitLength ;
         }
         else if (iter->second.score > secondBestScore)
+        {
           secondBestScore = iter->second.score ;
+          secondBestScoreHitLength = iter->second.hitLength ;
+        }
       }
     }
 
@@ -739,6 +758,28 @@ private:
 
     if (bestSeqIds.Size() > 1)
       result.secondaryScore = bestScore ;
+   
+    // In case the secondary score is super close
+    if (secondBestScoreHitLength >= _param.considerSecondaryHitLen 
+        && secondBestScore < bestScore 
+        && secondBestScore >= (size_t)(_param.considerSecondaryScoreFactor * bestScore))
+    {
+      for (k = 0 ; k <= 1 ; ++k)
+      {
+        for (std::map<size_t, struct _seqHitRecord>::iterator iter = seqIdStrandHitRecord[k].begin() ; 
+            iter != seqIdStrandHitRecord[k].end() ; ++iter)
+        {
+          if (iter->second.score == secondBestScore && 
+              bestSeqIdUsed.find(iter->first) == bestSeqIdUsed.end())
+          {
+            bestSeqIds.PushBack(iter->first) ;
+            bestSeqIdUsed[iter->first] = 1 ;
+          }
+        }
+      }
+      result.secondaryScore = secondBestScore ;
+    }
+
 
     if (bestSeqIds.Size() <= _param.maxResult
         || _param.maxResult <= 0)
