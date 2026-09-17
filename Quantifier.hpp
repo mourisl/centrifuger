@@ -58,6 +58,9 @@ struct _readAssignment
       for (i = 0 ; i < size ; ++i)
         if (b.targets[i] != targets[i])
           return targets[i] < b.targets[i] ;
+
+      if (weight != b.weight) // put smaller values first to have better numerical stability
+        return weight < b.weight ;
     }
     return false ;
   }

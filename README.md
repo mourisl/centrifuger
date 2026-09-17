@@ -39,6 +39,7 @@ Centrifuger is also available from [Bioconda](https://anaconda.org/bioconda/cent
           When not set, expect -l option and the -l file should have two columns as "file taxID"
         -o STRING: output prefix [centrifuger]
         -t INT: number of threads [1]
+        --protein: reference is protein sequences [genome]
         --build-mem STR: automatic infer bmax and dcv to match memory constraints, can use T,G,M,K to specify the memory size [not used]
         --bmax INT: block size for blockwise suffix array sorting [16777216]
         --dcv INT: difference cover period [4096]
@@ -54,12 +55,16 @@ Here is a list of pre-built indexes:
 
 | Title | Description | Link | Size/~Memory | Date |
 |-------|-------|------|------|------|
+|**Genome Database**|||||
 | cfr_hpv+gbsarscov2 | Refseq human, bacteria, archea, virus + SARS-CoV2-variants from GenBank | [Zenodo](https://zenodo.org/records/10023239) | 41G | 2023/10/01 |
 |  cfr_gtdb_r232 | [GTDB r232](https://gtdb.ecogenomic.org/) | [Dropbox](https://www.dropbox.com/scl/fo/wilot7fzf8bzyfsco81wi/AFzwZhSgE9N1r7uai8DeUec?rlkey=yazr6e4b71pxbz4o4bu7dqft5&st=ekr030j8&dl=0) | 230G | 2026/05/15 |
 |  cfr_gtdb_r232+refseq_hvfpc | GTDB r232 + Refseq human, virus, fungi, protozoa, and contaminant (UniVec,EmVec)| [Dropbox](https://www.dropbox.com/scl/fo/6sf1k7iwnckdca2opl1ir/AK8X0gPn90TF7Ox0XxK8kjI?rlkey=y7787xqylcfssvwjn1w66rmqz&st=ck0sa631&dl=0) | 232G | 2026/05/15 |
 | cfr_core_nt | NCBI core nt | [Dropbox](https://www.dropbox.com/scl/fo/f1mbf7nf893pisoruanb4/AHS06LaJr9EN0Pg7hbifWn8?rlkey=7fgtj6pi53l2iwrjw1k6xq8o8&st=yn57lnkh&dl=0)  | 212G | 2025/06/11 |
 | cfr_llnl_core_nt_202603 | LLNL-curated NCBI core_nt (PMID:40111052) | [Dropbox](https://www.dropbox.com/scl/fo/zkjoh4luk5e3kvzs9hvir/APWYWaOHu-7RVxELTi41_rI?rlkey=soavq4el3od1nch7op99n5mz5&st=o1ckosy7&dl=0) | 242G | 2026/03/01 |
 |  cfr_llnl_core_nt_wseqid_202512 | LLNL-curated NCBI core_nt with sequence ID info but less synchronized taxdmp | [Dropbox](https://www.dropbox.com/scl/fo/zkjoh4luk5e3kvzs9hvir/APWYWaOHu-7RVxELTi41_rI?rlkey=soavq4el3od1nch7op99n5mz5&st=o1ckosy7&dl=0) | 301G | 2025/12/01 |
+|**Protein Database**|||||
+| cfr_protein_pv | Refseq bacteria, archea, virus proteins | [Zenodo](https://zenodo.org/uploads/22663514) | 25G | 2025/08/25| 
+| cfr_nr | NCBI nr | [Dropbox](https://www.dropbox.com/scl/fo/nfnm3nehfmx3or3anrvnk/ABqABdp5-LZP_AtD9Y0zXWE?rlkey=qt87y5966jvv60s7gcxjsha2q&st=m71m0buz&dl=0) | 181G | 2026/01/31 | 
 
 (You can use the command "./centrifuger-download [Title]" to download the corresponding pre-built index. For the files on the Dropbox, you can right-click and "copy link" for each individual file and use "wget" on that link to download the file through the command line. Other old indexes are available at [Dropbox](https://www.dropbox.com/scl/fo/08horwj8mdzarlk2ocyky/AJIUqBg4ZU4qXdaTBnl64xM?rlkey=y7vk78c3o1pd2fq20f258vuyf&st=57xyuyjl&dl=0))
 
@@ -83,8 +88,12 @@ Here is a list of pre-built indexes:
         --barcode STR: path to the barcode file
         --UMI STR: path to the UMI file
         --read-format STR: format for read, barcode and UMI files, e.g. r1:0:-1,r2:0:-1,bc:0:15,um:16:-1 for paired-end files with barcode and UMI
+        --barcode-whitelist STR: path to the barcode whitelist file
+        --barcode-translate STR: path to the barcode translation file
         --min-hitlen INT: minimum length of partial hits [auto]
         --hitk-factor INT: resolve at most <int>*k entries for each hit [40; use 0 for no restriction]
+        --consider-secondary STR: in the format INT,FLOAT consider the secondary hit if its hitlen>=INT,score>=FLOAT*best_score [2000,0.995]
+        --no-dust: do not DUST-mask low-complexity regions of reads [mask]
         --merge-readpair: merge overlapped paired-end reads and trim adapters 
 
 #### Quantification (taxonomic profiling)

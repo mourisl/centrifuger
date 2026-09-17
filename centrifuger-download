@@ -402,6 +402,19 @@ if [[ "$DATABASE" == "cfr"* ]] ; then
         "https://www.dropbox.com/scl/fi/5tp9uj5eaj2do8m9s216e/cfr_gtdb_r232-refseq_hvfpc.4.cfr?rlkey=y7dy7dybgp108nksm9i1cwbo6&st=4ppjs00c&dl=1"
         )
       ;;
+    cfr_nr)
+      LINK_LIST=("https://www.dropbox.com/scl/fi/ykf1jc96wdzpn55eqmvj4/cfr_nr.1.cfr?rlkey=6jdg3xfk90bdar0r5x80m2ap8&st=e995bjss&dl=1",\
+        "https://www.dropbox.com/scl/fi/x3z9vckqi2ck562xxdkth/cfr_nr.2.cfr?rlkey=9be0waetgkeki1n1d61ygraf2&st=5bx51o5o&dl=1",\
+        "https://www.dropbox.com/scl/fi/n7vpxa45bsc6kfzaton8n/cfr_nr.3.cfr?rlkey=7s9c8bc5dxdqjmisyjg163wqc&st=qfdih1ru&dl=1",\
+        "https://www.dropbox.com/scl/fi/lyvd9jcthdnvn5er2kuru/cfr_nr.4.cfr?rlkey=3z3icfzksbnabv172nbjy2rut&st=w9h4gnz9&dl=1"
+        )
+    cfr_protein_pv)
+      LINK_LIST=("https://zenodo.org/records/22663514/files/cfr_protein_pv.1.cfr?download=1", \
+        "https://zenodo.org/records/22663514/files/cfr_protein_pv.2.cfr?download=1", \
+        "https://zenodo.org/records/22663514/files/cfr_protein_pv.3.cfr?download=1", \
+        "https://zenodo.org/records/22663514/files/cfr_protein_pv.4.cfr?download=1"
+        )
+      ;;
     *)
       echo "Unknown prebuilt index $DATABASE. Please check the README for available index names."
       exit
