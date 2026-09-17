@@ -408,6 +408,7 @@ if [[ "$DATABASE" == "cfr"* ]] ; then
         "https://www.dropbox.com/scl/fi/n7vpxa45bsc6kfzaton8n/cfr_nr.3.cfr?rlkey=7s9c8bc5dxdqjmisyjg163wqc&st=qfdih1ru&dl=1",\
         "https://www.dropbox.com/scl/fi/lyvd9jcthdnvn5er2kuru/cfr_nr.4.cfr?rlkey=3z3icfzksbnabv172nbjy2rut&st=w9h4gnz9&dl=1"
         )
+      ;;
     cfr_protein_pv)
       LINK_LIST=("https://zenodo.org/records/22663514/files/cfr_protein_pv.1.cfr?download=1", \
         "https://zenodo.org/records/22663514/files/cfr_protein_pv.2.cfr?download=1", \
@@ -422,7 +423,7 @@ if [[ "$DATABASE" == "cfr"* ]] ; then
   esac
 
   for i in "${!LINK_LIST[@]}"; do
-    echo "Download ${DL_PREFIX}_$((i+1)).cfr"
+    echo "Download ${DL_PREFIX}.$((i+1)).cfr"
     $DL_CMD ${DL_PREFIX}.$((i+1)).cfr ${LINK_LIST[i]} 
   done
 fi
