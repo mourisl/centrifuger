@@ -417,6 +417,7 @@ public:
           result[k] = result[i] ;
         }
       }
+      result.resize(k + 1) ;
     }
   }
 
