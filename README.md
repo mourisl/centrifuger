@@ -63,7 +63,7 @@ Here is a list of pre-built indexes:
 | cfr_llnl_core_nt_202603 | LLNL-curated NCBI core_nt (PMID:40111052) | [Dropbox](https://www.dropbox.com/scl/fo/zkjoh4luk5e3kvzs9hvir/APWYWaOHu-7RVxELTi41_rI?rlkey=soavq4el3od1nch7op99n5mz5&st=o1ckosy7&dl=0) | 242G | 2026/03/01 |
 |  cfr_llnl_core_nt_wseqid_202512 | LLNL-curated NCBI core_nt with sequence ID info but less synchronized taxdmp | [Dropbox](https://www.dropbox.com/scl/fo/zkjoh4luk5e3kvzs9hvir/APWYWaOHu-7RVxELTi41_rI?rlkey=soavq4el3od1nch7op99n5mz5&st=o1ckosy7&dl=0) | 301G | 2025/12/01 |
 |**Protein Database**|||||
-| cfr_protein_pv | Refseq bacteria, archea, virus proteins | [Zenodo](https://zenodo.org/uploads/22663514) | 25G | 2025/08/25| 
+| cfr_protein_pv | Refseq bacteria, archea, virus proteins | [Zenodo](https://zenodo.org/records/22663514) | 25G | 2025/08/25| 
 | cfr_nr | NCBI nr | [Dropbox](https://www.dropbox.com/scl/fo/nfnm3nehfmx3or3anrvnk/ABqABdp5-LZP_AtD9Y0zXWE?rlkey=qt87y5966jvv60s7gcxjsha2q&st=m71m0buz&dl=0) | 181G | 2026/01/31 | 
 
 (You can use the command "./centrifuger-download [Title]" to download the corresponding pre-built index. For the files on the Dropbox, you can right-click and "copy link" for each individual file and use "wget" on that link to download the file through the command line. Other old indexes are available at [Dropbox](https://www.dropbox.com/scl/fo/08horwj8mdzarlk2ocyky/AJIUqBg4ZU4qXdaTBnl64xM?rlkey=y7vk78c3o1pd2fq20f258vuyf&st=57xyuyjl&dl=0))

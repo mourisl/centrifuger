@@ -424,7 +424,7 @@ if [[ "$DATABASE" == "cfr"* ]] ; then
 
   for i in "${!LINK_LIST[@]}"; do
     echo "Download ${DL_PREFIX}.$((i+1)).cfr"
-    $DL_CMD ${DL_PREFIX}.$((i+1)).cfr ${LINK_LIST[i]} 
+    $DL_CMD "${DL_PREFIX}.$((i+1)).cfr" "${LINK_LIST[i]}"
   done
 fi
 
