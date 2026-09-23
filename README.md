@@ -82,7 +82,7 @@ Here is a list of pre-built indexes:
         --sample-sheet FILE: list of sample files, each row: "read1 read2 barcode UMI output". Use dot(.) to represent no such file.
       Optional:
         -t INT: number of threads [1]
-        -k INT: report upto <int> distinct, primary assignments for each read pair [1]
+        -k INT: report up to <int> distinct, primary assignments for each read pair [1]
         --un STR: output unclassified reads to files with the prefix of <str>, e.g. <str>_1/2.fq.gz
         --cl STR: output classified reads to files with the prefix of <str>
         --barcode STR: path to the barcode file
@@ -109,7 +109,7 @@ Here is a list of pre-built indexes:
       optional:
         --min-score INT: only consider reads with score at least <int> 
         --min-length INT: only consider reads with classified length at least <int>
-        --output-format INT: output format. (0:centrifuge,default, 1:Metaphlan, 2:CAMI, 3:kraken-report)        
+        --output-format INT: output format. (0:centrifuge,default, 1:MetaPhlAn, 2:CAMI, 3:kraken-report)        
 
 The quantification results will be affected by the "-k" option from the classification program "centrifuger". Increasing "-k" will provide ambiguous but more specific classification result, potentially can improve the quantification result.  
 
@@ -138,10 +138,10 @@ The "centrifuger-quant" estimate the abundance for each taxonomy ID, and the qua
 name	taxID	taxRank	genomeSize	numReads	numUniqueReads	abundance
 Legionella_pneumophila_subsp._pneumophila_str._Philadelphia_1	272624	strain	3397753	50	48	0.392641
 
-The first column is the name of a genome, or the name corresponding to a taxonomic ID (the second column) at a rank higher than the strain (e.g., Legionella_pneumophila_str._Pari).
-The second column is the taxonomic ID (e.g., 297246).
+The first column is the name of a genome, or the name corresponding to a taxonomic ID (the second column) at a rank higher than the strain (e.g., Legionella_pneumophila_subsp...).
+The second column is the taxonomic ID (e.g., 272624).
 The third column is the taxonomic rank (e.g., strain).
-The fourth column is the length of the genome sequence (e.g., 3503503).
+The fourth column is the length of the genome sequence (e.g., 3397753).
 The fifth column is the number of reads classified to some genomic sequences (multi-classified reads are evenly distributed) under this taxonomy node (e.g., 50).
 The sixth column is the number of reads uniquely classified to a genomic sequence under this taxonomy node (e.g., 48).
 The seventh column is the proportion of this genome normalized by its genomic length (e.g., 0.392641).
@@ -164,7 +164,7 @@ To add human (taxonomy ID 9606) or mouse (taxonomy ID 10090) genome to the downl
 	# mouse
 	./centrifuger-download -o library -d "vertebrate_mammalian" -a "Chromosome" -t 10090 -c 'reference genome' refseq >> seqid2taxid.map
 
-To build the index, first put the downloaded files in a list (this part is different from Centrifuge, where the files need to be concatendated) and then run centrifuger-build:
+To build the index, first put the downloaded files in a list (this part is different from Centrifuge, where the files need to be concatenated) and then run centrifuger-build:
 	
 	find library -type f -name "*.fna.gz" > file.list # use *_dustmasked.fna.gz as the file list if using dustmasker in centrifuger-download 
 
@@ -182,22 +182,22 @@ The folder "indices" contains information for creating index from other sources,
 
 * #### 10x Genomics data and barcode-based single-cell data
 
-If your input has barcode information, you can use "--barcode" to specify the barcode file and use "--read-format" to tell Centrifuger how to extract barcode information. The "--read-format" option can also specify the extraction for read1, read2 and UMI. The value for this argument is a comma-separated string, each field in the string is also a semi-comma-splitted string
+If your input has barcode information, you can use "--barcode" to specify the barcode file and use "--read-format" to tell Centrifuger how to extract barcode information. The "--read-format" option can also specify the extraction for read1, read2 and UMI. The value for this argument is a comma-separated string, each field in the string is also a (semi-)comma-splitted string
 
 	[r1|r2|bc|um]:start:end:strand
 
-The start and end are inclusive and -1 means the end of the read. You may use multiple fields to specify non-consecutive segments, e.g. bc:0:15,bc:32:-1. The strand is presented by '+' and '-' symbol, if '-' the barcode will be reverse-complemented after extraction. The strand symbol can be omitted if it is '+' and is ignored on r1 and r2. For example, when the barcode is in the first 16bp of read1, one can use the option `-1 read1.fq.gz -2 read2.fq.gz --barcode read1.fq.gz --read-format bc:0:15,r1:16:-1`. If "--barcode" or "--UMI" option is ignored in the command, Centrifuger will extract the pattern from read1. Note that "--barcode-whilelist" option requires the use of "--barcode" option to specify the barcode file.
+The start and end are inclusive and -1 means the end of the read. You may use multiple fields to specify non-consecutive segments, e.g. bc:0:15,bc:32:-1. The strand is presented by '+' and '-' symbol, if '-' the barcode will be reverse-complemented after extraction. The strand symbol can be omitted if it is '+' and is ignored on r1 and r2. For example, when the barcode is in the first 16bp of read1, one can use the option `-1 read1.fq.gz -2 read2.fq.gz --barcode read1.fq.gz --read-format bc:0:15,r1:16:-1`. If "--barcode" or "--UMI" option is ignored in the command, Centrifuger will extract the pattern from read1. Note that "--barcode-whitelist" option requires the use of "--barcode" option to specify the barcode file.
 
 Centrifuger supports using wildcard in the -1 -2/-u option, so a typical way to run 10x Genomics single-end data is by:
 
 	./centrifuger -x cfr_idx -u "path_to_10x_fastqs/*_R2_*.fastq.gz" \
-		--barcode "path_to_10x_fastqs/*_R1_*.fastq.gz" --UMI "path_10x_fastqs/*_R1_*.fastq.gz" 
+		--barcode "path_to_10x_fastqs/*_R1_*.fastq.gz" --UMI "path_to_10x_fastqs/*_R1_*.fastq.gz" \
 		--read-format bc:0:15,um:16:-1 \
 		--barcode-whitelist cellranger_folder/cellranger-cs/VERSION/lib/python/cellranger/barcodes/3M-february-2018.txt.gz [other options]
 
-The exact options depend on your 10x Genomics kit. The quotes around the paths with wildcard  are necessary.
+The exact options depend on your 10x Genomics kit. The quotes around the paths with wildcard are necessary.
 
-Moreover, Centrifuger can translate input cell barcodes to another set of barcodes. You can specify the translation file through the option --barcodeTranslate. The translation file is a two-column tsv/csv file with the translated barcode on the first column and the original barcode on the second column. This option also supports combinatorial barcoding, such as SHARE-seq. Centrifuger can translate each barcode segment provided in the second column to the ID in the first column and add "-" to concatenate the IDs in the output.
+Moreover, Centrifuger can translate input cell barcodes to another set of barcodes. You can specify the translation file through the option --barcode-translate. The translation file is a two-column tsv/csv file with the translated barcode on the first column and the original barcode on the second column. This option also supports combinatorial barcoding, such as SHARE-seq. Centrifuger can translate each barcode segment provided in the second column to the ID in the first column and add "-" to concatenate the IDs in the output.
 
 The bc and um option can parse the barcode and UMI from the fastq header comment field. The format is [bc|um]:hd:field:start:end:strand. "hd" is a keyword so the search will be in the header comment. "field" can be a number (0-based), which is specifies which field in the comment (read id is excluded) contains the barcode/UMI. "field" can also be a string, and it search for the pattern starting with the "field" and extract the barcode/UMI from there. For example, if the header looks like "@r1 CR:Z:NNNN CB:Z:ACGT UR:Z:NNNN", then "bc:hd:1:5:-1" or "bc:hd:CB:5:-1" will extract the barcode "ACGT" from the header. 
 
