@@ -11,7 +11,7 @@ What distinguishes Centrifuger from other classifiers is how the reference datab
 
 Comprehensive reference databases have grown faster than the memory of the machines used to search them. The 2023 RefSeq prokaryotic collection is roughly 140 billion nucleotides; NCBI `core_nt` and `nr` are larger still. Classifiers generally cope in one of two ways: they throw information away — subsampling *k*-mers, restricting matches to a fixed length — or they demand a very large machine.
 
-Centrifuger takes the third route. Microbial genome databases sit at an *intermediate* level of repetitiveness: far more repetitive than a single genome, far less repetitive than a collection of thousands of strains of one species. Centrifuger introduces the compact data structures tuned for exactly that regime:
+Centrifuger takes the third route. Microbial genome databases sit at an *intermediate* level of repetitiveness: far more repetitive than a single genome, far less repetitive than a collection of thousands of strains of one species. Centrifuger introduces the compact data structure for exactly that regime:
 
 - **Run-block compressed BWT (RBBWT)** — a run-block compressed sequence representation that achieves sublinear storage for the BWT without sacrificing much time efficiency.
 
