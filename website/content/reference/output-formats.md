@@ -34,7 +34,7 @@ readID    seqID          taxID     score   2ndBestScore   hitLength   queryLengt
 - **A read can appear more than once.** With `-k` greater than 1, near-equal assignments each get their own row; `numMatches` tells you how many rows to expect for that read.
 - **`score` versus `2ndBestScore`.** A high score with a `2ndBestScore` of 0 is an unambiguous assignment. Two nearly equal scores mean the read cannot distinguish the two references — the usual situation for conserved regions and closely related strains.
 - **`hitLength` versus `queryLength`.** Their ratio is how much of the read actually matched. A long read with a short hit length is weak evidence even when the score looks large.
-- **Unclassified reads** are not represented by a classification row. To collect them, pass `--un` to `centrifuger`.
+- **Unclassified reads** are labeled with "unclassified" in the `seqID` column and `0` in the `taxID` column. 
 
 When barcode and UMI extraction are enabled, those values ride along with the read so that assignments can be grouped by cell afterwards — see [single-cell and barcoded data](/guides/single-cell/).
 

@@ -118,7 +118,7 @@ If the job is killed — by a wall-clock limit, a node failure or an out-of-memo
 A few options change *what* goes into the index rather than how it is built:
 
 - `--subset-tax INT` — keep only the input genomes that sit under the given taxonomy node. Useful for building, say, a bacteria-only index from a broader download.
-- `--concat-tax-genome` — concatenate all genomes sharing a taxonomy ID and drop the sequence ID information. This shrinks the index and speeds up search, at the cost of no longer knowing *which* sequence of a taxon a read matched.
+- `--concat-tax-genome` — concatenate all genomes sharing a taxonomy ID and drop the sequence ID information. This shrinks the index, at the cost of no longer knowing *which* sequence of a taxon a read matched.
 - `--ignore-uncategorized-genome` — skip genomes whose sequence ID or taxonomy ID is missing or uncategorised. By default every input genome is included.
 - `--offrate INT` — sample the suffix array every 2^INT BWT characters (default 4). A larger value makes the index smaller but resolving positions slower.
 
