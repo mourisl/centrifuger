@@ -58,7 +58,7 @@ Download every `*.cfr` file belonging to the index and keep them together in one
 |-----------------|----------|
 | Classify human-associated microbiome samples on a mid-sized server | `cfr_hpv+gbsarscov2` (41G) |
 | Use a standardised, rank-normalised bacterial and archaeal taxonomy | `cfr_gtdb_r232` |
-| Cover prokaryotes *and* host, fungi, protozoa and vector contaminants | `cfr_gtdb_r232+refseq_hvfpc` |
+| Cover prokaryotes *and* human, fungi, protozoa and vector contaminants | `cfr_gtdb_r232+refseq_hvfpc` |
 | Search the broadest nucleotide collection, including eukaryotes | `cfr_core_nt` or an LLNL-curated variant |
 | Detect divergent organisms through translated search | `cfr_protein_pv` or `cfr_nr` |
 
@@ -80,7 +80,7 @@ centrifuger-quant -x /data/indexes/cfr_hpv+gbsarscov2 \
 ```
 
 :::caution Fast storage helps the first load
-The index is read into memory at startup. On a shared filesystem, loading a 200 GB index can take longer than the classification itself; a local scratch disk makes a noticeable difference when you run many samples.
+The index is read into memory at startup. On a shared filesystem, loading a 200 GB index can take long time; a local scratch disk makes a noticeable difference when you run many samples.
 :::
 
 If none of these databases fits your project, [build your own](/guides/building-an-index/).
