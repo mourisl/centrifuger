@@ -60,7 +60,7 @@ If a published index already covers your reference set, you can skip the first s
 
 ## Relationship to Centrifuge
 
-Centrifuger follows the design and conventions of [Centrifuge](http://www.ccb.jhu.edu/software/centrifuge/), from the same developer closely enough that the index-building procedure and the default report format will look familiar; the programs are renamed (`centrifuge-download` becomes `centrifuger-download`, and so on). The important differences are the compressed index, the unconstrained match length, and a few conveniences such as file-list input instead of concatenated FASTA. If you are coming from Centrifuge, [building an index](/guides/building-an-index/) points out where the two diverge.
+Centrifuger follows the design and conventions of [Centrifuge](http://www.ccb.jhu.edu/software/centrifuge/), involving the same developer, closely enough that the index-building procedure and the default report format will look familiar; the programs are renamed (`centrifuge-download` becomes `centrifuger-download`, and so on). The important differences are the compressed index, the unconstrained match length, and a few conveniences such as file-list input instead of concatenated FASTA. If you are coming from Centrifuge, [building an index](/guides/building-an-index/) points out where the two diverge.
 
 ## Where to go next
 
