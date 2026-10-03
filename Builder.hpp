@@ -323,11 +323,11 @@ public:
       if (memoryConstraint != 0)
       {
         size_t totalBufferSize = 0 ;
-        for (k = 0 ; k < batchSize ; ++k)
+        for (k = 0 ; k < maxBatchSize ; ++k)
           totalBufferSize += compactGenomes[k].GetSpace() ;
         if (totalBufferSize > memoryConstraint / 10)
         {
-          for (k = 0 ; k < batchSize ; ++k)
+          for (k = 0 ; k < maxBatchSize ; ++k)
           {
             compactGenomes[k].Free() ;
             compactGenomes[k].Malloc(genomes.GetElemLength(), 1000000) ; // genoems is initialized through seqCompactor above, so we can reuse the element length.
