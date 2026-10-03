@@ -273,6 +273,10 @@ public:
       {
         size_t seqid = seqidBatch[k] ;
         size_t len = compactGenomes[k].GetSize() ; 
+        
+        if (!conversionTableAtFileLevel && _seqLength.find(seqid) != _seqLength.end()) // Do this check again to avoid dupliated seqid in the same batch. 
+          continue ;
+
         if (!concatSameTaxIdSeqs)
         {
           if (len < fmBuilderParam.precomputeWidth + 1ull) // A genome too short
@@ -314,6 +318,22 @@ public:
           _seqLength[seqid] = len ;
         }
       } // End of for loop with k
+      
+      // Check whether the compactGenomes took too much total memory. 
+      if (memoryConstraint != 0)
+      {
+        size_t totalBufferSize = 0 ;
+        for (k = 0 ; k < batchSize ; ++k)
+          totalBufferSize += compactGenomes[k].GetSpace() ;
+        if (totalBufferSize > memoryConstraint / 10)
+        {
+          for (k = 0 ; k < batchSize ; ++k)
+          {
+            compactGenomes[k].Free() ;
+            compactGenomes[k].Malloc(genomes.GetElemLength(), 1000000) ; // genoems is initialized through seqCompactor above, so we can reuse the element length.
+          }
+        }
+      }
     } // End of while loop for reading genome batches 
   
     // Release the variables related to load genome batches
