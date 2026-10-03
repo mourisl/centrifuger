@@ -27,6 +27,7 @@ private:
   int *_alphabetMap ;
   int _alphabetSize ;
   int _alphabetBit ;
+  bool _ignoreLetterCase ; // whether uppercase and lowercase will be regarded as the same letter
 
   // queue data structure just for the purpose of this function.
   // We assume the capacity is fixed
@@ -247,6 +248,7 @@ public:
     _w = 64 ; // default window size
     _T = 20 ; // Based on the paper, the default threshold is 2, but the dustmasker program multiplied the _T and S(a) by 10.
     _l = 1 ;
+    _ignoreLetterCase = false ;
     _alphabetMap = new int[256] ;
     for (int i = 0 ; i < 256 ; ++i)
     {
@@ -279,6 +281,11 @@ public:
     _l = l ;
   }
 
+  void SetIgnoreLetterCase(bool ignore)
+  {
+    _ignoreLetterCase = ignore ;
+  }
+
   void Init(const char *alphabetMap)
   {
     int i, n ;
@@ -291,6 +298,13 @@ public:
     for (i = 0 ; alphabetMap[i] != 0 ; ++i)
     {
       _alphabetMap[(int)alphabetMap[i]] = i ;
+      if (_ignoreLetterCase)
+      {
+        if (alphabetMap[i] >= 'A' && alphabetMap[i] <= 'Z')
+          _alphabetMap[(int)(alphabetMap[i] - 'A' + 'a')] = i ;
+        else if (alphabetMap[i] >= 'a' && alphabetMap[i] <= 'z')
+          _alphabetMap[(int)(alphabetMap[i] - 'a' + 'A')] = i ;
+      }
     }
 
     n = i ;

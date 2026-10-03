@@ -17,7 +17,6 @@ char usage[] = "./centrifuger-build [OPTIONS]:\n"
   "\t\tWhen not set, expect -l option and the -l file should have two columns as \"file taxID\"\n"
   "\t-o STRING: output prefix [centrifuger]\n"
   "\t-t INT: number of threads [1]\n"
-  "\t--protein: reference is protein sequences [genome]\n"
   "\t--build-mem STR: automatic infer bmax and dcv to match memory constraints, can use T,G,M,K to specify the memory size [not used]\n"
   "\t--bmax INT: block size for blockwise suffix array sorting [16777216]\n"
   "\t--dcv INT: difference cover period [4096]\n"
@@ -25,6 +24,8 @@ char usage[] = "./centrifuger-build [OPTIONS]:\n"
   "\t--ftabchars INT: # of chars consumed in initial lookup (default: 10)\n"
   "\t--rbbwt-b INT: block size for run-block compressed BWT. 0 for auto. 1 for no compression [0]\n"
   "\t--subset-tax INT: only consider the subset of input genomes under taxonomy node INT [0]\n"
+  "\t--protein: build protein index [not used]\n"
+  "\t--no-dust: do not dustmask low-complexity genomic regions [dust]\n"
   "\t--concat-tax-genome: concatenate the genomes with the same taxID and discard the seqID information [not used]\n"
   "\t--ignore-uncategorized-genome: ignore genomes whose seqID or taxID is missing or uncategorized. [include all]\n"
   "\t--checkpoint: add checkpoint (files [output_prefix]_checkpoint.[123]) for resuming index construction. [not used]\n"
@@ -47,6 +48,7 @@ static struct option long_options[] = {
       { "concat-tax-genome", no_argument, 0, ARGV_BUILD_CONCAT_SAME_TAXID_SEQS},
       { "checkpoint", no_argument, 0, ARGV_BUILD_USE_CHECKPOINT },
       { "protein", no_argument, 0, ARGV_BUILD_PROTEIN},
+      { "no-dust", no_argument, 0, ARGV_NO_DUST},
       { "ignore-uncategorized-genome", no_argument, 0, ARGV_BUILD_IGNORE_UNCATEGORIZED },
       { (char *)0, 0, 0, 0} 
 } ;
@@ -75,6 +77,7 @@ int CentrifugerBuild_main(int argc, char *argv[])
   bool concatSameTaxIdSeqs = false ;
   bool ignoreUncategorizedSeqs = false ;
   bool protein = false ;
+  bool dust = true ;
 
   Builder<FMseqclass> builder ;
   
@@ -181,6 +184,10 @@ int CentrifugerBuild_main(int argc, char *argv[])
     {
       protein = true ;
     }
+    else if (c == ARGV_NO_DUST)
+    {
+      dust = false ;
+    }
     else
     {
       fprintf( stderr, "%s", usage ) ;
@@ -225,11 +232,12 @@ int CentrifugerBuild_main(int argc, char *argv[])
     strcpy(alphabetList, "$ARNDCEQGHILKMFPSTWYV") ;
     if (fmBuilderParam.precomputeWidth == 10) // default value
       fmBuilderParam.precomputeWidth = 4 ;
+    dust = false ;
   }
 
   Utils::PrintLog("Start to read in the genome files.") ; 
   builder.Build(refGenomeFile, taxonomyFile, nameTable, 
-      conversionTableAtFileLevel ? fileList : conversionTable, conversionTableAtFileLevel, concatSameTaxIdSeqs, ignoreUncategorizedSeqs,
+      conversionTableAtFileLevel ? fileList : conversionTable, conversionTableAtFileLevel, concatSameTaxIdSeqs, ignoreUncategorizedSeqs, dust,
       subsetTax, buildMemoryConstraint, fmBuilderParam, alphabetList) ;
   builder.Save(outputPrefix) ;
 
