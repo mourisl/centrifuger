@@ -206,7 +206,7 @@ public:
     FixedSizeElemArray *compactGenomes = new FixedSizeElemArray[maxBatchSize] ;
     for (k = 0 ; k < maxBatchSize ; ++k)
     {
-      compactGenomes[k].Malloc(genomes.GetElemLength(), 1000000) ; // genoems is initialized through seqCompactor above, so we can reuse the element length.
+      compactGenomes[k].Malloc(genomes.GetElemLength(), 1000000) ; // genomes is initialized through seqCompactor above, so we can reuse the element length.
     }
     Dustmasker dustmasker ;
     if (dust)
@@ -274,7 +274,7 @@ public:
         size_t seqid = seqidBatch[k] ;
         size_t len = compactGenomes[k].GetSize() ; 
         
-        if (!conversionTableAtFileLevel && _seqLength.find(seqid) != _seqLength.end()) // Do this check again to avoid dupliated seqid in the same batch. 
+        if (!conversionTableAtFileLevel && _seqLength.find(seqid) != _seqLength.end()) // Do this check again to avoid duplicated seqid in the same batch. 
           continue ;
 
         if (!concatSameTaxIdSeqs)
@@ -330,7 +330,7 @@ public:
           for (k = 0 ; k < maxBatchSize ; ++k)
           {
             compactGenomes[k].Free() ;
-            compactGenomes[k].Malloc(genomes.GetElemLength(), 1000000) ; // genoems is initialized through seqCompactor above, so we can reuse the element length.
+            compactGenomes[k].Malloc(genomes.GetElemLength(), 1000000) ; // genomes is initialized through seqCompactor above, so we can reuse the element length.
           }
         }
       }
