@@ -37,6 +37,7 @@ Usage: ./centrifuger-build [OPTIONS]
 | `--dcv INT` | `4096` | Difference cover period. |
 | `--offrate INT` | `4` | SA/offset is sampled every 2^INT BWT characters. |
 | `--subset-tax INT` | `0` | Only consider the subset of input genomes under this taxonomy node. |
+| `--no-dust` | dust | Do not DUST-mask low-complexity genomic regions. Always off for `--protein` indexes. |
 | `--concat-tax-genome` | not used | Concatenate genomes sharing a taxID and discard the seqID information. |
 | `--ignore-uncategorized-genome` | include all | Ignore genomes whose seqID or taxID is missing or uncategorised. |
 | `--checkpoint` | not used | Write checkpoint files (`[output_prefix]_checkpoint.[123]`) so an interrupted build can resume. |

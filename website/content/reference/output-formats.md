@@ -38,18 +38,6 @@ readID    seqID          taxID     score   2ndBestScore   hitLength   queryLengt
 
 When barcode and UMI extraction are enabled, those values ride along with the read so that assignments can be grouped by cell afterwards — see [single-cell and barcoded data](/guides/single-cell/).
 
-### Quick summaries
-
-```bash
-# how many reads were classified
-cut -f1 classification.tsv | tail -n +2 | sort -u | wc -l
-
-# most frequently hit taxa
-tail -n +2 classification.tsv | cut -f3 | sort | uniq -c | sort -rn | head
-
-# keep only confident, unambiguous assignments
-awk -F'\t' 'NR==1 || ($4 > 300 && $5 == 0)' classification.tsv > confident.tsv
-```
 
 ## Quantification output
 

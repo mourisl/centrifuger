@@ -78,8 +78,10 @@ centrifuger-build -t 4 \
   --build-mem 240G
 ```
 
-:::tip If you used dustmasker
-When `centrifuger-download` was run with low-complexity masking, the masked files are named `*_dustmasked.fna.gz`. Point `find` at that pattern instead.
+:::tip If you pre-masked with dustmasker
+`centrifuger-build` masks low-complexity regions itself, so pre-masked input is
+not required. If you did run `centrifuger-download` with masking, its output is
+named `*_dustmasked.fna.gz` — point `find` at that pattern instead.
 :::
 
 Once the build finishes, everything except `refseq_abv.[1234].cfr` can be removed.
@@ -112,6 +114,32 @@ centrifuger-build ... --checkpoint
 ```
 
 If the job is killed — by a wall-clock limit, a node failure or an out-of-memory event — rerunning the same command picks up from the last checkpoint instead of starting over.
+
+## Low-complexity masking
+
+Reference genomes carry homopolymers, simple repeats and other low-complexity
+stretches that match almost anything. Centrifuger DUST-masks them while the index
+is built, so those regions cannot generate misleading hits later. This happens by
+default — there is nothing to enable.
+
+To build without it, pass `--no-dust`:
+
+```bash
+centrifuger-build ... --no-dust
+```
+
+That is worth doing only when low-complexity sequence is itself the object of
+study, since the masked regions are the ones most likely to produce spurious
+classifications.
+
+:::note Protein indexes are never masked
+DUST describes low-complexity *nucleotide* sequence, so `--protein` builds switch
+masking off regardless of whether you pass `--no-dust`.
+:::
+
+`centrifuger` has a separate `--no-dust` option that masks the **reads** at
+classification time. The two are independent: one controls the reference, the
+other the query.
 
 ## Shaping the contents of the index
 

@@ -91,7 +91,7 @@ The related `--hitk-factor INT` caps the work spent resolving each hit, at `k ×
 
 - `--min-hitlen INT` — minimum length of a partial hit. The default is chosen automatically from the data. Raising it makes classification stricter and reduces spurious short matches; lowering it recovers hits from very short or heavily degraded reads.
 - `--consider-secondary INT,FLOAT` — accept a secondary hit when its hit length is at least `INT` and its score is at least `FLOAT` times the best score. The default is `2000,0.995`, i.e. only long, near-equal alternatives.
-- `--no-dust` — disable DUST masking of low-complexity regions in reads. Masking is on by default and prevents homopolymers and simple repeats from generating misleading matches; turn it off only if you specifically need low-complexity sequence considered.
+- `--no-dust` — disable DUST masking of low-complexity regions in reads. (`centrifuger-build` has its own `--no-dust` for the reference genomes; see [building an index](/guides/building-an-index/#low-complexity-masking).) Masking is on by default and prevents homopolymers and simple repeats from generating misleading matches; turn it off only if you specifically need low-complexity sequence considered.
 - `--merge-readpair` — merge overlapping paired-end reads and trim adapters before classification. Worth enabling for short inserts, where the merged fragment gives a longer, more specific match than either mate alone.
 
 ## Saving classified and unclassified reads
