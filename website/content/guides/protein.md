@@ -40,6 +40,10 @@ The `--conversion-table` maps each protein accession to the taxonomy ID of the o
 `--protein` describes the *reference*. You still supply ordinary nucleotide reads at classification time.
 :::
 
+DUST masking does not apply to a protein build. It describes low-complexity
+nucleotide sequence, so `--protein` switches it off whether or not you pass
+`--no-dust`.
+
 See [building an index](/guides/building-an-index/) for `--build-mem`, `--checkpoint` and the other build-time options, all of which apply here too.
 
 ## Classify against it

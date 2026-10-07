@@ -10,6 +10,7 @@
 #include "compactds/Alphabet.hpp"
 #include "compactds/SequenceCompactor.hpp"
 #include "Taxonomy.hpp"
+#include "Dustmasker.hpp"
 
 // Holds various method regarding building index
 using namespace compactds ; 
@@ -22,6 +23,95 @@ private:
   Taxonomy _taxonomy ;
   std::map<size_t, size_t> _seqLength ; // we use map here is for the case that a seq show up in the conversion table but not in the actual genome file.
   bool _protein ;
+
+  struct _preprocessThreadArg
+  {
+    int tid ;
+    int threadCnt ;
+    struct _Read *genomeBatch ;
+    int batchSize ;
+    Dustmasker *dustmasker ;
+
+    // Preprocess result is the compact genomes
+    SequenceCompactor *seqCompactor ;
+    FixedSizeElemArray *compactGenomes ;
+  } ;
+
+  static void *Preprocess_Thread(void *pArg)
+  {
+    int i ;
+    size_t j, k ;
+    struct _preprocessThreadArg &arg = *((struct _preprocessThreadArg *)pArg) ;
+    int tid = arg.tid ;
+    std::vector<struct _dustmasker_perfect_interval> dustmaskerIntervals ;
+    std::vector<struct _dustmasker_perfect_interval> dustmaskerWindowIntervals ; 
+
+    for ( i = 0 ; i < arg.batchSize ; ++i)
+    {
+      if (i % arg.threadCnt != tid)
+        continue ;
+
+      if (arg.dustmasker != NULL)
+      {
+        arg.dustmasker->MaskWithBuffer(arg.genomeBatch[i].seq, strlen(arg.genomeBatch[i].seq), dustmaskerWindowIntervals, dustmaskerIntervals) ;
+        size_t maskRegionSize = dustmaskerIntervals.size() ;
+        for (j = 0 ; j < maskRegionSize ; ++j)
+        {
+          size_t start = dustmaskerIntervals[j].start ;
+          size_t end = dustmaskerIntervals[j].end ;
+          for (k = start ; k <= end ; ++k)
+            arg.genomeBatch[i].seq[k] = 'N' ;
+        }
+      }
+
+      arg.seqCompactor->Compact(arg.genomeBatch[i].seq, *(arg.compactGenomes + i)) ;
+    }
+    if (arg.threadCnt > 1)
+      pthread_exit(NULL) ;
+    else
+      return NULL;
+  }
+
+  static void PreprocessGenomeBatch(struct _Read *genomeBatch, int batchSize, SequenceCompactor &seqCompactor, Dustmasker *dustmasker, int threadCnt, FixedSizeElemArray *compactGenomes)
+  {
+    int i ;
+    pthread_t *threads = (pthread_t *)malloc(sizeof(pthread_t) * threadCnt) ;
+    struct _preprocessThreadArg *threadArgs = (struct _preprocessThreadArg *)malloc(sizeof(struct _preprocessThreadArg) * threadCnt) ; 
+    pthread_attr_t attr ;
+    pthread_attr_init( &attr ) ;
+    pthread_attr_setdetachstate( &attr, PTHREAD_CREATE_JOINABLE ) ;
+
+    for (i = 0 ; i < threadCnt ; ++i)
+    {
+      threadArgs[i].tid = i ;
+      threadArgs[i].threadCnt = threadCnt ;
+      threadArgs[i].genomeBatch = genomeBatch ;
+      threadArgs[i].batchSize = batchSize ;
+      threadArgs[i].dustmasker = dustmasker ;
+      threadArgs[i].seqCompactor = &seqCompactor ;
+      threadArgs[i].compactGenomes = compactGenomes ;
+    }
+
+    for (i = 0 ; i < batchSize ; ++i)
+    {
+      compactGenomes[i].SetSize(0) ;
+    }
+
+    if (threadCnt <= 1)
+    {
+      Preprocess_Thread((void *)&threadArgs[0]) ;
+    }
+    else
+    {
+      for (i = 0 ; i < threadCnt ; ++i)
+        pthread_create(&threads[i], &attr, Preprocess_Thread, (void *)&threadArgs[i]) ;
+      for (int i = 0 ; i < threadCnt ; ++i)
+        pthread_join(threads[i], NULL) ;
+    }
+    pthread_attr_destroy( &attr ) ;
+    free(threads) ;
+    free(threadArgs) ;
+  }
 
   // SampledSA need to be processed before FMIndex.Init() because the sampledSA is represented by FixedElemLengthArray, which requires the largest element size
   void TransformSampledSAToSeqId(struct _FMBuilderParam &fmBuilderParam, std::vector<size_t> genomeSeqIds,
@@ -83,9 +173,10 @@ public:
     _fmIndex.SetSequenceExtraParameter((void *)b) ;
   }
 
-  void Build(ReadFiles &refGenomeFile, char *taxonomyFile, char *nameTable, char *conversionTable, bool conversionTableAtFileLevel, bool concatSameTaxIdSeqs, bool ignoreUncategorizedSeqs, uint64_t subsetTax, size_t memoryConstraint, struct _FMBuilderParam &fmBuilderParam, const char *alphabetList)
+  void Build(ReadFiles &refGenomeFile, char *taxonomyFile, char *nameTable, char *conversionTable, bool conversionTableAtFileLevel, bool concatSameTaxIdSeqs, bool ignoreUncategorizedSeqs, bool dust, uint64_t subsetTax, size_t memoryConstraint, struct _FMBuilderParam &fmBuilderParam, const char *alphabetList)
   {
     size_t i ;
+    int k ;
     const int alphabetSize = strlen(alphabetList) ;
   
     _taxonomy.Init(taxonomyFile, nameTable, conversionTable, conversionTableAtFileLevel)  ; 
@@ -106,84 +197,149 @@ public:
       _taxonomy.GetChildrenTax(_taxonomy.CompactTaxId(subsetTax), selectedTaxIds) ; 
     std::vector<size_t> genomeSeqIds ;
     std::vector<size_t> genomeLens ; 
-    while (refGenomeFile.Next())
+
+    // The batches for preprocessing genomes
+    struct _Read *genomeBatch = NULL ;
+    const int maxBatchSize = 1024 * fmBuilderParam.threadCnt ;
+    genomeBatch = (struct _Read *)calloc(sizeof(struct _Read), maxBatchSize) ;
+    std::vector<size_t> seqidBatch ;
+    FixedSizeElemArray *compactGenomes = new FixedSizeElemArray[maxBatchSize] ;
+    for (k = 0 ; k < maxBatchSize ; ++k)
     {
-      size_t seqid = 0 ;
-      char fileNameBuffer[1024] ;
-      if (conversionTableAtFileLevel)
-      {
-        Utils::GetFileBaseName(refGenomeFile.GetFileName( refGenomeFile.GetCurrentFileInd() ).c_str(), 
-            "fna|fa|fasta|faa", fileNameBuffer) ;
-        seqid = _taxonomy.SeqNameToId(fileNameBuffer) ;
-      }
-      else
-        seqid = _taxonomy.SeqNameToId(refGenomeFile.id) ;
-
-      if (subsetTax != 0)
-      {
-        size_t taxid = _taxonomy.SeqIdToTaxId(seqid) ;
-        if (selectedTaxIds.find(taxid) == selectedTaxIds.end())
-          continue ;
-      }
-
-      if (!conversionTableAtFileLevel && _seqLength.find(seqid) != _seqLength.end()) // Assume there is no duplicated seqid. Though this happens a lot in the protein database...we handle that by promoting the seqid's corresponding taxID to LCA, so we only need to store that sequence once.
-        continue ;
-
-      if (seqid >= _taxonomy.GetSeqCount())
-      {
-        fprintf(stderr, "WARNING: taxonomy id doesn't exist for %s!\n", 
-            conversionTableAtFileLevel ? fileNameBuffer : refGenomeFile.id) ;
-        if (!ignoreUncategorizedSeqs)
-          seqid = _taxonomy.AddExtraSeqName(conversionTableAtFileLevel ? fileNameBuffer : refGenomeFile.id) ;
-        else
-          continue ;
-      }
-
-      if (!concatSameTaxIdSeqs)
-      {
-        size_t len = seqCompactor.Compact(refGenomeFile.seq, genomes) ;
-        if (len < fmBuilderParam.precomputeWidth + 1ull) // A genome too short
-        {
-          fprintf(stderr, "WARNING: %s is filtered due to its short length (could be from masker)!\n", refGenomeFile.id) ;
-          size_t size = genomes.GetSize() ;
-          genomes.SetSize(size - len) ;
-          continue ;
-        }
-
-        if (_seqLength.find(seqid) == _seqLength.end() )
-        {
-          _seqLength[seqid] = len ;
-          genomeSeqIds.push_back(seqid) ;
-          genomeLens.push_back(len) ;
-        }
-        else // This should only happen when conversionTableAtFileLevel is true, and seqid is esstentially filename, so genomeLens can be safely added together.
-        {
-          _seqLength[seqid] += len ;
-          genomeLens[ genomeLens.size() - 1 ] += len ;
-        }
-      }
-      else // concatenate seuqences with the same tax ID
-      {
-        size_t taxid = _taxonomy.SeqIdToTaxId(seqid) ;
-        if (taxIdGenomes.find(taxid) == taxIdGenomes.end())
-        {
-          FixedSizeElemArray *a = new FixedSizeElemArray ;
-          seqCompactor.Init(alphabetList, *a, 10000) ;
-          taxIdGenomes[taxid] = a ;
-        }
-
-        FixedSizeElemArray *a = taxIdGenomes[taxid] ;
-        size_t len = seqCompactor.Compact(refGenomeFile.seq, *a) ;
-        if (len < fmBuilderParam.precomputeWidth + 1ull) // A genome too short
-        {
-          fprintf(stderr, "WARNING: %s is filtered due to its short length (could be from masker)!\n", refGenomeFile.id) ;
-          size_t size = a->GetSize() ;
-          a->SetSize(size - len) ;
-          continue ;
-        }
-        _seqLength[seqid] = len ;
-      }
+      compactGenomes[k].Malloc(genomes.GetElemLength(), 1000000) ; // genomes is initialized through seqCompactor above, so we can reuse the element length.
     }
+    Dustmasker dustmasker ;
+    if (dust)
+    {
+      dustmasker.SetIgnoreLetterCase(true) ;
+      dustmasker.Init("ACGT") ;
+    }
+
+    while (1)
+    {
+      int batchSize = 0 ;
+      size_t totalSeqLen = 0 ; // The total length of the sequences in the current batch, used to estimate memory usage.
+      seqidBatch.clear() ;
+      for (batchSize = 0 ; batchSize < maxBatchSize ; )
+      {
+        int readFileStatus = refGenomeFile.NextWithBuffer(&genomeBatch[batchSize].id, 
+            &genomeBatch[batchSize].seq,
+            &genomeBatch[batchSize].qual, &genomeBatch[batchSize].comment) ;
+        if (readFileStatus == 0)  
+          break ;
+
+        size_t seqid = 0 ;
+        char fileNameBuffer[1024] ;
+        if (conversionTableAtFileLevel)
+        {
+          Utils::GetFileBaseName(refGenomeFile.GetFileName( refGenomeFile.GetCurrentFileInd() ).c_str(), 
+              "fna|fa|fasta|faa", fileNameBuffer) ;
+          seqid = _taxonomy.SeqNameToId(fileNameBuffer) ;
+        }
+        else
+          seqid = _taxonomy.SeqNameToId(genomeBatch[batchSize].id) ;
+
+        if (subsetTax != 0)
+        {
+          size_t taxid = _taxonomy.SeqIdToTaxId(seqid) ;
+          if (selectedTaxIds.find(taxid) == selectedTaxIds.end())
+            continue ;
+        }
+
+        if (!conversionTableAtFileLevel && _seqLength.find(seqid) != _seqLength.end()) // Assume there is no duplicated seqid. Though this happens a lot in the protein database...we handle that by promoting the seqid's corresponding taxID to LCA, so we only need to store that sequence once.
+          continue ;
+
+        if (seqid >= _taxonomy.GetSeqCount())
+        {
+          fprintf(stderr, "WARNING: taxonomy id doesn't exist for %s!\n", 
+              conversionTableAtFileLevel ? fileNameBuffer : genomeBatch[batchSize].id) ;
+          if (!ignoreUncategorizedSeqs)
+            seqid = _taxonomy.AddExtraSeqName(conversionTableAtFileLevel ? fileNameBuffer : genomeBatch[batchSize].id) ;
+          else
+            continue ;
+        }
+        seqidBatch.push_back(seqid) ;
+        totalSeqLen += refGenomeFile.GetReadLength() ;
+        ++batchSize ; // valid genome sequence is added to the batch
+        if (totalSeqLen > (memoryConstraint != 0 ? memoryConstraint / 10 : 1000000000ull))
+            break ;
+      } 
+      if (batchSize == 0)
+        break ;
+      PreprocessGenomeBatch(genomeBatch, batchSize, seqCompactor, dust ? &dustmasker : NULL, fmBuilderParam.threadCnt, compactGenomes) ;
+
+      // Now put the processed genomes into the final form.
+      for (k = 0 ; k < batchSize ; ++k)
+      {
+        size_t seqid = seqidBatch[k] ;
+        size_t len = compactGenomes[k].GetSize() ; 
+        
+        if (!conversionTableAtFileLevel && _seqLength.find(seqid) != _seqLength.end()) // Do this check again to avoid duplicated seqid in the same batch. 
+          continue ;
+
+        if (!concatSameTaxIdSeqs)
+        {
+          if (len < fmBuilderParam.precomputeWidth + 1ull) // A genome too short
+          {
+            fprintf(stderr, "WARNING: %s is filtered due to its short length (could be from masker)!\n", genomeBatch[k].id) ;
+            continue ;
+          }
+          genomes.PushBack(compactGenomes[k], len) ;
+
+          if (_seqLength.find(seqid) == _seqLength.end() )
+          {
+            _seqLength[seqid] = len ;
+            genomeSeqIds.push_back(seqid) ;
+            genomeLens.push_back(len) ;
+          }
+          else // This should only happen when conversionTableAtFileLevel is true, and seqid is esstentially filename, so genomeLens can be safely added together.
+          {
+            _seqLength[seqid] += len ;
+            genomeLens[ genomeLens.size() - 1 ] += len ;
+          }
+        }
+        else // concatenate seuqences with the same tax ID
+        {
+          size_t taxid = _taxonomy.SeqIdToTaxId(seqid) ;
+          if (taxIdGenomes.find(taxid) == taxIdGenomes.end())
+          {
+            FixedSizeElemArray *a = new FixedSizeElemArray ;
+            seqCompactor.Init(alphabetList, *a, 10000) ;
+            taxIdGenomes[taxid] = a ;
+          }
+
+          FixedSizeElemArray *a = taxIdGenomes[taxid] ;
+          if (len < fmBuilderParam.precomputeWidth + 1ull) // A genome too short
+          {
+            fprintf(stderr, "WARNING: %s is filtered due to its short length (could be from masker)!\n", genomeBatch[k].id) ;
+            continue ;
+          }
+          a->PushBack(compactGenomes[k], len) ;
+          _seqLength[seqid] = len ;
+        }
+      } // End of for loop with k
+      
+      // Check whether the compactGenomes took too much total memory. 
+      if (memoryConstraint != 0)
+      {
+        size_t totalBufferSize = 0 ;
+        for (k = 0 ; k < maxBatchSize ; ++k)
+          totalBufferSize += compactGenomes[k].GetSpace() ;
+        if (totalBufferSize > memoryConstraint / 10)
+        {
+          for (k = 0 ; k < maxBatchSize ; ++k)
+          {
+            compactGenomes[k].Free() ;
+            compactGenomes[k].Malloc(genomes.GetElemLength(), 1000000) ; // genomes is initialized through seqCompactor above, so we can reuse the element length.
+          }
+        }
+      }
+    } // End of while loop for reading genome batches 
+  
+    // Release the variables related to load genome batches
+    refGenomeFile.FreeBatch(genomeBatch, maxBatchSize) ;
+    free(genomeBatch) ;
+    delete [] compactGenomes ;
 
     if (concatSameTaxIdSeqs)
     {

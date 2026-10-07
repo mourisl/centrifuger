@@ -331,6 +331,12 @@ class ReadFiles
       return 1 ;
     }
 
+    // Get the read length of the current read regardless of using buffer or not.
+    size_t GetReadLength()
+    {
+      return inSeq->seq.l ;
+    }
+
     // Get a batch of reads, it terminates until the buffer is full or 
     // the file ends.
     // readBatch2 can be for interleaved file. 

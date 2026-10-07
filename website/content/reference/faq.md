@@ -56,7 +56,14 @@ What does change is the result. Because match length is not capped by a fixed *k
 
 ### Should I turn off DUST masking?
 
-Rarely. Low-complexity masking is on by default and stops homopolymers and simple repeats from generating misleading matches. `--no-dust` disables it, which is appropriate only when low-complexity sequence is itself the object of study.
+Rarely. Low-complexity masking is on by default and stops homopolymers and simple repeats from generating misleading matches.
+
+There are two `--no-dust` options, and they are independent:
+
+- `centrifuger-build --no-dust` leaves low-complexity regions of the **reference genomes** unmasked when the index is built.
+- `centrifuger --no-dust` leaves low-complexity regions of the **reads** unmasked at classification time.
+
+Disabling either is appropriate only when low-complexity sequence is itself the object of study. Protein indexes are never masked, so `--no-dust` has no effect on a `--protein` build.
 
 ### Why do my wildcards only match one file?
 
