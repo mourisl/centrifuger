@@ -208,7 +208,6 @@ WHEN USING database refseq OR genbank:
  -c <refseq category>   Only download genomes in the specified refseq category. Default: any.
  -t <taxids>            Only download the specified taxonomy IDs, comma separated. Default: any.
  -g <program>           Download using program. Options: rsync, curl, wget. Default $DL_PROG (auto-detected).
- -m <dustmasker_path>   Mask low-complexity regions using dustmasker. Default: off.
  -p                     Download protein sequences.  
  -r                     Download RNA sequences, too.
  -u                     Filter unplaced sequences.
@@ -216,6 +215,7 @@ WHEN USING database refseq OR genbank:
  -f                     Output file path to tax id mapping. Default: off (seqid to taxid map).
  -v                     Verbose mode
 "
+# -m <dustmasker_path>   Mask low-complexity regions using dustmasker. Default: off.
 
 # arguments: $OPTFIND (current index), $OPTARG (argument for option), $OPTERR (bash-specific)
 while getopts "o:P:d:a:c:t:g:m:uprlvf" OPT "$@"; do

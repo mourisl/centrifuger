@@ -169,14 +169,16 @@ To add human (taxonomy ID 9606) or mouse (taxonomy ID 10090) genome to the downl
 
 To build the index, first put the downloaded files in a list (this part is different from Centrifuge, where the files need to be concatenated) and then run centrifuger-build:
 	
-	find library -type f -name "*.fna.gz" > file.list # use *_dustmasked.fna.gz as the file list if using dustmasker in centrifuger-download 
+	find library -type f -name "*.fna.gz" > file.list 
 
 	## build centrifuger index with 4 threads on a server with 300GB memory
 	./centrifuger-build -t 4 --conversion-table seqid2taxid.map \
 		--taxonomy-tree taxonomy/nodes.dmp --name-table taxonomy/names.dmp \
 		-l file.list -o refseq_abv --build-mem 240G
 	
-After building the index, all but the refseq_abv.[1234].cfr index files may be removed.
+After building the index, all but the refseq_abv.[1234].cfr index files may be removed. 
+
+To download the protein database from NCBI, add the "-p" option to the centrifuger-download command. Then use "faa" instead "fna" to get the file list, and run centrifuger-build with the "--protein" option.
 
 * #### Build custom database index 
 The index building procedure is similar to [Centrifuge's](http://www.ccb.jhu.edu/software/centrifuge/manual.shtml#database-download-and-index-building), but with names changing to centrifuger. For example, centrifuge-download is centrifuger-download. 
