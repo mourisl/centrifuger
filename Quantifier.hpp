@@ -10,6 +10,7 @@
 
 #include <vector> 
 #include <algorithm>
+#include <math.h>
 #include <zlib.h>
 
 using namespace compactds ;
@@ -377,7 +378,69 @@ private:
     return pathSize ;
   }
 
-  // Use Depth-first search to print Kraken-report 
+  // Integer read counts for the kraken-report from real-valued subtree counts (readCount): the node ctid gets
+  // count reads, shared among the node itself (its real count minus its children's) and its children by largest
+  // remainder, in proportion to their real counts, and so on down the tree. Each node's integer count is then
+  // its own share plus its children's counts, and the shares add up to the root's count, so the report's taxon
+  // reads sum to its total however the real counts round. intCount must be zeroed.
+  void AllocateIntegerCounts(const Tree_Plain &tree, size_t ctid, const double *readCount, uint64_t count, double *intCount)
+  {
+    size_t i ;
+    intCount[ctid] = (double)count ;
+    if (count == 0)
+      return ;
+    std::vector<size_t> children = tree.GetChildren(ctid) ;
+    size_t csize = children.size() ;
+    if (csize == 0)
+      return ;
+
+    std::vector<double> part(csize + 1) ; // part[0]: the node itself; part[i + 1]: child i
+    double childSum = 0 ;
+    for (i = 0 ; i < csize ; ++i)
+    {
+      part[i + 1] = readCount[children[i]] > 0 ? readCount[children[i]] : 0 ;
+      childSum += part[i + 1] ;
+    }
+    part[0] = readCount[ctid] - childSum ;
+    if (part[0] < 0)
+      part[0] = 0 ;
+    double total = part[0] + childSum ;
+
+    std::vector<uint64_t> alloc(csize + 1, 0) ;
+    if (total <= 0)
+      alloc[0] = count ;
+    else
+    {
+      std::vector< std::pair<double, size_t> > remainder(csize + 1) ; // (-remainder, part): sorting puts the largest first
+      uint64_t given = 0 ;
+      for (i = 0 ; i <= csize ; ++i)
+      {
+        double q = (double)count * part[i] / total ;
+        alloc[i] = (uint64_t)floor(q) ;
+        given += alloc[i] ;
+        remainder[i] = std::make_pair(-(q - floor(q)), i) ;
+      }
+      std::sort(remainder.begin(), remainder.end()) ;
+      for (i = 0 ; given < count ; ++i)
+      {
+        ++alloc[ remainder[i % (csize + 1)].second ] ;
+        ++given ;
+      }
+      for (i = csize + 1 ; given > count && i > 0 ; --i) // floating-point error can overshoot by a read or so
+      {
+        size_t j = remainder[i - 1].second ;
+        if (alloc[j] > 0)
+        {
+          --alloc[j] ;
+          --given ;
+        }
+      }
+    }
+    for (i = 0 ; i < csize ; ++i)
+      AllocateIntegerCounts(tree, children[i], readCount, alloc[i + 1], intCount) ;
+  }
+
+  // Use Depth-first search to print Kraken-report
   // readCount: the clade read counts to print (_readCount, or _emReadCount for --em-reads); a node whose count is
   // below minCount is left out with its subtree.
   void OutputKreportDFS(const Tree_Plain &tree, size_t ctid, int depth, int distanceToPrevCanonicalRank, const char prevCanonicalRankSymbol, FILE *fp,
@@ -863,7 +926,7 @@ public:
     }
     else if (format == QUANTIFIER_OUTPUT_FORMAT_CAMI)
     {
-      fprintf(fp, "@@TAXID\tRANK\tTAXPATH\tTAXPATHSN\tPERCENTAGE%s\n", emReads ? "\t_EMNUMREADS" : "") ;
+      fprintf(fp, "@@TAXID\tRANK\tTAXPATH\tTAXPATHSN\tPERCENTAGE%s\n", emReads ? "\t_CENTRIFUGER_EMNUMREADS" : "") ;
       for (i = 0 ; i < nodeCnt ; ++i)
       {
         if (_readCount[i] < 1e-6)
@@ -890,9 +953,14 @@ public:
       Tree_Plain tree ;
       _taxonomy.ConvertToGeneralTree(tree) ;
       // The kraken-report keeps its six columns (Pavian, Bracken and KrakenTools read it by position); with
-      // emReads its two read columns hold EM read counts, and taxa whose EM count rounds to 0 are left out.
+      // emReads its two read columns hold EM read counts, made whole by AllocateIntegerCounts so that clade and
+      // taxon reads add up, and taxa that get no read are left out.
       if (emReads)
-        OutputKreportDFS(tree, tree.Root(), 0, 0, '\0', fp, _emReadCount, 0.5) ; 
+      {
+        std::vector<double> emInt(nodeCnt + 1, 0) ;
+        AllocateIntegerCounts(tree, tree.Root(), _emReadCount, (uint64_t)llround(_emReadCount[tree.Root()]), emInt.data()) ;
+        OutputKreportDFS(tree, tree.Root(), 0, 0, '\0', fp, emInt.data(), 0.5) ;
+      }
       else
         OutputKreportDFS(tree, tree.Root(), 0, 0, '\0', fp, _readCount, 1e-6) ; 
     }
