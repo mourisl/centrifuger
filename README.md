@@ -135,19 +135,21 @@ The seventh column is the length of a read or the combined length of mate pairs 
 The eighth column is the number of classifications for this read, indicating how many assignments were made in the output (e.g.,1).
 ```
 
-The "centrifuger-quant" estimate the abundance for each taxonomy ID, and the quantification output has 7 columns.
+The "centrifuger-quant" estimate the abundance for each taxonomy ID, and the quantification output has 9 columns.
 
 ```
-name	taxID	taxRank	genomeSize	numReads	numUniqueReads	abundance
-Legionella_pneumophila_subsp._pneumophila_str._Philadelphia_1	272624	strain	3397753	50	48	0.392641
+name	taxID	taxRank	genomeSize	numReads	numUniqueReads	abundance	emNumReads	emNumReadsWeighted
+Legionella_pneumophila_subsp._pneumophila_str._Philadelphia_1	272624	strain	3353119	50	47	0.3481908	49.089	6.607
 
 The first column is the name of a genome, or the name corresponding to a taxonomic ID (the second column) at a rank higher than the strain (e.g., Legionella_pneumophila_subsp...).
 The second column is the taxonomic ID (e.g., 272624).
 The third column is the taxonomic rank (e.g., strain).
-The fourth column is the length of the genome sequence (e.g., 3397753).
+The fourth column is the length of the genome sequence (e.g., 3353119).
 The fifth column is the number of reads classified to some genomic sequences (multi-classified reads are evenly distributed) under this taxonomy node (e.g., 50).
-The sixth column is the number of reads uniquely classified to a genomic sequence under this taxonomy node (e.g., 48).
-The seventh column is the proportion of this genome normalized by its genomic length (e.g., 0.392641).
+The sixth column is the number of reads uniquely classified to a genomic sequence under this taxonomy node (e.g., 47).
+The seventh column is the proportion of this genome normalized by its genomic length (e.g., 0.3481908).
+The eighth column is the number of reads under this taxonomy node when each multi-classified read is shared among its classifications in proportion to the EM abundance estimate, instead of evenly as in the fifth column (e.g., 49.089). It is one further E-step of the EM with the final abundances, counting each read as 1. Like the fifth column it sums the whole subtree, so the root holds all classified reads.
+The ninth column is the EM's own final read weight under this taxonomy node (e.g., 6.607): each read is weighted by how much of it the hit covers, not by its score (the weight is quartered for every base the hit falls short of the read beyond 1% of its length, at most 11 times), so this column is not a read count and its total can be far below the number of classified reads; and the weight a node holds beyond its children's is passed down to them in proportion to their abundance divided by genome length, as in the abundance estimate.
 ```
 
 ### Practical notes

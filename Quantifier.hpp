@@ -95,6 +95,8 @@ private:
   double *_abund ;
   double *_readCount ; // number of reads assigned to this tax ID and its subtree, taking the probability distribution into account.
   double *_uniqReadCount ; // number of reads uniquely assigned to this tax ID. Unique is at the strain/sequence level in its subtree.
+  double *_emReadCount ; // number of reads in this tax ID's subtree when each read is shared among its targets by the EM abundance (one more E-step with the final abundance, read counts instead of weights, no redistribution).
+  double *_emReadCountWeighted ; // the EM's own final read weights in the subtree (each read weighted by its hit coverage, CalculateAssignmentWeight; a node's excess redistributed to its children in proportion to their abundance over genome length), as computed inside EstimateAbundanceWithEM.
   size_t _unclassifiedReadCount ; // number of unclassified reads or filtered due to other reasons.  
 
   bool _hasExpandedTaxIds ;
@@ -234,6 +236,29 @@ private:
       diffSum += ABS(abund0[i] - abund1[i]) ;
     }
     return diffSum ;
+  }
+
+  // E-step of EMupdate with each assignment's read count instead of its weight. readCount must be zeroed.
+  // An assignment whose targets all have zero abundance is shared evenly, as in the EM's initialisation.
+  void EStepCount(const std::vector< struct _readAssignment> &assignments, const double *abund, double *readCount)
+  {
+    size_t i, j ;
+    size_t size = assignments.size() ;
+    for (i = 0 ; i < size ; ++i)
+    {
+      const std::vector<uint64_t> &targets = assignments[i].targets ;
+      size_t targetCnt = targets.size() ;
+      double sum = 0 ;
+      for (j = 0 ; j < targetCnt ; ++j)
+        sum += abund[ targets[j] ] ;
+      for (j = 0 ; j < targetCnt ; ++j)
+      {
+        if (sum > 0)
+          readCount[ targets[j] ] += assignments[i].count * abund[ targets[j] ] / sum ;
+        else
+          readCount[ targets[j] ] += assignments[i].count / (double)targetCnt ;
+      }
+    }
   }
 
   void EstimateAbundanceWithEM(const std::vector< struct _readAssignment > &assignments, const Tree_Plain &tree, size_t *taxidLen, double *treeEdgeWeight, double *readCount, double *abund)
@@ -414,6 +439,8 @@ public:
     _abund = NULL ;
     _readCount = NULL ;
     _uniqReadCount = NULL ;
+    _emReadCount = NULL ;
+    _emReadCountWeighted = NULL ;
     _taxidLength = NULL ;
 
     _hasExpandedTaxIds = false ;
@@ -425,6 +452,8 @@ public:
     {
       free(_taxidLength) ;
       free(_uniqReadCount) ;
+      free(_emReadCount) ;
+      free(_emReadCountWeighted) ;
       free(_readCount) ;
       free(_abund) ;
     }
@@ -454,6 +483,8 @@ public:
     _abund = (double *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(_abund[0])) ;
     _readCount = (double *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(_readCount)) ;
     _uniqReadCount = (double *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(_uniqReadCount)) ;
+    _emReadCount = (double *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(double)) ;
+    _emReadCountWeighted = (double *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(double)) ;
     _taxidLength = (size_t *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(size_t)) ;
     
     // Initialize genome length. It stores the average genome size if there are multiple genomes, such as internal nodes
@@ -467,6 +498,8 @@ public:
     _abund = (double *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(_abund[0])) ;
     _readCount = (double *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(_readCount)) ;
     _uniqReadCount = (double *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(_uniqReadCount)) ;
+    _emReadCount = (double *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(double)) ;
+    _emReadCountWeighted = (double *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(double)) ;
     _taxidLength = (size_t *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(size_t)) ;
 
     if (sizeTable)
@@ -735,10 +768,22 @@ public:
         _hasExpandedTaxIds ? subtreeEdgeWeight : NULL, 
         subtreeReadCount, subtreeAbund) ;
 
+    // The EM's final read weights: weighted by hit coverage and redistributed to the children by abundance over genome length.
+    for (i = 0 ; i < subtreeSize; ++i)
+      _emReadCountWeighted[ coveredTaxIds.Inverse(i) ] = subtreeReadCount[i] ;
+
+    // One more E-step with the final abundance, sharing read counts (not weights), so that the subtree sums are
+    // comparable to numReads, which shares each read evenly among its targets instead.
+    double *subtreeEmReadCount = (double *)calloc(subtreeSize, sizeof(*subtreeEmReadCount)) ;
+    EStepCount(subtreeAssignments, subtreeAbund, subtreeEmReadCount) ;
+    GenerateTreeAbundance(subtree.Root(), subtreeEmReadCount, subtree) ;
+
     for (i = 0 ; i < subtreeSize; ++i)
     {
       _abund[ coveredTaxIds.Inverse(i) ] = subtreeAbund[i] ;
+      _emReadCount[ coveredTaxIds.Inverse(i) ] = subtreeEmReadCount[i] ;
     }
+    free(subtreeEmReadCount) ;
     free(subtreeAbund) ;
     free(subtreeReadCount) ;
     free(subtreeTaxIdLen) ;
@@ -804,18 +849,21 @@ public:
       if (format != QUANTIFIER_OUTPUT_FORMAT_CENTRIFUGER)
         Utils::PrintLog("Warning: unknown output format, will output in Centrifuger format.\n") ;
       
-      fprintf(fp, "name\ttaxID\ttaxRank\tgenomeSize\tnumReads\tnumUniqueReads\tabundance\n") ;
+      // emNumReads and emNumReadsWeighted are appended after the original columns, so that readers that use the
+      // column positions keep working.
+      fprintf(fp, "name\ttaxID\ttaxRank\tgenomeSize\tnumReads\tnumUniqueReads\tabundance\temNumReads\temNumReadsWeighted\n") ;
       for (i = 0 ; i < nodeCnt ; ++i)
       {
         if (_readCount[i] < 1e-6)
           continue ;
 
-        fprintf(fp, "%s\t%lu\t%s\t%lu\t%d\t%d\t%.7lf\n",
-            _taxonomy.GetTaxIdName(i).c_str(), 
+        fprintf(fp, "%s\t%lu\t%s\t%lu\t%d\t%d\t%.7lf\t%.3lf\t%.3lf\n",
+            _taxonomy.GetTaxIdName(i).c_str(),
             _taxonomy.GetOrigTaxId(i),
             _taxonomy.GetTaxRankString( _taxonomy.GetTaxIdRank(i)),
-            _taxidLength[i], 
-            (int)(_readCount[i] + 1e-3), (int)(_uniqReadCount[i] + 1e-3), _abund[i]) ;
+            _taxidLength[i],
+            (int)(_readCount[i] + 1e-3), (int)(_uniqReadCount[i] + 1e-3), _abund[i],
+            _emReadCount[i], _emReadCountWeighted[i]) ;
       }
     }
   }
