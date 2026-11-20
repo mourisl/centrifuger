@@ -440,9 +440,13 @@ private:
     _taxidLength = NULL ;
   }
 
+  // Also drops the read assignments, which hold compact tax IDs of the taxonomy loaded before.
   void AllocArrays()
   {
     FreeArrays() ;
+    _assignments.clear() ;
+    _childReadCount.clear() ;
+    _unclassifiedReadCount = 0 ;
     size_t n = _taxonomy.GetNodeCount() + 1 ;
     _abund = (double *)calloc(n, sizeof(double)) ;
     _readCount = (double *)calloc(n, sizeof(double)) ;
@@ -697,6 +701,11 @@ public:
   {
     size_t i, j ;
 
+    if (_abund == NULL)
+    {
+      Utils::PrintLog("ERROR: Quantification called before Init.") ;
+      return ;
+    }
     ClearResults() ;
     CoalesceAssignments() ;
     size_t assignCnt = _assignments.size() ;
@@ -816,6 +825,11 @@ public:
   {
     size_t i ;
     size_t nodeCnt = _taxonomy.GetNodeCount() ;
+    if (_abund == NULL)
+    {
+      Utils::PrintLog("ERROR: Output called before Init.") ;
+      return ;
+    }
       
     if (format == QUANTIFIER_OUTPUT_FORMAT_METAPHLAN)
     {
