@@ -426,6 +426,43 @@ private:
       OutputKreportDFS(tree, children[i], depth + 1, distanceToPrevCanonicalRank + 1, r[0], fp) ;
   }
 
+  // Per-taxonomy-node arrays, sized by the loaded taxonomy. Init frees the old ones first, so calling Init again
+  // (for another taxonomy) does not leak them.
+  void FreeArrays()
+  {
+    free(_abund) ;
+    free(_readCount) ;
+    free(_uniqReadCount) ;
+    free(_emReadCount) ;
+    free(_emReadCountWeighted) ;
+    free(_taxidLength) ;
+    _abund = _readCount = _uniqReadCount = _emReadCount = _emReadCountWeighted = NULL ;
+    _taxidLength = NULL ;
+  }
+
+  void AllocArrays()
+  {
+    FreeArrays() ;
+    size_t n = _taxonomy.GetNodeCount() + 1 ;
+    _abund = (double *)calloc(n, sizeof(double)) ;
+    _readCount = (double *)calloc(n, sizeof(double)) ;
+    _uniqReadCount = (double *)calloc(n, sizeof(double)) ;
+    _emReadCount = (double *)calloc(n, sizeof(double)) ;
+    _emReadCountWeighted = (double *)calloc(n, sizeof(double)) ;
+    _taxidLength = (size_t *)calloc(n, sizeof(size_t)) ;
+  }
+
+  // Zero the per-node results, so that each Quantification starts afresh instead of adding to the previous one.
+  void ClearResults()
+  {
+    size_t n = _taxonomy.GetNodeCount() + 1 ;
+    memset(_abund, 0, sizeof(double) * n) ;
+    memset(_readCount, 0, sizeof(double) * n) ;
+    memset(_uniqReadCount, 0, sizeof(double) * n) ;
+    memset(_emReadCount, 0, sizeof(double) * n) ;
+    memset(_emReadCountWeighted, 0, sizeof(double) * n) ;
+  }
+
 public:
   Quantifier()
   {
@@ -448,15 +485,7 @@ public:
 
   ~Quantifier()
   {
-    if (_abund != NULL)
-    {
-      free(_taxidLength) ;
-      free(_uniqReadCount) ;
-      free(_emReadCount) ;
-      free(_emReadCountWeighted) ;
-      free(_readCount) ;
-      free(_abund) ;
-    }
+    FreeArrays() ;
   }
 
   // file: classificaiont output file
@@ -480,12 +509,7 @@ public:
       _seqLength[tmp[0]] = tmp[1] ;
     fclose(fp) ;
   
-    _abund = (double *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(_abund[0])) ;
-    _readCount = (double *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(_readCount)) ;
-    _uniqReadCount = (double *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(_uniqReadCount)) ;
-    _emReadCount = (double *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(double)) ;
-    _emReadCountWeighted = (double *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(double)) ;
-    _taxidLength = (size_t *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(size_t)) ;
+    AllocArrays() ;
     
     // Initialize genome length. It stores the average genome size if there are multiple genomes, such as internal nodes
     _taxonomy.ConvertSeqLengthToTaxLength(_seqLength, _taxidLength) ; 
@@ -493,14 +517,10 @@ public:
 
   void Init(char *taxonomyTree, char *nameTable, char *sizeTable)
   {
+    _taxonomy.Free() ;
     _taxonomy.Init(taxonomyTree, nameTable) ;
     
-    _abund = (double *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(_abund[0])) ;
-    _readCount = (double *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(_readCount)) ;
-    _uniqReadCount = (double *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(_uniqReadCount)) ;
-    _emReadCount = (double *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(double)) ;
-    _emReadCountWeighted = (double *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(double)) ;
-    _taxidLength = (size_t *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(size_t)) ;
+    AllocArrays() ;
 
     if (sizeTable)
     {
@@ -677,6 +697,7 @@ public:
   {
     size_t i, j ;
 
+    ClearResults() ;
     CoalesceAssignments() ;
     size_t assignCnt = _assignments.size() ;
     std::vector< struct _readAssignment> subtreeAssignments ; // the assignment where the targe ID is with respect to the subtree 
@@ -857,12 +878,14 @@ public:
         if (_readCount[i] < 1e-6)
           continue ;
 
-        fprintf(fp, "%s\t%lu\t%s\t%lu\t%d\t%d\t%.7lf\t%.3lf\t%.3lf\n",
+        // numReads and numUniqueReads are printed as 64-bit integers (they were int, which overflows above
+        // 2^31 - 1 reads); the values are truncated the same way as before.
+        fprintf(fp, "%s\t%lu\t%s\t%lu\t%llu\t%llu\t%.7lf\t%.3lf\t%.3lf\n",
             _taxonomy.GetTaxIdName(i).c_str(),
             _taxonomy.GetOrigTaxId(i),
             _taxonomy.GetTaxRankString( _taxonomy.GetTaxIdRank(i)),
             _taxidLength[i],
-            (int)(_readCount[i] + 1e-3), (int)(_uniqReadCount[i] + 1e-3), _abund[i],
+            (unsigned long long)(_readCount[i] + 1e-3), (unsigned long long)(_uniqReadCount[i] + 1e-3), _abund[i],
             _emReadCount[i], _emReadCountWeighted[i]) ;
       }
     }
