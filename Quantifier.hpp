@@ -382,7 +382,8 @@ private:
   // count reads, shared among the node itself (its real count minus its children's) and its children by largest
   // remainder, in proportion to their real counts, and so on down the tree. Each node's integer count is then
   // its own share plus its children's counts, and the shares add up to the root's count, so the report's taxon
-  // reads sum to its total however the real counts round. intCount must be zeroed.
+  // reads sum to its total however the real counts round. intCount must be zeroed. The counts are kept as doubles
+  // like the rest of the report, so this is exact up to 2^53 reads.
   void AllocateIntegerCounts(const Tree_Plain &tree, size_t ctid, const double *readCount, uint64_t count, double *intCount)
   {
     size_t i ;
@@ -426,9 +427,16 @@ private:
         ++alloc[ remainder[i % (csize + 1)].second ] ;
         ++given ;
       }
-      for (i = csize + 1 ; given > count && i > 0 ; --i) // floating-point error can overshoot by a read or so
+      // Floating-point error can push a quota that is a whole number to just above it, so the floors can add up
+      // to more than count: take reads back from the parts with the smallest remainders, cycling until they add up.
+      // (There is always a part left to take from, as the parts add up to given > count >= 0.)
+      i = csize + 1 ;
+      while (given > count)
       {
+        if (i == 0)
+          i = csize + 1 ;
         size_t j = remainder[i - 1].second ;
+        --i ;
         if (alloc[j] > 0)
         {
           --alloc[j] ;
