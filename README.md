@@ -113,6 +113,7 @@ Here is a list of pre-built indexes:
         --min-score INT: only consider reads with score at least <int> 
         --min-length INT: only consider reads with classified length at least <int>
         --output-format INT: output format. (0:centrifuge,default, 1:MetaPhlAn, 2:CAMI, 3:kraken-report)        
+        --em-reads: report read counts from the EM (emNumReads, see below). (default: off)
 
 The quantification results will be affected by the "-k" option from the classification program "centrifuger". Increasing "-k" will provide ambiguous but more specific classification result, potentially can improve the quantification result.  
 
@@ -151,6 +152,8 @@ The seventh column is the proportion of this genome normalized by its genomic le
 The eighth column is the number of reads under this taxonomy node when each multi-classified read is shared among its classifications in proportion to the EM abundance estimate, instead of evenly as in the fifth column (e.g., 49.089). It is one further E-step of the EM with the final abundances, counting each read as 1. Like the fifth column it sums the whole subtree, so the root holds all classified reads.
 The ninth column is the EM's own final read weight under this taxonomy node (e.g., 6.607): each read is weighted by how much of it the hit covers, not by its score (the weight is quartered for every base the hit falls short of the read beyond 1% of its length, at most 11 times), so this column is not a read count and its total can be far below the number of classified reads; and the weight a node holds beyond its children's is passed down to them in proportion to their abundance divided by genome length, as in the abundance estimate.
 ```
+
+With "--em-reads", the other formats report the EM read counts too. The kraken-report (format 3) keeps its six columns and fills its two read-count columns (clade and taxon reads) with the EM read counts, rounded, instead of the evenly split counts; taxa whose EM count rounds to 0 are left out. Pavian reads it like the default report and shows the EM counts in place of the even split; the column layout that tools such as Bracken and KrakenTools expect is the same. The MetaPhlAn (format 1) and CAMI (format 2) outputs, which have no read counts, get the EM read count as a last column (emNumReads and _EMNUMREADS). The centrifuger format (format 0) always has emNumReads and emNumReadsWeighted. Without "--em-reads", formats 1-3 are unchanged.
 
 ### Practical notes
 * #### Create index for genomes from NCBI.

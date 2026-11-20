@@ -378,11 +378,14 @@ private:
   }
 
   // Use Depth-first search to print Kraken-report 
-  void OutputKreportDFS(const Tree_Plain &tree, size_t ctid, int depth, int distanceToPrevCanonicalRank, const char prevCanonicalRankSymbol, FILE *fp)
+  // readCount: the clade read counts to print (_readCount, or _emReadCount for --em-reads); a node whose count is
+  // below minCount is left out with its subtree.
+  void OutputKreportDFS(const Tree_Plain &tree, size_t ctid, int depth, int distanceToPrevCanonicalRank, const char prevCanonicalRankSymbol, FILE *fp,
+      const double *readCount, double minCount)
   {
     size_t i ;
     char r[25] ; // rank symbol
-    if (_readCount[ctid] < 1e-6) 
+    if (readCount[ctid] < minCount) 
       return ;
 
     if (_taxonomy.IsInCanonicalRank(ctid)
@@ -411,10 +414,10 @@ private:
     std::vector<size_t> children = tree.GetChildren(ctid) ;
     size_t childrenCnt = children.size() ;
     for (i = 0 ; i < childrenCnt ; ++i)
-      childrenReadCount += _readCount[children[i]] ;
+      childrenReadCount += readCount[children[i]] ;
     
-    fprintf(fp, "%.2lf\t%.0lf\t%.0lf\t%s\t%lu\t", _abund[ctid] * 100, _readCount[ctid],
-        _readCount[ctid] - childrenReadCount, r, _taxonomy.GetOrigTaxId(ctid)) ;
+    fprintf(fp, "%.2lf\t%.0lf\t%.0lf\t%s\t%lu\t", _abund[ctid] * 100, readCount[ctid],
+        readCount[ctid] - childrenReadCount, r, _taxonomy.GetOrigTaxId(ctid)) ;
 
     for (i = 0 ; i < (size_t)depth ; ++i)
     {
@@ -423,7 +426,7 @@ private:
     fprintf(fp, "%s\n", _taxonomy.GetTaxIdName(ctid).c_str()) ;
 
     for (i = 0 ; i < childrenCnt ; ++i)
-      OutputKreportDFS(tree, children[i], depth + 1, distanceToPrevCanonicalRank + 1, r[0], fp) ;
+      OutputKreportDFS(tree, children[i], depth + 1, distanceToPrevCanonicalRank + 1, r[0], fp, readCount, minCount) ;
   }
 
   // Per-taxonomy-node arrays, sized by the loaded taxonomy. Init frees the old ones first, so calling Init again
@@ -821,7 +824,10 @@ public:
   }
 
   // format: check the enum 
-  void Output(FILE *fp, int format)
+  // emReads: use the EM read counts (emNumReads) where a format has read counts (kraken-report), and add them as a
+  // last column where it has none (MetaPhlAn, CAMI). The other columns, and the default output, are as before; the
+  // centrifuger format always has emNumReads and emNumReadsWeighted.
+  void Output(FILE *fp, int format, bool emReads = false)
   {
     size_t i ;
     size_t nodeCnt = _taxonomy.GetNodeCount() ;
@@ -833,7 +839,7 @@ public:
       
     if (format == QUANTIFIER_OUTPUT_FORMAT_METAPHLAN)
     {
-      fprintf(fp, "#clade_name\tNCBI_tax_id\trelative_abundance\tadditional_species\n") ;      
+      fprintf(fp, "#clade_name\tNCBI_tax_id\trelative_abundance\tadditional_species%s\n", emReads ? "\temNumReads" : "") ;      
       for (i = 0 ; i < nodeCnt ; ++i)
       {
         if (_readCount[i] < 1e-6)
@@ -849,12 +855,15 @@ public:
         GetTaxLineagePathString(i, format, false, true, taxIdPathString) ;
         GetTaxLineagePathString(i, format, true, true, taxNamePathString) ;
 
-        fprintf(fp, "%s\t%s\t%.5lf\t\n", taxNamePathString.c_str(), taxIdPathString.c_str(), _abund[i] * 100.0 ) ; 
+        fprintf(fp, "%s\t%s\t%.5lf\t", taxNamePathString.c_str(), taxIdPathString.c_str(), _abund[i] * 100.0 ) ; 
+        if (emReads)
+          fprintf(fp, "\t%.3lf", _emReadCount[i]) ;
+        fprintf(fp, "\n") ;
       }
     }
     else if (format == QUANTIFIER_OUTPUT_FORMAT_CAMI)
     {
-      fprintf(fp, "@@TAXID\tRANK\tTAXPATH\tTAXPATHSN\tPERCENTAGE\n") ;
+      fprintf(fp, "@@TAXID\tRANK\tTAXPATH\tTAXPATHSN\tPERCENTAGE%s\n", emReads ? "\t_EMNUMREADS" : "") ;
       for (i = 0 ; i < nodeCnt ; ++i)
       {
         if (_readCount[i] < 1e-6)
@@ -870,14 +879,22 @@ public:
         GetTaxLineagePathString(i, format, false, true, taxIdPathString) ;
         GetTaxLineagePathString(i, format, true, true, taxNamePathString) ;
         
-        fprintf(fp, "%lu\t%s\t%s\t%s\t%.5lf\n", _taxonomy.GetOrigTaxId(i), _taxonomy.GetTaxRankString(_taxonomy.GetTaxIdRank(i)), taxIdPathString.c_str(), taxNamePathString.c_str(), _abund[i] * 100.0 ) ; 
+        fprintf(fp, "%lu\t%s\t%s\t%s\t%.5lf", _taxonomy.GetOrigTaxId(i), _taxonomy.GetTaxRankString(_taxonomy.GetTaxIdRank(i)), taxIdPathString.c_str(), taxNamePathString.c_str(), _abund[i] * 100.0 ) ; 
+        if (emReads)
+          fprintf(fp, "\t%.3lf", _emReadCount[i]) ;
+        fprintf(fp, "\n") ;
       }
     }
     else if (format == QUANTIFIER_OUTPUT_FORMAT_KREPORT)
     {
       Tree_Plain tree ;
       _taxonomy.ConvertToGeneralTree(tree) ;
-      OutputKreportDFS(tree, tree.Root(), 0, 0, '\0', fp) ; 
+      // The kraken-report keeps its six columns (Pavian, Bracken and KrakenTools read it by position); with
+      // emReads its two read columns hold EM read counts, and taxa whose EM count rounds to 0 are left out.
+      if (emReads)
+        OutputKreportDFS(tree, tree.Root(), 0, 0, '\0', fp, _emReadCount, 0.5) ; 
+      else
+        OutputKreportDFS(tree, tree.Root(), 0, 0, '\0', fp, _readCount, 1e-6) ; 
     }
     else
     {

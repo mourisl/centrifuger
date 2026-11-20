@@ -18,6 +18,9 @@ char usage[] = "./centrifuger-quant [OPTIONS]:\n"
   "\t--min-score INT: only consider reads with score at least <int> \n"
   "\t--min-length INT: only consider reads with classified length at least <int>\n"
   "\t--output-format INT: output format. (0:centrifuge,default, 1:metaphlan, 2:CAMI, 3:kraken-report)\n"
+  "\t--em-reads: report read counts from the EM (emNumReads): in the kraken-report they replace the evenly split\n"
+  "\t\tread counts (same six columns), MetaPhlAn and CAMI get them as a last column. (default: off;\n"
+  "\t\tthe centrifuge format always has emNumReads and emNumReadsWeighted)\n"
   "\t-h: print this usage message\n"
   ""
   ;
@@ -30,6 +33,7 @@ static struct option long_options[] = {
   { "min-score", required_argument, 0, ARGV_QUANT_MINSCORE},
   { "min-length", required_argument, 0, ARGV_QUANT_MINLENGTH},
   { "output-format", required_argument, 0, ARGV_QUANT_OUTPUT_FORMAT},
+  { "em-reads", no_argument, 0, ARGV_QUANT_EM_READS},
   { (char *)0, 0, 0, 0} 
 } ;
 
@@ -53,6 +57,7 @@ int main(int argc, char *argv[])
   char *nameTable = NULL ;
   char *sizeTable = NULL ;
   int outputFormat = 0 ;
+  bool emReads = false ;
 
   while (1)
   {
@@ -93,6 +98,10 @@ int main(int argc, char *argv[])
     {
       outputFormat = atoi(optarg) ;
     }
+    else if (c == ARGV_QUANT_EM_READS)
+    {
+      emReads = true ;
+    }
     else if (c == 'h')
     {
       fprintf( stdout, "%s", usage ) ;
@@ -123,7 +132,7 @@ int main(int argc, char *argv[])
 
   quantifier.Quantification() ;
 
-  quantifier.Output(stdout, outputFormat) ;
+  quantifier.Output(stdout, outputFormat, emReads) ;
 
   free(classificationFile) ;
  
