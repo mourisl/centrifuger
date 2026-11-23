@@ -21,6 +21,8 @@ char usage[] = "./centrifuger-quant [OPTIONS]:\n"
   "\t--em-reads: report read counts from the EM (emNumReads): in the kraken-report they replace the evenly split\n"
   "\t\tread counts (same six columns), MetaPhlAn and CAMI get them as a last column. (default: off;\n"
   "\t\tthe centrifuge format always has emNumReads and emNumReadsWeighted)\n"
+  "\t--protein: the classification used a protein index (hit lengths in amino acids). Only needed without -x;\n"
+  "\t\twith -x it is read from the index. (default: off)\n"
   "\t-h: print this usage message\n"
   ""
   ;
@@ -34,6 +36,7 @@ static struct option long_options[] = {
   { "min-length", required_argument, 0, ARGV_QUANT_MINLENGTH},
   { "output-format", required_argument, 0, ARGV_QUANT_OUTPUT_FORMAT},
   { "em-reads", no_argument, 0, ARGV_QUANT_EM_READS},
+  { "protein", no_argument, 0, ARGV_QUANT_PROTEIN},
   { (char *)0, 0, 0, 0} 
 } ;
 
@@ -58,6 +61,7 @@ int main(int argc, char *argv[])
   char *sizeTable = NULL ;
   int outputFormat = 0 ;
   bool emReads = false ;
+  bool protein = false ;
 
   while (1)
   {
@@ -102,6 +106,10 @@ int main(int argc, char *argv[])
     {
       emReads = true ;
     }
+    else if (c == ARGV_QUANT_PROTEIN)
+    {
+      protein = true ;
+    }
     else if (c == 'h')
     {
       fprintf( stdout, "%s", usage ) ;
@@ -127,6 +135,10 @@ int main(int argc, char *argv[])
     quantifier.Init(idxPrefix) ;
   else
     quantifier.Init(taxonomyFile, nameTable, sizeTable) ;
+  if (protein)
+    quantifier.SetProtein(true) ;
+  if (quantifier.IsProtein())
+    Utils::PrintLog("Protein index: hit lengths are taken as amino acids.") ;
   quantifier.LoadReadAssignments(classificationFile, classificationMinScore, classificationMinLength, 0) ;
   Utils::PrintLog("Finish loading the read classification result.") ;
 

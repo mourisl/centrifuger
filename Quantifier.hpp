@@ -101,6 +101,7 @@ private:
   size_t _unclassifiedReadCount ; // number of unclassified reads or filtered due to other reasons.  
 
   bool _hasExpandedTaxIds ;
+  bool _protein ; // protein index: the classification's hitLength is in amino acids, queryLength in nucleotides
   std::map< std::pair<size_t, size_t>, double > _childReadCount ; // pair<a,b>: a: parent ctid, b: child ctid. double: count sum (each count is fractioned by the expanded tax id size)
 
   // NOT USED now. Original implementation of taxonomy ID genome length is taking the max, now is taking average.
@@ -311,7 +312,16 @@ private:
 
   double CalculateAssignmentWeight(size_t score, size_t hitLength, size_t readLength)
   {
-    int diff = readLength - hitLength ;
+    int slack = 0 ;
+    if (_protein)
+    {
+      // With a protein index, hitLength counts amino acids and readLength nucleotides, so compare in amino acids.
+      // Each mate translates to (mate length / 3) amino acids, rounded down, so a pair can cover one fewer than
+      // readLength / 3.
+      readLength /= 3 ;
+      slack = 1 ;
+    }
+    int diff = (int)readLength - (int)hitLength - slack ;
     if (diff < int(readLength * 0.01))
       return 1 ;
     else
@@ -449,14 +459,14 @@ private:
   }
 
   // Use Depth-first search to print Kraken-report
-  // readCount: the clade read counts to print (_readCount, or _emReadCount for --em-reads); a node whose count is
-  // below minCount is left out with its subtree.
+  // readCount: the whole clade read counts to print (from AllocateIntegerCounts). A node is left out with its
+  // subtree when it gets no read and its real count (keepCount) is below minKeep.
   void OutputKreportDFS(const Tree_Plain &tree, size_t ctid, int depth, int distanceToPrevCanonicalRank, const char prevCanonicalRankSymbol, FILE *fp,
-      const double *readCount, double minCount)
+      const double *readCount, const double *keepCount, double minKeep)
   {
     size_t i ;
     char r[25] ; // rank symbol
-    if (readCount[ctid] < minCount) 
+    if (readCount[ctid] < 0.5 && keepCount[ctid] < minKeep)
       return ;
 
     if (_taxonomy.IsInCanonicalRank(ctid)
@@ -497,7 +507,7 @@ private:
     fprintf(fp, "%s\n", _taxonomy.GetTaxIdName(ctid).c_str()) ;
 
     for (i = 0 ; i < childrenCnt ; ++i)
-      OutputKreportDFS(tree, children[i], depth + 1, distanceToPrevCanonicalRank + 1, r[0], fp, readCount, minCount) ;
+      OutputKreportDFS(tree, children[i], depth + 1, distanceToPrevCanonicalRank + 1, r[0], fp, readCount, keepCount, minKeep) ;
   }
 
   // Per-taxonomy-node arrays, sized by the loaded taxonomy. Init frees the old ones first, so calling Init again
@@ -559,6 +569,7 @@ public:
     _taxidLength = NULL ;
 
     _hasExpandedTaxIds = false ;
+    _protein = false ;
   }
 
   ~Quantifier()
@@ -589,13 +600,28 @@ public:
   
     AllocArrays() ;
     
+    _protein = IsProteinIndex(indexPrefix) ;
+
     // Initialize genome length. It stores the average genome size if there are multiple genomes, such as internal nodes
     _taxonomy.ConvertSeqLengthToTaxLength(_seqLength, _taxidLength) ; 
+  }
+
+  // For a classification against a protein index, when the index is not given (-x) to tell. Call after Init and
+  // before LoadReadAssignments.
+  void SetProtein(bool protein)
+  {
+    _protein = protein ;
+  }
+
+  bool IsProtein() const
+  {
+    return _protein ;
   }
 
   void Init(char *taxonomyTree, char *nameTable, char *sizeTable)
   {
     _taxonomy.Free() ;
+    _protein = false ; // no index to tell: SetProtein after Init
     _taxonomy.Init(taxonomyTree, nameTable) ;
     
     AllocArrays() ;
@@ -620,6 +646,26 @@ public:
     }
   }
   
+  // Whether the index holds protein sequences: its .4.cfr says "sequence_type amino_acid" (as in
+  // Classifier::IsProteinDatabase). An index without .4.cfr is taken as nucleotide.
+  static bool IsProteinIndex(const char *indexPrefix)
+  {
+    bool ret = false ;
+    char key[128] ;
+    char val[128] ;
+    std::string fileName = std::string(indexPrefix) + ".4.cfr" ;
+    FILE *fp = fopen(fileName.c_str(), "r") ;
+    if (fp == NULL)
+      return false ;
+    while (fscanf(fp, "%127s %127s", key, val) == 2)
+    {
+      if (!strcmp(key, "sequence_type") && !strcmp(val, "amino_acid"))
+        ret = true ;
+    }
+    fclose(fp) ;
+    return ret ;
+  }
+
   // Coalsce the assignment that mapped to the same set of target
   size_t CoalesceAssignments()
   {
@@ -663,6 +709,8 @@ public:
     bool hasExpandedTaxIds = false ;
     std::vector<uint64_t> expandedTaxIds ;
     _unclassifiedReadCount = 0 ;
+    uint64_t classifiedLineCnt = 0 ; // classified lines, and those whose hit covers at most a third of the read
+    uint64_t aaLikeLineCnt = 0 ;
 
     while (gzgets(gzfp, line, sizeof(char) * _buffers.GetBufferSize(0)))
     {
@@ -682,6 +730,9 @@ public:
         ++_unclassifiedReadCount ;
         continue ;
       }
+      ++classifiedLineCnt ;
+      if (3 * hitLength <= readLength + 3)
+        ++aaLikeLineCnt ;
 
       if (hasExpandedTaxIds) // It is not set. The feature is disabled for now.
       {
@@ -753,6 +804,10 @@ public:
       _assignments.push_back(assign) ;
     gzclose(gzfp) ;
     CoalesceAssignments() ;
+
+    // A nucleotide hit often covers the whole read; a protein hit, counted in amino acids, at most a third of it.
+    if (!_protein && classifiedLineCnt >= 100 && aaLikeLineCnt == classifiedLineCnt)
+      Utils::PrintLog("Warning: no hit covers more than a third of its read, as with a protein index. If the classification used a protein index, give it with -x or use --protein, or the read weights will be too low.") ;
   }
 
   void AddReadAssignment(const struct _classifierResult &result)
@@ -960,17 +1015,18 @@ public:
     {
       Tree_Plain tree ;
       _taxonomy.ConvertToGeneralTree(tree) ;
-      // The kraken-report keeps its six columns (Pavian, Bracken and KrakenTools read it by position); with
-      // emReads its two read columns hold EM read counts, made whole by AllocateIntegerCounts so that clade and
-      // taxon reads add up, and taxa that get no read are left out.
+      // The kraken-report keeps its six columns (Pavian, Bracken and KrakenTools read it by position). Its read
+      // counts are made whole by AllocateIntegerCounts, so that each clade count is its taxon count plus its
+      // children's and the taxon counts add up to the root's: Pavian takes percentages over the taxon counts. With
+      // emReads the two read columns hold EM read counts, and taxa that get no read are left out; otherwise the
+      // evenly split counts, and taxa are listed as before (any with reads, even fewer than one).
+      std::vector<double> intCount(nodeCnt + 1, 0) ;
+      const double *realCount = emReads ? _emReadCount : _readCount ;
+      AllocateIntegerCounts(tree, tree.Root(), realCount, (uint64_t)llround(realCount[tree.Root()]), intCount.data()) ;
       if (emReads)
-      {
-        std::vector<double> emInt(nodeCnt + 1, 0) ;
-        AllocateIntegerCounts(tree, tree.Root(), _emReadCount, (uint64_t)llround(_emReadCount[tree.Root()]), emInt.data()) ;
-        OutputKreportDFS(tree, tree.Root(), 0, 0, '\0', fp, emInt.data(), 0.5) ;
-      }
+        OutputKreportDFS(tree, tree.Root(), 0, 0, '\0', fp, intCount.data(), intCount.data(), 0.5) ;
       else
-        OutputKreportDFS(tree, tree.Root(), 0, 0, '\0', fp, _readCount, 1e-6) ; 
+        OutputKreportDFS(tree, tree.Root(), 0, 0, '\0', fp, intCount.data(), _readCount, 1e-6) ;
     }
     else
     {
