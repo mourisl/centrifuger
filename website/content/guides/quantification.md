@@ -31,13 +31,15 @@ centrifuger-quant \
 - `--name-table FILE` — NCBI `names.dmp`.
 - `--size-table FILE` — optional table of contig or genome sizes, used to normalise abundance by genome length.
 
+If the classification used a protein index, also add `--protein`: hit lengths are then in amino acids, and without it every read looks mostly uncovered. With `-x` the index tells `centrifuger-quant` this by itself.
+
 :::caution Use the matching taxonomy
 The taxonomy must be the one the index was built with. A newer `nodes.dmp` may have renamed, merged or deleted nodes that the classification file still refers to.
 :::
 
 ## The report
 
-The output has seven columns — name, taxID, taxRank, genomeSize, numReads, numUniqueReads and abundance — described in full under [output formats](/reference/output-formats/#quantification-output).
+The output has nine columns — name, taxID, taxRank, genomeSize, numReads, numUniqueReads, abundance, emNumReads and emNumReadsWeighted — described in full under [output formats](/reference/output-formats/#quantification-output).
 
 Two of them are easy to confuse:
 
@@ -45,6 +47,8 @@ Two of them are easy to confuse:
 - **numUniqueReads** counts only reads assigned unambiguously to a sequence under this node. It is the more conservative evidence, and a large gap between the two columns is a signal that the taxon is hard to distinguish from its neighbours.
 
 **abundance** is the proportion of the sample attributed to this taxon after normalising by genome length, which is what you want when comparing a small virus with a large bacterium.
+
+**emNumReads** shares each multi-classified read in proportion to the abundance estimate instead of evenly. When several close relatives share reads, it gives the reads to the taxa the abundance estimate supports, so it is the read count to use alongside **abundance**. Add `--em-reads` to carry it into the MetaPhlAn, CAMI and Kraken report formats.
 
 ## Filtering before aggregation
 

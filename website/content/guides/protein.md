@@ -58,7 +58,9 @@ centrifuger-quant -x cfr_protein_pv \
   -c protein_classification.tsv > protein_report.tsv
 ```
 
-The output columns are unchanged, described in [output formats](/reference/output-formats/). The `seqID` column now names a protein accession rather than a contig, and `hitLength` reflects the matched extent of the read.
+The output columns are unchanged, described in [output formats](/reference/output-formats/). The `seqID` column now names a protein accession rather than a contig, and `hitLength` is the matched extent of the read in amino acids (`queryLength` stays in nucleotides).
+
+`centrifuger-quant` weights each read by how much of it the hit covers, so it must know that the hit lengths are in amino acids. With `-x` it reads this from the index. If you quantify with `--taxonomy-tree`/`--name-table` instead of the index, add `--protein`; without it every read gets the smallest weight, which flattens the abundance estimate (`centrifuger-quant` warns when no hit covers more than a third of its read).
 
 :::caution Scores are not comparable across alphabets
 A score from a protein index and a score from a nucleotide index are on different scales. Compare protein runs with protein runs, and choose `--min-score` thresholds separately for each.

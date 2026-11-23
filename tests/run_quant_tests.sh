@@ -22,7 +22,7 @@ Q=$R/centrifuger-quant
 # The same index marked as protein, and the classification with hit lengths in amino acids
 # (a 2x100 nt pair translates to at most 2x33 amino acids).
 for i in 1 2 3; do cp "$T/ex.$i.cfr" "$T/aa.$i.cfr"; done
-sed 's/^sequence_type\tnucleotide/sequence_type\tamino_acid/' "$T/ex.4.cfr" > "$T/aa.4.cfr"
+awk 'BEGIN{FS=OFS="\t"} $1=="sequence_type"{$2="amino_acid"} 1' "$T/ex.4.cfr" > "$T/aa.4.cfr"
 awk -F'\t' 'BEGIN{OFS="\t"} NR==1{print; next} {h=int($6/3); if(h>66)h=66; $6=h; print}' "$T/class.tsv" > "$T/class_aa.tsv"
 
 echo "== Quantifier state (AddressSanitizer)"
