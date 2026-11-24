@@ -23,6 +23,36 @@ Centrifuger depends on [pthreads](http://en.wikipedia.org/wiki/POSIX_Threads).
 
 Centrifuger is also available from [Bioconda](https://anaconda.org/bioconda/centrifuger). You can install Centrifuger with `conda install -c conda-forge -c bioconda centrifuger`.
 
+### Quick start
+
+![Centrifuger workflow: build an index once, classify each sample, then quantify](figures/workflow/workflow.png)
+
+*Build an index once per database; classify each sample against it; then summarise the classification into a profile. The index carries the taxonomy, names and genome sizes, so classification and quantification need only `-x`. Quantification takes seconds, so it can be rerun with other options without classifying again. Drawn by `figures/workflow/plot.py`.*
+
+The whole workflow on the bundled example (two *Legionella pneumophila* strains, 100 read pairs) takes a few seconds. From the repository directory, after `make`:
+
+```
+cd example
+# 1. Build the index (writes cfr_ref_idx.1.cfr ... cfr_ref_idx.4.cfr)
+../centrifuger-build -r ref.fa --taxonomy-tree nodes.dmp --name-table names.dmp \
+    --conversion-table ref_seqid.map -o cfr_ref_idx
+# 2. Classify the reads, keeping up to 5 assignments per read
+../centrifuger -x cfr_ref_idx -1 example_1.fq -2 example_2.fq -k 5 > classification.tsv
+# 3. Quantify: the default report, then a Kraken-style report with EM read counts
+../centrifuger-quant -x cfr_ref_idx -c classification.tsv > report.tsv
+../centrifuger-quant -x cfr_ref_idx -c classification.tsv --output-format 3 --em-reads > kreport.txt
+```
+
+The two strain rows of `report.tsv` (other columns: name, taxRank):
+
+```
+taxID   genomeSize  numReads  numUniqueReads  abundance  emNumReads  emNumReadsWeighted
+272624  3353119     50        47              0.3481908  49.089      6.607
+297246  3458445     50        47              0.6518092  50.911      12.721
+```
+
+numReads splits the reads that fit both strains evenly; emNumReads shares them by the abundance estimate, so it is the read count that goes with the abundance column (see "Which column to use" under [Input/Output](#inputoutput)). The same two rows in `kreport.txt` read 49 and 51 reads; without `--em-reads` they read 50 and 50.
+
 ### Usage
 
 #### Build index
@@ -216,6 +246,16 @@ To download the protein database from NCBI, add the "-p" option to the centrifug
 The index building procedure is similar to [Centrifuge's](http://www.ccb.jhu.edu/software/centrifuge/manual.shtml#database-download-and-index-building), but with names changing to centrifuger. For example, centrifuge-download is centrifuger-download. 
 
 The folder "indices" contains information for creating index from other sources, like SILVA and GTDB.
+
+Every taxonomy ID in the conversion table must be in the nodes.dmp given to centrifuger-build. An ID that is missing only prints `WARNING: <taxID> is not in the taxonomy tree`; the build carries on and the sequence is placed at the root (taxonomy ID 1), so its reads are reported as root. For a genome whose organism has no taxonomy ID yet (e.g., a new species or your own assembly), add a node under its closest known taxon before building, using an ID far above NCBI's (here 2000000001, under the genus *Legionella*, 445):
+
+	printf '2000000001\t|\t445\t|\tspecies\t|\n' | cat nodes.dmp - > nodes.custom.dmp
+	printf '2000000001\t|\tLegionella sp. NEW-1\t|\t\t|\tscientific name\t|\n' | cat names.dmp - > names.custom.dmp
+	printf 'NEW1_contig_1\t2000000001\n' | cat seqid2taxid.map - > seqid2taxid.custom.map
+	# every taxID in the conversion table must now be in nodes.custom.dmp; this prints the ones that are not
+	awk 'NR==FNR {ok[$1]; next} !($2 in ok) {print "missing taxID", $2, "for", $1}' nodes.custom.dmp seqid2taxid.custom.map
+
+Then build with `--taxonomy-tree nodes.custom.dmp --name-table names.custom.dmp --conversion-table seqid2taxid.custom.map`, adding the new FASTA to `-r` or `-l`. In the index and the reports, spaces in names become underscores (`Legionella_sp._NEW-1`). The genome size of the new taxon follows the rules above: contigs named like `NEW1_contig_1` are not added together, so the longest contig is used unless the contigs are joined into one sequence first.
 
 * #### 10x Genomics data and barcode-based single-cell data
 
