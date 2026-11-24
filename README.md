@@ -154,11 +154,33 @@ The eighth column is the number of reads under this taxonomy node when each mult
 The ninth column is the EM's own final read weight under this taxonomy node (e.g., 6.607): each read is weighted by how much of it the hit covers, not by its score (the weight is quartered for every base the hit falls short of the read beyond 1% of its length, at most 11 times; with a protein index, for every amino acid short of the read's length divided by 3, allowing one more for the two mates of a pair), so this column is not a read count and its total can be far below the number of classified reads; and the weight a node holds beyond its children's is passed down to them in proportion to their abundance divided by genome length, as in the abundance estimate.
 ```
 
+Which column to use:
+
+| Column | What it holds | Use it for |
+|---|---|---|
+| numReads | reads under the node, each multi-classified read split evenly among its classifications; printed as a whole number (the fraction is dropped) | a quick look; comparing with earlier versions |
+| numUniqueReads | reads with a single classification under the node | evidence that a taxon is present |
+| emNumReads | reads under the node, each multi-classified read shared by the EM abundance estimate; fractional, sums to the classified reads at the root | read counts that agree with the abundance estimate |
+| emNumReadsWeighted | the EM's internal read weight | diagnosing the EM only; it is not a read count |
+| abundance | proportion of genomes, normalized by genome size | relative abundance (not read counts) |
+
+The figure below follows one read that fits three sibling strains through each output.
+
+![One read shared by three strains, as counted by each output](figures/shared_reads/shared_reads.png)
+
+*One read that fits three sibling strains (genome sizes 1, 1 and 2 Mb). numReads splits it evenly (1/3 each), but format 0 prints whole numbers, so every strain shows 0. emNumReads shares it by the EM estimate, which divides by genome size: the two 1 Mb strains get half a read each and the 2 Mb strain none. Centrifuger v1.2.0's kraken-report rounded each row on its own, so all three strains got 0 and the taxon reads added up to 0 although the sample has one read. The kraken-report now shares whole reads from the top of the tree down by largest remainder, so one strain gets the read and the taxon reads add up to 1, with or without "--em-reads". Made from the example taxonomy by `figures/make_data.sh` and `figures/shared_reads/plot.py`.*
+
 With "--em-reads", the other formats report the EM read counts too. The kraken-report (format 3) keeps its six columns and fills its two read-count columns (clade and taxon reads) with the EM read counts instead of the evenly split counts. They are made whole from the top of the tree down (each taxon's reads are shared among the taxon itself and its children by largest remainder), so that each clade count is its taxon count plus its children's clade counts and the taxon counts add up to the total; taxa that get no read are left out. Pavian reads it like the default report and shows the EM counts in place of the even split; the column layout that tools such as Bracken and KrakenTools expect is the same. The MetaPhlAn (format 1) and CAMI (format 2) outputs, which have no read counts, get the EM read count as a last column (emNumReads, and _CENTRIFUGER_EMNUMREADS because CAMI requires a prefix for added columns). The centrifuger format (format 0) always has emNumReads and emNumReadsWeighted. Without "--em-reads", formats 1 and 2 are unchanged.
 
 The kraken-report's read counts are whole numbers that add up: each taxon's reads are shared among the taxon itself and its children by largest remainder, so each clade count is its taxon count plus its children's clade counts, and the taxon counts add up to the root's. (Rounding each row on its own, as before, could leave the taxon counts summing to more or less than the root, and Pavian, which divides by their sum, showed the root at other than 100%; with reads shared by several strains, every strain could round to 0.) Without "--em-reads" the report lists the same taxa with the same percentages as before; only the read columns can change (on two samples with about 30,000 rows, 85% of rows were unchanged and the rest moved by one or two reads).
 
 With a protein index, Centrifuger reports the hit length in amino acids and the read length in nucleotides. centrifuger-quant compares them in amino acids when the index (-x) is a protein index, or when "--protein" is given with the taxonomy files. Without it, every read looks two thirds uncovered and gets the smallest weight, which flattens the abundance estimate (and emNumReadsWeighted); centrifuger-quant warns when no hit covers more than a third of its read.
+
+![Abundance of the two example strains with a protein index read as nucleotide or as protein](figures/protein_weights/protein_weights.png)
+
+*The example reads classified against the example index marked as protein, with hit lengths divided by 3 (as in `tests/run_quant_tests.sh`). Read as nucleotide (Centrifuger v1.2.0, or this version given taxonomy files without "--protein"), every read gets the smallest weight and the two strains come out near 50:50; v1.2.0 and this version without "--protein" give the same abundances. Read as protein (a protein index given with -x, or "--protein"), the estimate is close to the one from the nucleotide index. Root emNumReadsWeighted: 19.3 with the nucleotide index, 0.0 read as nucleotide, 23.5 read as protein. Made by `figures/make_data.sh` and `figures/protein_weights/plot.py`.*
+
+The genome sizes that the abundance is divided by, and that the genomeSize column and `centrifuger-inspect --size-table` show, come from the index: each sequence's length after dust masking (on by default in centrifuger-build, so a little under its FASTA length); sequences of one taxonomy ID are added together as one genome only when their IDs look like an accession with a two-letter prefix and an underscore and their numbers follow on (e.g., NC_000001 and NC_000002); when a taxonomy ID has several genomes, the longest is used; and a higher rank gets the mean of the genomes below it. A segmented virus whose segment IDs do not follow on, or a genome in contigs named otherwise, is therefore sized by its longest piece.
 
 ### Practical notes
 * #### Create index for genomes from NCBI.

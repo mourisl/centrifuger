@@ -1,0 +1,16 @@
+run	taxID	name	numReads	emNumReads	emNumReadsWeighted	abundance
+nt	1	root	100	100.000	19.329	1.0000000
+nt	272624	Legionella_pneumophila_subsp._pneumophila_str._Philadelphia_1	50	49.089	6.607	0.3481908
+nt	297246	Legionella_pneumophila_str._Paris	50	50.911	12.721	0.6518092
+aa_v1.2.0	1	root	100			1.0000000
+aa_v1.2.0	272624	Legionella_pneumophila_subsp._pneumophila_str._Philadelphia_1	50			0.5074771
+aa_v1.2.0	297246	Legionella_pneumophila_str._Paris	50			0.4925229
+aa_as_nt	1	root	100	100.000	0.000	1.0000000
+aa_as_nt	272624	Legionella_pneumophila_subsp._pneumophila_str._Philadelphia_1	50	50.045	0.000	0.5074771
+aa_as_nt	297246	Legionella_pneumophila_str._Paris	50	49.955	0.000	0.4925229
+aa_protein	1	root	100	100.000	23.542	1.0000000
+aa_protein	272624	Legionella_pneumophila_subsp._pneumophila_str._Philadelphia_1	50	49.228	8.589	0.3713898
+aa_protein	297246	Legionella_pneumophila_str._Paris	50	50.772	14.953	0.6286102
+aa_index	1	root	100	100.000	23.542	1.0000000
+aa_index	272624	Legionella_pneumophila_subsp._pneumophila_str._Philadelphia_1	50	49.228	8.589	0.3713898
+aa_index	297246	Legionella_pneumophila_str._Paris	50	50.772	14.953	0.6286102
