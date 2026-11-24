@@ -1,0 +1,6 @@
+output	Strain_A_1Mb	Strain_B_1Mb	Strain_C_2Mb	taxon_reads_sum
+numReads	0	0	0	1
+emNumReads	0.5	0.5	0	1
+kreport_v1.2.0	0	0	0	0
+kreport	1	0	0	1
+kreport_em_reads	1	0	0	1

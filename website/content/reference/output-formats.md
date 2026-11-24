@@ -41,11 +41,11 @@ When barcode and UMI extraction are enabled, those values ride along with the re
 
 ## Quantification output
 
-`centrifuger-quant` estimates the abundance of each taxonomy ID. The report has seven columns:
+`centrifuger-quant` estimates the abundance of each taxonomy ID. The report has nine columns:
 
 ```text
-name                                                          taxID    taxRank  genomeSize  numReads  numUniqueReads  abundance
-Legionella_pneumophila_subsp._pneumophila_str._Philadelphia_1  272624   strain   3397753     50        48              0.392641
+name                                                          taxID    taxRank  genomeSize  numReads  numUniqueReads  abundance  emNumReads  emNumReadsWeighted
+Legionella_pneumophila_subsp._pneumophila_str._Philadelphia_1  272624   strain   3353119     50        47              0.3481908  49.089      6.607
 ```
 
 | # | Column | Description |
@@ -57,10 +57,13 @@ Legionella_pneumophila_subsp._pneumophila_str._Philadelphia_1  272624   strain  
 | 5 | `numReads` | The number of reads classified to some genomic sequence under this taxonomy node. Multi-classified reads are evenly distributed. |
 | 6 | `numUniqueReads` | The number of reads uniquely classified to a genomic sequence under this taxonomy node. |
 | 7 | `abundance` | The proportion of this genome, normalised by its genomic length. |
+| 8 | `emNumReads` | The number of reads under this taxonomy node when each multi-classified read is shared among its classifications in proportion to the EM abundance estimate, instead of evenly as in column 5. It is one further E-step of the EM with the final abundances, counting each read as 1, and sums the whole subtree like column 5. |
+| 9 | `emNumReadsWeighted` | The EM's own final read weight under this taxonomy node. Each read is weighted by how much of it the hit covers (quartered for every base, or amino acid with a protein index, that the hit falls short of the read beyond 1% of its length, at most 11 times), so this is not a read count and its total can be well below the number of classified reads. |
 
 ### Reading the report
 
 - **`numReads` against `numUniqueReads`.** A taxon with many reads but few unique ones is hard to distinguish from its neighbours; one with a high unique count is well supported.
+- **`numReads` against `emNumReads`.** Reads shared by close relatives are split evenly in `numReads` but follow the abundance estimate in `emNumReads`, so a relative that is supported mainly by shared reads drops in `emNumReads`.
 - **`abundance` is length-normalised**, so it is comparable between a small virus and a large bacterium in a way that raw read counts are not.
 - **Rows exist at several ranks.** Reads that cannot be resolved to strain are attributed to the lowest rank that does explain them, so a profile mixes strain, species and higher-rank rows.
 
@@ -80,6 +83,10 @@ centrifuger-quant -x cfr_idx -c classification.tsv --output-format 3 > kreport.t
 ```
 
 Since these are all derived from the classification file, emitting several costs nothing beyond a second `centrifuger-quant` run.
+
+The Kraken report keeps the standard six columns. Its read counts are whole numbers that add up: each taxon's reads are shared among the taxon itself and its children by largest remainder, so each clade count is its taxon count plus its children's clade counts, and the taxon counts add up to the root's (Pavian computes percentages over their sum).
+
+With `--em-reads`, the other formats carry the EM read counts too: the Kraken report fills its two read-count columns with them (same six columns, so Pavian, Bracken and KrakenTools read it as usual; taxa that get no read are left out), and the MetaPhlAn and CAMI outputs get them as a last column (`emNumReads`, and `_CENTRIFUGER_EMNUMREADS` because CAMI requires a prefix for added columns). Without `--em-reads`, the MetaPhlAn and CAMI outputs are unchanged.
 
 ## Index files
 

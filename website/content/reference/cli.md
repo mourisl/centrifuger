@@ -133,6 +133,8 @@ When `-x` is not given, the taxonomy must be supplied directly:
 | `--min-score INT` | Only consider reads with a score of at least this value. |
 | `--min-length INT` | Only consider reads with a classified length of at least this value. |
 | `--output-format INT` | Output format: `0` Centrifuge (default), `1` MetaPhlAn, `2` CAMI, `3` Kraken report. |
+| `--em-reads` | Report the EM read counts (`emNumReads`) in every format: the Kraken report's read columns hold them, MetaPhlAn and CAMI get them as a last column. The Centrifuge format always has them. Default: off. |
+| `--protein` | The classification used a protein index, so hit lengths are in amino acids. Only needed without `-x`; with `-x` it is read from the index. Default: off. |
 
 ## centrifuger-download
 

@@ -10,6 +10,7 @@
 
 #include <vector> 
 #include <algorithm>
+#include <math.h>
 #include <zlib.h>
 
 using namespace compactds ;
@@ -95,9 +96,12 @@ private:
   double *_abund ;
   double *_readCount ; // number of reads assigned to this tax ID and its subtree, taking the probability distribution into account.
   double *_uniqReadCount ; // number of reads uniquely assigned to this tax ID. Unique is at the strain/sequence level in its subtree.
+  double *_emReadCount ; // number of reads in this tax ID's subtree when each read is shared among its targets by the EM abundance (one more E-step with the final abundance, read counts instead of weights, no redistribution).
+  double *_emReadCountWeighted ; // the EM's own final read weights in the subtree (each read weighted by its hit coverage, CalculateAssignmentWeight; a node's excess redistributed to its children in proportion to their abundance over genome length), as computed inside EstimateAbundanceWithEM.
   size_t _unclassifiedReadCount ; // number of unclassified reads or filtered due to other reasons.  
 
   bool _hasExpandedTaxIds ;
+  bool _protein ; // protein index: the classification's hitLength is in amino acids, queryLength in nucleotides
   std::map< std::pair<size_t, size_t>, double > _childReadCount ; // pair<a,b>: a: parent ctid, b: child ctid. double: count sum (each count is fractioned by the expanded tax id size)
 
   // NOT USED now. Original implementation of taxonomy ID genome length is taking the max, now is taking average.
@@ -236,6 +240,29 @@ private:
     return diffSum ;
   }
 
+  // E-step of EMupdate with each assignment's read count instead of its weight. readCount must be zeroed.
+  // An assignment whose targets all have zero abundance is shared evenly, as in the EM's initialisation.
+  void EStepCount(const std::vector< struct _readAssignment> &assignments, const double *abund, double *readCount)
+  {
+    size_t i, j ;
+    size_t size = assignments.size() ;
+    for (i = 0 ; i < size ; ++i)
+    {
+      const std::vector<uint64_t> &targets = assignments[i].targets ;
+      size_t targetCnt = targets.size() ;
+      double sum = 0 ;
+      for (j = 0 ; j < targetCnt ; ++j)
+        sum += abund[ targets[j] ] ;
+      for (j = 0 ; j < targetCnt ; ++j)
+      {
+        if (sum > 0)
+          readCount[ targets[j] ] += assignments[i].count * abund[ targets[j] ] / sum ;
+        else
+          readCount[ targets[j] ] += assignments[i].count / (double)targetCnt ;
+      }
+    }
+  }
+
   void EstimateAbundanceWithEM(const std::vector< struct _readAssignment > &assignments, const Tree_Plain &tree, size_t *taxidLen, double *treeEdgeWeight, double *readCount, double *abund)
   {
     size_t i, j ;
@@ -285,7 +312,16 @@ private:
 
   double CalculateAssignmentWeight(size_t score, size_t hitLength, size_t readLength)
   {
-    int diff = readLength - hitLength ;
+    int slack = 0 ;
+    if (_protein)
+    {
+      // With a protein index, hitLength counts amino acids and readLength nucleotides, so compare in amino acids.
+      // Each mate translates to (mate length / 3) amino acids, rounded down, so a pair can cover one fewer than
+      // readLength / 3.
+      readLength /= 3 ;
+      slack = 1 ;
+    }
+    int diff = (int)readLength - (int)hitLength - slack ;
     if (diff < int(readLength * 0.01))
       return 1 ;
     else
@@ -352,12 +388,85 @@ private:
     return pathSize ;
   }
 
-  // Use Depth-first search to print Kraken-report 
-  void OutputKreportDFS(const Tree_Plain &tree, size_t ctid, int depth, int distanceToPrevCanonicalRank, const char prevCanonicalRankSymbol, FILE *fp)
+  // Integer read counts for the kraken-report from real-valued subtree counts (readCount): the node ctid gets
+  // count reads, shared among the node itself (its real count minus its children's) and its children by largest
+  // remainder, in proportion to their real counts, and so on down the tree. Each node's integer count is then
+  // its own share plus its children's counts, and the shares add up to the root's count, so the report's taxon
+  // reads sum to its total however the real counts round. intCount must be zeroed. The counts are kept as doubles
+  // like the rest of the report, so this is exact up to 2^53 reads.
+  void AllocateIntegerCounts(const Tree_Plain &tree, size_t ctid, const double *readCount, uint64_t count, double *intCount)
+  {
+    size_t i ;
+    intCount[ctid] = (double)count ;
+    if (count == 0)
+      return ;
+    std::vector<size_t> children = tree.GetChildren(ctid) ;
+    size_t csize = children.size() ;
+    if (csize == 0)
+      return ;
+
+    std::vector<double> part(csize + 1) ; // part[0]: the node itself; part[i + 1]: child i
+    double childSum = 0 ;
+    for (i = 0 ; i < csize ; ++i)
+    {
+      part[i + 1] = readCount[children[i]] > 0 ? readCount[children[i]] : 0 ;
+      childSum += part[i + 1] ;
+    }
+    part[0] = readCount[ctid] - childSum ;
+    if (part[0] < 0)
+      part[0] = 0 ;
+    double total = part[0] + childSum ;
+
+    std::vector<uint64_t> alloc(csize + 1, 0) ;
+    if (total <= 0)
+      alloc[0] = count ;
+    else
+    {
+      std::vector< std::pair<double, size_t> > remainder(csize + 1) ; // (-remainder, part): sorting puts the largest first
+      uint64_t given = 0 ;
+      for (i = 0 ; i <= csize ; ++i)
+      {
+        double q = (double)count * part[i] / total ;
+        alloc[i] = (uint64_t)floor(q) ;
+        given += alloc[i] ;
+        remainder[i] = std::make_pair(-(q - floor(q)), i) ;
+      }
+      std::sort(remainder.begin(), remainder.end()) ;
+      for (i = 0 ; given < count ; ++i)
+      {
+        ++alloc[ remainder[i % (csize + 1)].second ] ;
+        ++given ;
+      }
+      // Floating-point error can push a quota that is a whole number to just above it, so the floors can add up
+      // to more than count: take reads back from the parts with the smallest remainders, cycling until they add up.
+      // (There is always a part left to take from, as the parts add up to given > count >= 0.)
+      i = csize + 1 ;
+      while (given > count)
+      {
+        if (i == 0)
+          i = csize + 1 ;
+        size_t j = remainder[i - 1].second ;
+        --i ;
+        if (alloc[j] > 0)
+        {
+          --alloc[j] ;
+          --given ;
+        }
+      }
+    }
+    for (i = 0 ; i < csize ; ++i)
+      AllocateIntegerCounts(tree, children[i], readCount, alloc[i + 1], intCount) ;
+  }
+
+  // Use Depth-first search to print Kraken-report
+  // readCount: the whole clade read counts to print (from AllocateIntegerCounts). A node is left out with its
+  // subtree when it gets no read and its real count (keepCount) is below minKeep.
+  void OutputKreportDFS(const Tree_Plain &tree, size_t ctid, int depth, int distanceToPrevCanonicalRank, const char prevCanonicalRankSymbol, FILE *fp,
+      const double *readCount, const double *keepCount, double minKeep)
   {
     size_t i ;
     char r[25] ; // rank symbol
-    if (_readCount[ctid] < 1e-6) 
+    if (readCount[ctid] < 0.5 && keepCount[ctid] < minKeep)
       return ;
 
     if (_taxonomy.IsInCanonicalRank(ctid)
@@ -386,10 +495,10 @@ private:
     std::vector<size_t> children = tree.GetChildren(ctid) ;
     size_t childrenCnt = children.size() ;
     for (i = 0 ; i < childrenCnt ; ++i)
-      childrenReadCount += _readCount[children[i]] ;
+      childrenReadCount += readCount[children[i]] ;
     
-    fprintf(fp, "%.2lf\t%.0lf\t%.0lf\t%s\t%lu\t", _abund[ctid] * 100, _readCount[ctid],
-        _readCount[ctid] - childrenReadCount, r, _taxonomy.GetOrigTaxId(ctid)) ;
+    fprintf(fp, "%.2lf\t%.0lf\t%.0lf\t%s\t%lu\t", _abund[ctid] * 100, readCount[ctid],
+        readCount[ctid] - childrenReadCount, r, _taxonomy.GetOrigTaxId(ctid)) ;
 
     for (i = 0 ; i < (size_t)depth ; ++i)
     {
@@ -398,7 +507,48 @@ private:
     fprintf(fp, "%s\n", _taxonomy.GetTaxIdName(ctid).c_str()) ;
 
     for (i = 0 ; i < childrenCnt ; ++i)
-      OutputKreportDFS(tree, children[i], depth + 1, distanceToPrevCanonicalRank + 1, r[0], fp) ;
+      OutputKreportDFS(tree, children[i], depth + 1, distanceToPrevCanonicalRank + 1, r[0], fp, readCount, keepCount, minKeep) ;
+  }
+
+  // Per-taxonomy-node arrays, sized by the loaded taxonomy. Init frees the old ones first, so calling Init again
+  // (for another taxonomy) does not leak them.
+  void FreeArrays()
+  {
+    free(_abund) ;
+    free(_readCount) ;
+    free(_uniqReadCount) ;
+    free(_emReadCount) ;
+    free(_emReadCountWeighted) ;
+    free(_taxidLength) ;
+    _abund = _readCount = _uniqReadCount = _emReadCount = _emReadCountWeighted = NULL ;
+    _taxidLength = NULL ;
+  }
+
+  // Also drops the read assignments, which hold compact tax IDs of the taxonomy loaded before.
+  void AllocArrays()
+  {
+    FreeArrays() ;
+    _assignments.clear() ;
+    _childReadCount.clear() ;
+    _unclassifiedReadCount = 0 ;
+    size_t n = _taxonomy.GetNodeCount() + 1 ;
+    _abund = (double *)calloc(n, sizeof(double)) ;
+    _readCount = (double *)calloc(n, sizeof(double)) ;
+    _uniqReadCount = (double *)calloc(n, sizeof(double)) ;
+    _emReadCount = (double *)calloc(n, sizeof(double)) ;
+    _emReadCountWeighted = (double *)calloc(n, sizeof(double)) ;
+    _taxidLength = (size_t *)calloc(n, sizeof(size_t)) ;
+  }
+
+  // Zero the per-node results, so that each Quantification starts afresh instead of adding to the previous one.
+  void ClearResults()
+  {
+    size_t n = _taxonomy.GetNodeCount() + 1 ;
+    memset(_abund, 0, sizeof(double) * n) ;
+    memset(_readCount, 0, sizeof(double) * n) ;
+    memset(_uniqReadCount, 0, sizeof(double) * n) ;
+    memset(_emReadCount, 0, sizeof(double) * n) ;
+    memset(_emReadCountWeighted, 0, sizeof(double) * n) ;
   }
 
 public:
@@ -414,20 +564,17 @@ public:
     _abund = NULL ;
     _readCount = NULL ;
     _uniqReadCount = NULL ;
+    _emReadCount = NULL ;
+    _emReadCountWeighted = NULL ;
     _taxidLength = NULL ;
 
     _hasExpandedTaxIds = false ;
+    _protein = false ;
   }
 
   ~Quantifier()
   {
-    if (_abund != NULL)
-    {
-      free(_taxidLength) ;
-      free(_uniqReadCount) ;
-      free(_readCount) ;
-      free(_abund) ;
-    }
+    FreeArrays() ;
   }
 
   // file: classificaiont output file
@@ -451,23 +598,33 @@ public:
       _seqLength[tmp[0]] = tmp[1] ;
     fclose(fp) ;
   
-    _abund = (double *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(_abund[0])) ;
-    _readCount = (double *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(_readCount)) ;
-    _uniqReadCount = (double *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(_uniqReadCount)) ;
-    _taxidLength = (size_t *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(size_t)) ;
+    AllocArrays() ;
     
+    _protein = IsProteinIndex(indexPrefix) ;
+
     // Initialize genome length. It stores the average genome size if there are multiple genomes, such as internal nodes
     _taxonomy.ConvertSeqLengthToTaxLength(_seqLength, _taxidLength) ; 
   }
 
+  // For a classification against a protein index, when the index is not given (-x) to tell. Call after Init and
+  // before LoadReadAssignments.
+  void SetProtein(bool protein)
+  {
+    _protein = protein ;
+  }
+
+  bool IsProtein() const
+  {
+    return _protein ;
+  }
+
   void Init(char *taxonomyTree, char *nameTable, char *sizeTable)
   {
+    _taxonomy.Free() ;
+    _protein = false ; // no index to tell: SetProtein after Init
     _taxonomy.Init(taxonomyTree, nameTable) ;
     
-    _abund = (double *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(_abund[0])) ;
-    _readCount = (double *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(_readCount)) ;
-    _uniqReadCount = (double *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(_uniqReadCount)) ;
-    _taxidLength = (size_t *)calloc(_taxonomy.GetNodeCount() + 1, sizeof(size_t)) ;
+    AllocArrays() ;
 
     if (sizeTable)
     {
@@ -489,6 +646,26 @@ public:
     }
   }
   
+  // Whether the index holds protein sequences: its .4.cfr says "sequence_type amino_acid" (as in
+  // Classifier::IsProteinDatabase). An index without .4.cfr is taken as nucleotide.
+  static bool IsProteinIndex(const char *indexPrefix)
+  {
+    bool ret = false ;
+    char key[128] ;
+    char val[128] ;
+    std::string fileName = std::string(indexPrefix) + ".4.cfr" ;
+    FILE *fp = fopen(fileName.c_str(), "r") ;
+    if (fp == NULL)
+      return false ;
+    while (fscanf(fp, "%127s %127s", key, val) == 2)
+    {
+      if (!strcmp(key, "sequence_type") && !strcmp(val, "amino_acid"))
+        ret = true ;
+    }
+    fclose(fp) ;
+    return ret ;
+  }
+
   // Coalsce the assignment that mapped to the same set of target
   size_t CoalesceAssignments()
   {
@@ -532,6 +709,8 @@ public:
     bool hasExpandedTaxIds = false ;
     std::vector<uint64_t> expandedTaxIds ;
     _unclassifiedReadCount = 0 ;
+    uint64_t classifiedLineCnt = 0 ; // classified lines, and those whose hit covers at most a third of the read
+    uint64_t aaLikeLineCnt = 0 ;
 
     while (gzgets(gzfp, line, sizeof(char) * _buffers.GetBufferSize(0)))
     {
@@ -551,6 +730,9 @@ public:
         ++_unclassifiedReadCount ;
         continue ;
       }
+      ++classifiedLineCnt ;
+      if (3 * hitLength <= readLength + 3)
+        ++aaLikeLineCnt ;
 
       if (hasExpandedTaxIds) // It is not set. The feature is disabled for now.
       {
@@ -622,6 +804,10 @@ public:
       _assignments.push_back(assign) ;
     gzclose(gzfp) ;
     CoalesceAssignments() ;
+
+    // A nucleotide hit often covers the whole read; a protein hit, counted in amino acids, at most a third of it.
+    if (!_protein && classifiedLineCnt >= 100 && aaLikeLineCnt == classifiedLineCnt)
+      Utils::PrintLog("Warning: no hit covers more than a third of its read, as with a protein index. If the classification used a protein index, give it with -x or use --protein, or the read weights will be too low.") ;
   }
 
   void AddReadAssignment(const struct _classifierResult &result)
@@ -644,6 +830,12 @@ public:
   {
     size_t i, j ;
 
+    if (_abund == NULL)
+    {
+      Utils::PrintLog("ERROR: Quantification called before Init.") ;
+      return ;
+    }
+    ClearResults() ;
     CoalesceAssignments() ;
     size_t assignCnt = _assignments.size() ;
     std::vector< struct _readAssignment> subtreeAssignments ; // the assignment where the targe ID is with respect to the subtree 
@@ -735,10 +927,22 @@ public:
         _hasExpandedTaxIds ? subtreeEdgeWeight : NULL, 
         subtreeReadCount, subtreeAbund) ;
 
+    // The EM's final read weights: weighted by hit coverage and redistributed to the children by abundance over genome length.
+    for (i = 0 ; i < subtreeSize; ++i)
+      _emReadCountWeighted[ coveredTaxIds.Inverse(i) ] = subtreeReadCount[i] ;
+
+    // One more E-step with the final abundance, sharing read counts (not weights), so that the subtree sums are
+    // comparable to numReads, which shares each read evenly among its targets instead.
+    double *subtreeEmReadCount = (double *)calloc(subtreeSize, sizeof(*subtreeEmReadCount)) ;
+    EStepCount(subtreeAssignments, subtreeAbund, subtreeEmReadCount) ;
+    GenerateTreeAbundance(subtree.Root(), subtreeEmReadCount, subtree) ;
+
     for (i = 0 ; i < subtreeSize; ++i)
     {
       _abund[ coveredTaxIds.Inverse(i) ] = subtreeAbund[i] ;
+      _emReadCount[ coveredTaxIds.Inverse(i) ] = subtreeEmReadCount[i] ;
     }
+    free(subtreeEmReadCount) ;
     free(subtreeAbund) ;
     free(subtreeReadCount) ;
     free(subtreeTaxIdLen) ;
@@ -746,14 +950,22 @@ public:
   }
 
   // format: check the enum 
-  void Output(FILE *fp, int format)
+  // emReads: use the EM read counts (emNumReads) where a format has read counts (kraken-report), and add them as a
+  // last column where it has none (MetaPhlAn, CAMI). The other columns, and the default output, are as before; the
+  // centrifuger format always has emNumReads and emNumReadsWeighted.
+  void Output(FILE *fp, int format, bool emReads = false)
   {
     size_t i ;
     size_t nodeCnt = _taxonomy.GetNodeCount() ;
+    if (_abund == NULL)
+    {
+      Utils::PrintLog("ERROR: Output called before Init.") ;
+      return ;
+    }
       
     if (format == QUANTIFIER_OUTPUT_FORMAT_METAPHLAN)
     {
-      fprintf(fp, "#clade_name\tNCBI_tax_id\trelative_abundance\tadditional_species\n") ;      
+      fprintf(fp, "#clade_name\tNCBI_tax_id\trelative_abundance\tadditional_species%s\n", emReads ? "\temNumReads" : "") ;      
       for (i = 0 ; i < nodeCnt ; ++i)
       {
         if (_readCount[i] < 1e-6)
@@ -769,12 +981,15 @@ public:
         GetTaxLineagePathString(i, format, false, true, taxIdPathString) ;
         GetTaxLineagePathString(i, format, true, true, taxNamePathString) ;
 
-        fprintf(fp, "%s\t%s\t%.5lf\t\n", taxNamePathString.c_str(), taxIdPathString.c_str(), _abund[i] * 100.0 ) ; 
+        fprintf(fp, "%s\t%s\t%.5lf\t", taxNamePathString.c_str(), taxIdPathString.c_str(), _abund[i] * 100.0 ) ; 
+        if (emReads)
+          fprintf(fp, "\t%.3lf", _emReadCount[i]) ;
+        fprintf(fp, "\n") ;
       }
     }
     else if (format == QUANTIFIER_OUTPUT_FORMAT_CAMI)
     {
-      fprintf(fp, "@@TAXID\tRANK\tTAXPATH\tTAXPATHSN\tPERCENTAGE\n") ;
+      fprintf(fp, "@@TAXID\tRANK\tTAXPATH\tTAXPATHSN\tPERCENTAGE%s\n", emReads ? "\t_CENTRIFUGER_EMNUMREADS" : "") ;
       for (i = 0 ; i < nodeCnt ; ++i)
       {
         if (_readCount[i] < 1e-6)
@@ -790,32 +1005,51 @@ public:
         GetTaxLineagePathString(i, format, false, true, taxIdPathString) ;
         GetTaxLineagePathString(i, format, true, true, taxNamePathString) ;
         
-        fprintf(fp, "%lu\t%s\t%s\t%s\t%.5lf\n", _taxonomy.GetOrigTaxId(i), _taxonomy.GetTaxRankString(_taxonomy.GetTaxIdRank(i)), taxIdPathString.c_str(), taxNamePathString.c_str(), _abund[i] * 100.0 ) ; 
+        fprintf(fp, "%lu\t%s\t%s\t%s\t%.5lf", _taxonomy.GetOrigTaxId(i), _taxonomy.GetTaxRankString(_taxonomy.GetTaxIdRank(i)), taxIdPathString.c_str(), taxNamePathString.c_str(), _abund[i] * 100.0 ) ; 
+        if (emReads)
+          fprintf(fp, "\t%.3lf", _emReadCount[i]) ;
+        fprintf(fp, "\n") ;
       }
     }
     else if (format == QUANTIFIER_OUTPUT_FORMAT_KREPORT)
     {
       Tree_Plain tree ;
       _taxonomy.ConvertToGeneralTree(tree) ;
-      OutputKreportDFS(tree, tree.Root(), 0, 0, '\0', fp) ; 
+      // The kraken-report keeps its six columns (Pavian, Bracken and KrakenTools read it by position). Its read
+      // counts are made whole by AllocateIntegerCounts, so that each clade count is its taxon count plus its
+      // children's and the taxon counts add up to the root's: Pavian takes percentages over the taxon counts. With
+      // emReads the two read columns hold EM read counts, and taxa that get no read are left out; otherwise the
+      // evenly split counts, and taxa are listed as before (any with reads, even fewer than one).
+      std::vector<double> intCount(nodeCnt + 1, 0) ;
+      const double *realCount = emReads ? _emReadCount : _readCount ;
+      AllocateIntegerCounts(tree, tree.Root(), realCount, (uint64_t)llround(realCount[tree.Root()]), intCount.data()) ;
+      if (emReads)
+        OutputKreportDFS(tree, tree.Root(), 0, 0, '\0', fp, intCount.data(), intCount.data(), 0.5) ;
+      else
+        OutputKreportDFS(tree, tree.Root(), 0, 0, '\0', fp, intCount.data(), _readCount, 1e-6) ;
     }
     else
     {
       if (format != QUANTIFIER_OUTPUT_FORMAT_CENTRIFUGER)
         Utils::PrintLog("Warning: unknown output format, will output in Centrifuger format.\n") ;
       
-      fprintf(fp, "name\ttaxID\ttaxRank\tgenomeSize\tnumReads\tnumUniqueReads\tabundance\n") ;
+      // emNumReads and emNumReadsWeighted are appended after the original columns, so that readers that use the
+      // column positions keep working.
+      fprintf(fp, "name\ttaxID\ttaxRank\tgenomeSize\tnumReads\tnumUniqueReads\tabundance\temNumReads\temNumReadsWeighted\n") ;
       for (i = 0 ; i < nodeCnt ; ++i)
       {
         if (_readCount[i] < 1e-6)
           continue ;
 
-        fprintf(fp, "%s\t%lu\t%s\t%lu\t%d\t%d\t%.7lf\n",
-            _taxonomy.GetTaxIdName(i).c_str(), 
+        // numReads and numUniqueReads are printed as 64-bit integers (they were int, which overflows above
+        // 2^31 - 1 reads); the values are truncated the same way as before.
+        fprintf(fp, "%s\t%lu\t%s\t%lu\t%llu\t%llu\t%.7lf\t%.3lf\t%.3lf\n",
+            _taxonomy.GetTaxIdName(i).c_str(),
             _taxonomy.GetOrigTaxId(i),
             _taxonomy.GetTaxRankString( _taxonomy.GetTaxIdRank(i)),
-            _taxidLength[i], 
-            (int)(_readCount[i] + 1e-3), (int)(_uniqReadCount[i] + 1e-3), _abund[i]) ;
+            _taxidLength[i],
+            (unsigned long long)(_readCount[i] + 1e-3), (unsigned long long)(_uniqReadCount[i] + 1e-3), _abund[i],
+            _emReadCount[i], _emReadCountWeighted[i]) ;
       }
     }
   }

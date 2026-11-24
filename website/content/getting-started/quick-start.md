@@ -9,6 +9,10 @@ This page takes you from a fresh installation to an abundance profile. There are
 Centrifuger must be installed and on your `PATH`. See [installation](/getting-started/installation/) if it is not.
 :::
 
+![Centrifuger workflow: build an index once, classify each sample, then quantify](/assets/workflow.png)
+
+The index carries the taxonomy, names and genome sizes, so classification and quantification need only `-x`. Quantification takes seconds, so it can be rerun with other options without classifying again.
+
 ## Run the bundled example
 
 The source distribution contains an `example/` directory with a small reference FASTA, an NCBI-style taxonomy, and a pair of FASTQ files. Move into that directory first:
@@ -35,12 +39,28 @@ Afterwards you should see the index files `cfr_ref_idx.*.cfr` in the folder.
 ../centrifuger -1 example_1.fq -2 example_2.fq -x cfr_ref_idx > output.tsv
 ```
 
-`output.tsv` should closely match the `example_class.out` file shipped alongside it. If it does, your installation is working.
+`output.tsv` should closely match the `example_class.out` file shipped alongside it. If it does, your installation is working. All 100 read pairs are classified.
 
 ### 3. Summarise into an abundance profile
 
 ```bash
 ../centrifuger-quant -x cfr_ref_idx -c output.tsv > report.tsv
+```
+
+The example holds two strains of *Legionella pneumophila*. Their rows in `report.tsv` (columns name and taxRank left out):
+
+```
+taxID   genomeSize  numReads  numUniqueReads  abundance  emNumReads  emNumReadsWeighted
+272624  3353119     47        47              0.3478411  47.000      6.607
+297246  3458445     47        47              0.6521589  47.000      12.722
+```
+
+With the default `-k 1`, the six reads that fit both strains equally well are assigned to the species above them, so each strain has 47 reads, all unique. Classify with `-k 5` instead and those six reads keep both assignments: numReads then splits them evenly (50 and 50) and emNumReads shares them by the abundance estimate (49.089 and 50.911); see [abundance quantification](/guides/quantification/).
+
+For a Kraken-style report whose read columns are the EM counts:
+
+```bash
+../centrifuger-quant -x cfr_ref_idx -c output.tsv --output-format 3 --em-reads > kreport.txt
 ```
 
 ## Classify a real sample

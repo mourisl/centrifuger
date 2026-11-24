@@ -150,6 +150,28 @@ A few options change *what* goes into the index rather than how it is built:
 - `--ignore-uncategorized-genome` — skip genomes whose sequence ID or taxonomy ID is missing or uncategorised. By default every input genome is included.
 - `--offrate INT` — sample the suffix array every 2^INT BWT characters (default 4). A larger value makes the index smaller but resolving positions slower.
 
+## Organisms without a taxonomy ID
+
+Every taxonomy ID in the conversion table must be in the `nodes.dmp` given with `--taxonomy-tree`. A missing ID does not stop the build: `centrifuger-build` prints `WARNING: <taxID> is not in the taxonomy tree` and places that sequence at the root (taxonomy ID 1), so its reads are later reported as root. Check the warnings in the build log, or check the table before building.
+
+For a genome whose organism has no taxonomy ID yet, such as a new species or your own assembly, add a node under its closest known taxon, with an ID far above NCBI's. Here a new species goes under the genus *Legionella* (445):
+
+```bash
+printf '2000000001\t|\t445\t|\tspecies\t|\n' | cat nodes.dmp - > nodes.custom.dmp
+printf '2000000001\t|\tLegionella sp. NEW-1\t|\t\t|\tscientific name\t|\n' | cat names.dmp - > names.custom.dmp
+printf 'NEW1_contig_1\t2000000001\n' | cat seqid2taxid.map - > seqid2taxid.custom.map
+
+# prints every conversion-table taxID that is not in nodes.custom.dmp; expect no output
+awk 'NR==FNR {ok[$1]; next} !($2 in ok) {print "missing taxID", $2, "for", $1}' \
+  nodes.custom.dmp seqid2taxid.custom.map
+```
+
+Then build with `--taxonomy-tree nodes.custom.dmp --name-table names.custom.dmp --conversion-table seqid2taxid.custom.map`, adding the new FASTA to `-r` or `-l`. Spaces in names become underscores in the index and the reports (`Legionella_sp._NEW-1`).
+
+:::caution Genome size of a multi-contig genome
+Abundance is divided by genome size, and sequences of one taxonomy ID are added together only when their IDs look like `NC_000001`, `NC_000002`: a two-letter prefix, an underscore and consecutive numbers. Otherwise each sequence counts as its own genome and the longest one is used. Join the contigs into one sequence, or accept that the abundance of such a taxon is overestimated. The rules are listed under [abundance quantification](/guides/quantification/#genome-sizes).
+:::
+
 ## Protein databases
 
 Passing `--protein` builds an index over protein sequences instead of genomes:

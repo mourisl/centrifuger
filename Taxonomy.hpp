@@ -471,6 +471,16 @@ public:
         delete[] _seqIdToTaxId ;
       _nodeCnt = 0 ;
     }
+    // Leave an empty taxonomy, so that a later Init or Load starts afresh: Init from nodes.dmp does not allocate
+    // _seqIdToTaxId (a dangling pointer would be deleted twice), and ReadTaxonomyTree and Load add to the ID maps.
+    _taxonomyTree = NULL ;
+    _taxonomyName = NULL ;
+    _seqIdToTaxId = NULL ;
+    _seqCnt = 0 ;
+    _extraSeqCnt = 0 ;
+    _rootCTaxId = 0 ;
+    _taxIdMap.Clear() ;
+    _seqStrNameMap.Clear() ;
   }
   
   void Init(const char *nodesFile, const char *namesFile, const char *seqIdFile, bool conversionTableAtFileLevel)
